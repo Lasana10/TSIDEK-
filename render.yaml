@@ -1,0 +1,55 @@
+services:
+  - type: web
+    name: tsidek-os
+    runtime: node
+    plan: starter
+    rootDir: .
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    autoDeploy: true
+    healthCheckPath: /auth
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: SUPABASE_JWKS_URL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_SECURE
+        value: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_GRAPH_VERSION
+        value: v20.0
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ONEDRIVE_TENANT_ID
+        sync: false
+      - key: ONEDRIVE_CLIENT_ID
+        sync: false
+      - key: ONEDRIVE_CLIENT_SECRET
+        sync: false
+      - key: ONEDRIVE_DRIVE_ID
+        sync: false
