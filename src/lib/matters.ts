@@ -50,6 +50,8 @@ export type MatterWorkspaceData = {
   mentorshipPair: string;
   mentorshipFocus: string;
   mentorshipRhythm: string;
+  securityClassification: "Standard" | "Confidential" | "Partner-only";
+  ethicalWallEnabled: boolean;
 };
 
 type MatterRow = {
@@ -60,6 +62,8 @@ type MatterRow = {
   risk_level: string | null;
   jurisdiction: string | null;
   lead_lawyer_id: string | null;
+  security_classification: MatterWorkspaceData["securityClassification"] | null;
+  ethical_wall_enabled: boolean | null;
 };
 
 type LawyerRow = {
@@ -137,6 +141,8 @@ export const seededMatterWorkspaceRecords: MatterWorkspaceData[] = [
     mentorshipPair: "Marie Ekani shadowing Sarah Mvondo for pleadings logic",
     mentorshipFocus: "OHADA service sequence and bilingual annex standards",
     mentorshipRhythm: "15-minute weekly matter debrief with PM and lead lawyer",
+    securityClassification: "Confidential",
+    ethicalWallEnabled: true,
   },
   {
     id: "tsk-cm-2026-042",
@@ -191,6 +197,8 @@ export const seededMatterWorkspaceRecords: MatterWorkspaceData[] = [
     mentorshipPair: "Linda Tabi paired with John Nkoa on chronology discipline",
     mentorshipFocus: "Claims chronology verification and document reconciliation",
     mentorshipRhythm: "Twice-weekly 10-minute checkpoint until filing decision",
+    securityClassification: "Partner-only",
+    ethicalWallEnabled: true,
   },
 ];
 
@@ -287,6 +295,8 @@ export function buildMatterWorkspaceRecord(
     mentorshipPair: "Not yet assigned",
     mentorshipFocus: "Not yet assigned",
     mentorshipRhythm: "Not yet scheduled",
+    securityClassification: matter.security_classification ?? "Standard",
+    ethicalWallEnabled: Boolean(matter.ethical_wall_enabled),
   };
 }
 
@@ -299,7 +309,7 @@ export async function loadMattersFromSupabase(firmId?: string) {
 
   let matterQuery = supabase
     .from("matters")
-    .select("id,title,client_name,status,risk_level,jurisdiction,lead_lawyer_id")
+    .select("id,title,client_name,status,risk_level,jurisdiction,lead_lawyer_id,security_classification,ethical_wall_enabled")
     .order("created_at", { ascending: false });
 
   if (firmId) {

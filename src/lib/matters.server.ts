@@ -85,6 +85,9 @@ export async function createMatterWorkspaceServer(input: {
   riskToMonitor: string;
   aiUsageRule: string;
   nextDraft: string;
+  securityClassification?: "Standard" | "Confidential" | "Partner-only";
+  ethicalWallEnabled?: boolean;
+  leadLawyerId?: string | null;
 }, scope?: RequestScope) {
   const supabase = createServerSupabaseClient();
 
@@ -109,7 +112,9 @@ export async function createMatterWorkspaceServer(input: {
         risk_to_monitor: input.riskToMonitor,
         ai_usage_rule: input.aiUsageRule,
         next_draft: input.nextDraft,
-        lead_lawyer_id: scope?.actorLawyerId ?? null,
+        security_classification: input.securityClassification ?? "Standard",
+        ethical_wall_enabled: Boolean(input.ethicalWallEnabled),
+        lead_lawyer_id: input.leadLawyerId ?? scope?.actorLawyerId ?? null,
       })
       .select("id")
       .single();
@@ -118,12 +123,27 @@ export async function createMatterWorkspaceServer(input: {
       throw new Error(result.error?.message ?? "Unable to create matter");
     }
 
-    if (scope?.actorLawyerId) {
-      await supabase.from("matter_members").upsert({
-        matter_id: result.data.id,
-        lawyer_id: scope.actorLawyerId,
-        is_primary: true,
-      });
+    if (input.leadLawyerId || scope?.actorLawyerId) {
+      const members = [
+        input.leadLawyerId
+          ? {
+              matter_id: result.data.id,
+              lawyer_id: input.leadLawyerId,
+              is_primary: true,
+            }
+          : null,
+        scope?.actorLawyerId && scope.actorLawyerId !== input.leadLawyerId
+          ? {
+              matter_id: result.data.id,
+              lawyer_id: scope.actorLawyerId,
+              is_primary: false,
+            }
+          : null,
+      ].filter(Boolean);
+
+      if (members.length) {
+        await supabase.from("matter_members").upsert(members);
+      }
     }
 
     const matters = await listMatterWorkspacesServer(scope);
@@ -143,6 +163,8 @@ export function buildMatterWorkspaceForTests(input: MatterWorkspaceData) {
       risk_level: input.riskLevel,
       jurisdiction: input.jurisdiction,
       lead_lawyer_id: null,
+      security_classification: input.securityClassification,
+      ethical_wall_enabled: input.ethicalWallEnabled,
     },
     undefined,
     [],

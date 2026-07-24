@@ -56,7 +56,7 @@ export default function CaseFileStudioPanel({
   const [draftTitle, setDraftTitle] = useState(`${matter.clientName} personalized draft`);
   const [draftContextNote, setDraftContextNote] = useState("Keep the form but adapt parties, amounts, and factual posture to this matter.");
 
-  const liveMode = matterRoom.source === "live";
+  const canPersist = matterRoom.source !== "fallback";
 
   const groupedFields = useMemo(() => {
     const groups = new Map<string, MatterRoomData["caseFields"]>();
@@ -255,7 +255,7 @@ export default function CaseFileStudioPanel({
               <input value={fieldGroup} onChange={(event) => setFieldGroup(event.target.value)} placeholder="Field group" className="rounded-[1rem] border border-slate-200 bg-white p-4 text-sm outline-none focus:border-heritage-green" />
               <input value={fieldValue} onChange={(event) => setFieldValue(event.target.value)} placeholder="Field value" className="rounded-[1rem] border border-slate-200 bg-white p-4 text-sm outline-none focus:border-heritage-green" />
             </div>
-            <ActionFooter liveMode={liveMode} busy={submitState === "field"} labelBusy="Saving..." labelReady="Save case field" onClick={() => void saveCaseField()} />
+            <ActionFooter source={matterRoom.source} busy={submitState === "field"} labelBusy="Saving..." labelReady="Save case field" onClick={() => void saveCaseField()} />
           </div>
         </section>
 
@@ -301,7 +301,7 @@ export default function CaseFileStudioPanel({
                 ))}
               </select>
             </div>
-            <ActionFooter liveMode={liveMode} busy={submitState === "file"} labelBusy="Saving..." labelReady="Register digital file" onClick={() => void saveDigitalCaseFile()} />
+            <ActionFooter source={matterRoom.source} busy={submitState === "file"} labelBusy="Saving..." labelReady="Register digital file" onClick={() => void saveDigitalCaseFile()} />
           </div>
         </section>
       </div>
@@ -349,7 +349,7 @@ export default function CaseFileStudioPanel({
               <textarea value={templateBody} onChange={(event) => setTemplateBody(event.target.value)} placeholder="Paste your current template body here. Leave blank to use the built-in heritage draft." className="min-h-40 rounded-[1rem] border border-slate-200 bg-white p-4 text-sm outline-none focus:border-heritage-green" />
               <textarea value={templateFormNote} onChange={(event) => setTemplateFormNote(event.target.value)} placeholder="What form must remain untouched?" className="min-h-24 rounded-[1rem] border border-slate-200 bg-white p-4 text-sm outline-none focus:border-heritage-green" />
             </div>
-            <ActionFooter liveMode={liveMode} busy={submitState === "template"} labelBusy="Saving..." labelReady="Save template" onClick={() => void saveTemplate()} />
+            <ActionFooter source={matterRoom.source} busy={submitState === "template"} labelBusy="Saving..." labelReady="Save template" onClick={() => void saveTemplate()} />
           </div>
         </section>
 
@@ -373,7 +373,7 @@ export default function CaseFileStudioPanel({
               <input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} placeholder="Draft title" className="rounded-[1rem] border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-white/35 focus:border-gold-accent" />
               <textarea value={draftContextNote} onChange={(event) => setDraftContextNote(event.target.value)} placeholder="Context note: keep form, adapt facts, parties, amounts..." className="min-h-28 rounded-[1rem] border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-white/35 focus:border-gold-accent" />
             </div>
-            <ActionFooter liveMode={liveMode} busy={submitState === "draft"} labelBusy="Generating..." labelReady="Generate personalized draft" dark onClick={() => void generateDraft()} />
+            <ActionFooter source={matterRoom.source} busy={submitState === "draft"} labelBusy="Generating..." labelReady="Generate personalized draft" dark onClick={() => void generateDraft()} />
           </div>
 
           <div className="mt-5 rounded-[1.25rem] border border-white/10 bg-white/5 p-4">
@@ -393,7 +393,7 @@ export default function CaseFileStudioPanel({
             <div className="mt-3 flex items-center justify-end">
               <button
                 onClick={() => void archiveDraft()}
-                disabled={submitState === "draft" || !liveMode || !draftPreview?.outputText}
+                disabled={submitState === "draft" || !canPersist || !draftPreview?.outputText}
                 className="rounded-full bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-[#082921] transition disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Archive to case file
@@ -417,28 +417,36 @@ export default function CaseFileStudioPanel({
 }
 
 function ActionFooter({
-  liveMode,
+  source,
   busy,
   labelBusy,
   labelReady,
   onClick,
   dark = false,
 }: {
-  liveMode: boolean;
+  source: MatterRoomData["source"];
   busy: boolean;
   labelBusy: string;
   labelReady: string;
   onClick: () => void;
   dark?: boolean;
 }) {
+  const canPersist = source !== "fallback";
+  const persistenceLabel =
+    source === "live"
+      ? "Saved into Supabase matter workspace"
+      : source === "prototype"
+        ? "Saved into local prototype storage"
+        : "Open a persisted matter room before saving";
+
   return (
     <div className="mt-3 flex items-center justify-between gap-3">
       <p className={`text-[10px] font-black uppercase tracking-[0.18em] ${dark ? "text-white/45" : "text-slate-400"}`}>
-        {liveMode ? "Saved into the live matter workspace" : "Live backend required for persistence"}
+        {persistenceLabel}
       </p>
       <button
         onClick={onClick}
-        disabled={busy || !liveMode}
+        disabled={busy || !canPersist}
         className={`rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] transition disabled:cursor-not-allowed disabled:opacity-50 ${
           dark ? "bg-gold-accent text-[#082921]" : "bg-heritage-green text-white"
         }`}

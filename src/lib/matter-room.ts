@@ -36,11 +36,18 @@ export type MatterRoomDocument = {
   id: string;
   title: string;
   documentType: string;
+  documentStatus: "Draft" | "Final" | "Filed" | "Archived";
+  reviewStatus: "Working" | "Internal review" | "Approved" | "Needs revision";
+  accessLevel: "Matter team" | "Lead+Partner";
+  sharingPolicy: "Internal only" | "Client-share ready" | "Blocked";
+  versionLabel: string | null;
   storagePath: string;
   oneDriveFileId: string | null;
   syncStatus: "Local only" | "OneDrive linked";
   aiSummary: string;
   requiresComplianceAudit: boolean;
+  reviewNote: string | null;
+  filedAt: string | null;
   createdAt: string;
 };
 
@@ -172,7 +179,7 @@ export type MatterRoomCustodyEvent = {
 };
 
 export type MatterRoomData = {
-  source: "live" | "fallback";
+  source: "live" | "prototype" | "fallback";
   matter: MatterWorkspaceData;
   teamMembers: MatterRoomMember[];
   assignableLawyers: MatterRoomAssignableLawyer[];
@@ -223,10 +230,17 @@ type DocumentRow = {
   id: string;
   title: string;
   document_type: string | null;
+  document_status: MatterRoomDocument["documentStatus"] | null;
+  review_status: MatterRoomDocument["reviewStatus"] | null;
+  access_level: MatterRoomDocument["accessLevel"] | null;
+  sharing_policy: MatterRoomDocument["sharingPolicy"] | null;
+  version_label: string | null;
   storage_path: string | null;
   onedrive_file_id: string | null;
   ai_summary: string | null;
   requires_compliance_audit: boolean | null;
+  review_note: string | null;
+  filed_at: string | null;
   created_at: string | null;
 };
 
@@ -403,11 +417,18 @@ function buildFallbackMatterRoom(matter: MatterWorkspaceData): MatterRoomData {
       id: `${matter.id}-document-${index + 1}`,
       title: item.name,
       documentType: item.type,
+      documentStatus: item.state === "Finalized" ? "Final" : "Draft",
+      reviewStatus: item.state === "Finalized" ? "Approved" : "Working",
+      accessLevel: item.type === "Compliance" ? "Lead+Partner" : "Matter team",
+      sharingPolicy: item.type === "Compliance" ? "Blocked" : "Internal only",
+      versionLabel: "v1",
       storagePath: "Matter vault path pending live registry",
       oneDriveFileId: null,
       syncStatus: "Local only",
       aiSummary: item.state,
       requiresComplianceAudit: item.type === "Compliance",
+      reviewNote: null,
+      filedAt: null,
       createdAt: "Seeded record",
     })),
     tasks: matter.timeline.map((item, index) => ({
@@ -624,7 +645,7 @@ async function readPrototypeMatterRooms() {
 
 async function getPrototypeMatterRoom(matterId: string, fallbackRoom: MatterRoomData) {
   const rooms = await readPrototypeMatterRooms();
-  return rooms[matterId] ?? fallbackRoom;
+  return rooms[matterId] ?? { ...fallbackRoom, source: "prototype" };
 }
 
 async function savePrototypeMatterRoom(room: MatterRoomData) {
@@ -736,7 +757,9 @@ export async function getMatterRoomById(matterId: string): Promise<MatterRoomDat
       .limit(20),
     supabase
       .from("documents")
-      .select("id,title,document_type,storage_path,onedrive_file_id,ai_summary,requires_compliance_audit,created_at")
+      .select(
+        "id,title,document_type,document_status,review_status,access_level,sharing_policy,version_label,storage_path,onedrive_file_id,ai_summary,requires_compliance_audit,review_note,filed_at,created_at"
+      )
       .eq("matter_id", matterId)
       .order("created_at", { ascending: false })
       .limit(24),
@@ -929,11 +952,18 @@ export async function getMatterRoomById(matterId: string): Promise<MatterRoomDat
           id: document.id,
           title: document.title,
           documentType: document.document_type ?? "Document",
+          documentStatus: document.document_status ?? "Draft",
+          reviewStatus: document.review_status ?? "Working",
+          accessLevel: document.access_level ?? "Matter team",
+          sharingPolicy: document.sharing_policy ?? "Internal only",
+          versionLabel: document.version_label,
           storagePath: document.storage_path ?? "Storage path not recorded",
           oneDriveFileId: document.onedrive_file_id,
           syncStatus: document.onedrive_file_id ? "OneDrive linked" : "Local only",
           aiSummary: document.ai_summary ?? "No AI summary stored yet.",
           requiresComplianceAudit: Boolean(document.requires_compliance_audit),
+          reviewNote: document.review_note,
+          filedAt: document.filed_at ? formatStoredDate(document.filed_at) : null,
           createdAt: formatStoredDate(document.created_at),
         }))
       : fallbackRoom.documents,
@@ -1693,10 +1723,16 @@ export async function createMatterDocument(input: {
   matterId: string;
   title: string;
   documentType: string;
+  documentStatus?: MatterRoomDocument["documentStatus"];
+  reviewStatus?: MatterRoomDocument["reviewStatus"];
+  accessLevel?: MatterRoomDocument["accessLevel"];
+  sharingPolicy?: MatterRoomDocument["sharingPolicy"];
+  versionLabel?: string | null;
   storagePath?: string | null;
   oneDriveFileId?: string | null;
   aiSummary?: string | null;
   requiresComplianceAudit?: boolean;
+  reviewNote?: string | null;
 }) {
   const supabase = createMatterRoomClient();
   if (!supabase) {
@@ -1715,11 +1751,18 @@ export async function createMatterDocument(input: {
             id: `document-${Date.now()}`,
             title: input.title,
             documentType: input.documentType,
+            documentStatus: input.documentStatus ?? "Draft",
+            reviewStatus: input.reviewStatus ?? "Working",
+            accessLevel: input.accessLevel ?? "Matter team",
+            sharingPolicy: input.sharingPolicy ?? "Internal only",
+            versionLabel: input.versionLabel ?? "v1",
             storagePath: input.storagePath ?? `vault/${input.matterId}/documents/${input.title}`,
             oneDriveFileId: input.oneDriveFileId ?? null,
             syncStatus: input.oneDriveFileId ? ("OneDrive linked" as const) : ("Local only" as const),
             aiSummary: input.aiSummary ?? "Document registered in the prototype backend.",
             requiresComplianceAudit: Boolean(input.requiresComplianceAudit),
+            reviewNote: input.reviewNote ?? null,
+            filedAt: input.documentStatus === "Filed" ? createdAt : null,
             createdAt,
           },
           ...room.documents,
@@ -1750,10 +1793,17 @@ export async function createMatterDocument(input: {
     uploaded_by: null,
     title: input.title,
     document_type: input.documentType,
+    document_status: input.documentStatus ?? "Draft",
+    review_status: input.reviewStatus ?? "Working",
+    access_level: input.accessLevel ?? "Matter team",
+    sharing_policy: input.sharingPolicy ?? "Internal only",
+    version_label: input.versionLabel ?? "v1",
     storage_path: input.storagePath ?? null,
     onedrive_file_id: input.oneDriveFileId ?? null,
     ai_summary: input.aiSummary ?? null,
     requires_compliance_audit: Boolean(input.requiresComplianceAudit),
+    review_note: input.reviewNote ?? null,
+    filed_at: input.documentStatus === "Filed" ? new Date().toISOString() : null,
   });
 
   if (insertResult.error) {
@@ -1766,6 +1816,93 @@ export async function createMatterDocument(input: {
     matterId: input.matterId,
     actionType: "document_registered",
     description: `Document "${input.title}" was registered in the matter vault.`,
+  });
+
+  return getMatterRoomById(input.matterId);
+}
+
+export async function updateMatterDocumentControl(input: {
+  matterId: string;
+  documentId: string;
+  documentStatus: MatterRoomDocument["documentStatus"];
+  reviewStatus: MatterRoomDocument["reviewStatus"];
+  accessLevel?: MatterRoomDocument["accessLevel"];
+  sharingPolicy?: MatterRoomDocument["sharingPolicy"];
+  versionLabel?: string | null;
+  reviewNote?: string | null;
+}) {
+  const supabase = createMatterRoomClient();
+  const updatedAt = new Date().toISOString();
+
+  if (!supabase) {
+    const fallbackRoom = await getMatterRoomById(input.matterId);
+    if (!fallbackRoom) {
+      throw new Error("Matter room not found for document control.");
+    }
+
+    return mutatePrototypeMatterRoom(input.matterId, fallbackRoom, (room) => {
+      const nextRoom = {
+        ...room,
+        source: "live" as const,
+        documents: room.documents.map((document) =>
+          document.id === input.documentId
+            ? {
+                ...document,
+                documentStatus: input.documentStatus,
+                reviewStatus: input.reviewStatus,
+                accessLevel: input.accessLevel ?? document.accessLevel,
+                sharingPolicy: input.sharingPolicy ?? document.sharingPolicy,
+                versionLabel: input.versionLabel ?? document.versionLabel,
+                reviewNote: input.reviewNote ?? document.reviewNote,
+                filedAt: input.documentStatus === "Filed" ? updatedAt : document.filedAt,
+              }
+            : document
+        ),
+        auditTrail: [
+          {
+            id: `audit-${Date.now()}`,
+            actionType: "document_control_updated",
+            description: `Document control moved to ${input.documentStatus} / ${input.reviewStatus}.`,
+            createdAt: updatedAt,
+            actorName: "TSIDEK Operator",
+          },
+          ...room.auditTrail,
+        ].slice(0, 20),
+      };
+
+      return { room: nextRoom, result: nextRoom };
+    });
+  }
+
+  const scope = await resolveMatterFirmScope(input.matterId);
+  if (!scope) {
+    throw new Error("Unable to resolve matter scope for document control.");
+  }
+
+  const result = await scope.supabase
+    .from("documents")
+    .update({
+      document_status: input.documentStatus,
+      review_status: input.reviewStatus,
+      access_level: input.accessLevel ?? null,
+      sharing_policy: input.sharingPolicy ?? null,
+      version_label: input.versionLabel ?? null,
+      review_note: input.reviewNote ?? null,
+      filed_at: input.documentStatus === "Filed" ? updatedAt : null,
+    })
+    .eq("id", input.documentId)
+    .eq("matter_id", input.matterId);
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  await recordMatterAudit({
+    supabase: scope.supabase,
+    firmId: scope.firmId,
+    matterId: input.matterId,
+    actionType: "document_control_updated",
+    description: `Document control moved to ${input.documentStatus} / ${input.reviewStatus}.`,
   });
 
   return getMatterRoomById(input.matterId);
@@ -2708,11 +2845,18 @@ export async function archivePersonalizedDraft(input: {
             id: `document-${Date.now()}`,
             title: input.title,
             documentType: "Drafting",
+            documentStatus: "Draft" as const,
+            reviewStatus: "Approved" as const,
+            accessLevel: "Lead+Partner" as const,
+            sharingPolicy: "Internal only" as const,
+            versionLabel: "v1",
             storagePath,
             oneDriveFileId: input.oneDriveFileId ?? null,
             syncStatus: input.oneDriveFileId ? ("OneDrive linked" as const) : ("Local only" as const),
             aiSummary: input.contextNote ?? "Personalized draft archived from the matter studio.",
             requiresComplianceAudit: true,
+            reviewNote: input.contextNote ?? "Personalized draft archived from the matter studio.",
+            filedAt: null,
             createdAt,
           },
           ...room.documents,

@@ -1,5 +1,6 @@
 import { getAuthenticatedUser, isSupabaseAuthConfigured } from "@/lib/supabase-auth";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { isDemoModeEnabled, isTrustedHeaderScopeEnabled } from "@/lib/runtime-mode";
 
 export type RequestScope = {
   source: "auth-user" | "headers" | "supabase-demo" | "prototype-demo";
@@ -54,8 +55,13 @@ export async function resolveRequestScope(request?: Request): Promise<RequestSco
   const headerActorLawyerId = trimHeader(request?.headers.get("x-tsidek-actor-id") ?? null);
   const headerActorName = trimHeader(request?.headers.get("x-tsidek-actor-name") ?? null);
   const headerActorRole = trimHeader(request?.headers.get("x-tsidek-actor-role") ?? null);
+  const hasHeaderScope = Boolean(headerFirmId || headerActorLawyerId);
 
-  if (headerFirmId || headerActorLawyerId) {
+  if (hasHeaderScope && !isTrustedHeaderScopeEnabled()) {
+    throw new Error("Header-scoped identity is disabled. Sign in with Supabase Auth.");
+  }
+
+  if (hasHeaderScope) {
     return {
       source: "headers",
       firmId: headerFirmId,
@@ -70,6 +76,10 @@ export async function resolveRequestScope(request?: Request): Promise<RequestSco
   const supabase = createServerSupabaseClient();
 
   if (!supabase || !isSupabaseAuthConfigured()) {
+    if (!isDemoModeEnabled()) {
+      throw new Error("Supabase Auth is not configured. Set the Supabase environment variables before using TSIDEK.");
+    }
+
     return {
       source: "prototype-demo",
       firmId: null,
@@ -79,6 +89,10 @@ export async function resolveRequestScope(request?: Request): Promise<RequestSco
       userEmail: null,
       authenticated: false,
     };
+  }
+
+  if (!isDemoModeEnabled()) {
+    throw new Error("Authentication required.");
   }
 
   const [firmResult, lawyerResult] = await Promise.all([

@@ -53,6 +53,8 @@ function buildNewMatterWorkspace(input: {
   riskToMonitor: string;
   aiUsageRule: string;
   nextDraft: string;
+  securityClassification?: "Standard" | "Confidential" | "Partner-only";
+  ethicalWallEnabled?: boolean;
 }, existingIds: string[]): MatterWorkspaceData {
   const nowLabel = new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
@@ -128,6 +130,8 @@ function buildNewMatterWorkspace(input: {
     mentorshipPair: "Not yet assigned",
     mentorshipFocus: "Matter onboarding and first draft preparation",
     mentorshipRhythm: "Weekly review",
+    securityClassification: input.securityClassification ?? "Standard",
+    ethicalWallEnabled: Boolean(input.ethicalWallEnabled),
   };
 }
 
@@ -153,6 +157,8 @@ export async function createPrototypeMatterWorkspace(input: {
   riskToMonitor: string;
   aiUsageRule: string;
   nextDraft: string;
+  securityClassification?: "Standard" | "Confidential" | "Partner-only";
+  ethicalWallEnabled?: boolean;
 }) {
   const state = await readState();
   const matter = buildNewMatterWorkspace(input, state.matters.map((item) => item.id));

@@ -37,6 +37,11 @@ debug.log
 # env files (can opt-in for committing if needed)
 .env*
 
+# TSIDEK local RAG inbox: keep staged legal documents private by default
+rag-sources/ready-made-documents/*
+!rag-sources/ready-made-documents/.gitkeep
+!rag-sources/ready-made-documents/README.md
+
 # vercel
 .vercel
 

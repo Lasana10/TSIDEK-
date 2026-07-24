@@ -53,3 +53,5 @@ services:
         sync: false
       - key: ONEDRIVE_DRIVE_ID
         sync: false
+      - key: ONEDRIVE_RAG_FOLDER_PATH
+        value: TSIDEK RAG Sources

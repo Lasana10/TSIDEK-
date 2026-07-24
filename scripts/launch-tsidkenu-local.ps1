@@ -10,9 +10,7 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $runtimeDir = Join-Path $projectRoot ".runtime"
 $pidFile = Join-Path $runtimeDir "tsidkenu-server.pid"
-$outLog = Join-Path $runtimeDir "tsidkenu-server.out.log"
-$errLog = Join-Path $runtimeDir "tsidkenu-server.err.log"
-$serverScript = Join-Path $PSScriptRoot "serve-tsidkenu.ps1"
+$launcherCmd = Join-Path $PSScriptRoot "launch-tsidkenu-local.cmd"
 $healthUrl = "http://$BindHost`:$Port/"
 
 New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
@@ -32,27 +30,15 @@ function Start-ServerProcess {
   Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
 
   $process = Start-Process `
-    -FilePath "powershell.exe" `
+    -FilePath "cmd.exe" `
     -ArgumentList @(
-      "-NoProfile",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-File",
-      $serverScript,
-      "-BindHost",
-      $BindHost,
-      "-Port",
-      $Port,
-      "-PidFile",
-      $pidFile
+      "/c",
+      "start",
+      """TSIDEK Local Server""",
+      "`"$launcherCmd`""
     ) `
     -WorkingDirectory $projectRoot `
-    -WindowStyle Hidden `
     -PassThru
-
-  if ($process) {
-    return $process
-  }
 
   $deadline = (Get-Date).AddSeconds(10)
   while ((Get-Date) -lt $deadline) {
@@ -65,7 +51,7 @@ function Start-ServerProcess {
     Start-Sleep -Milliseconds 300
   }
 
-  return $null
+  return $process
 }
 
 if (Test-Path $pidFile) {
@@ -96,8 +82,7 @@ $process = Start-ServerProcess
 $deadline = (Get-Date).AddSeconds(75)
 while ((Get-Date) -lt $deadline) {
   if ($process -and $process.HasExited) {
-    $errorOutput = if (Test-Path $errLog) { Get-Content $errLog -Tail 30 | Out-String } else { "No error log captured." }
-    throw "TSIDEK local server exited before becoming ready.`n$errorOutput"
+    throw "TSIDEK local server launcher exited before the app became ready."
   }
 
   if (Test-ServerReady -Url $healthUrl) {
@@ -109,4 +94,4 @@ while ((Get-Date) -lt $deadline) {
   Start-Sleep -Seconds 2
 }
 
-throw "TSIDEK did not become ready within 75 seconds. Check $outLog and $errLog."
+throw "TSIDEK did not become ready within 75 seconds. Keep the TSIDEK Local Server window open and inspect any startup errors shown there."

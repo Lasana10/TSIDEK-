@@ -1,313 +1,176 @@
-"use client"
-import React, { startTransition, useDeferredValue, useState } from "react";
-import dynamic from "next/dynamic";
-import { AnimatePresence, motion } from "framer-motion";
+"use client";
+
+import Link from "next/link";
+import { ArrowRight, BriefcaseBusiness, Building2, Database, FileStack, ShieldCheck, Sparkles, UserPlus, Workflow } from "lucide-react";
 import AuthSessionPill from "@/components/AuthSessionPill";
 import FirmCockpit from "@/components/FirmCockpit";
-import {
-  Award,
-  Bell,
-  BookOpen,
-  BriefcaseBusiness,
-  Cpu,
-  FileStack,
-  Globe,
-  LayoutDashboard,
-  Menu,
-  Milestone,
-  ShieldCheck,
-  Target,
-  User,
-  UserPlus,
-  Users2,
-  WalletCards,
-  X,
-} from "lucide-react";
 
-type TabId =
-  | "cooperation"
-  | "lex"
-  | "outcome"
-  | "intake"
-  | "public"
-  | "bible"
-  | "pipeline"
-  | "ledger"
-  | "billing"
-  | "alerts"
-  | "empowerment"
-  | "vault"
-  | "timer";
-
-type MenuItem = {
-  id: TabId;
-  label: string;
-  short: string;
-  icon: React.ComponentType<{ className?: string }>;
-};
-
-type TabComponent = React.ComponentType<Record<string, never>>;
-
-const TabLoadingState = () => (
-  <section className="min-h-screen bg-paper-white px-6 py-8 md:px-8">
-    <div className="mx-auto max-w-7xl space-y-6">
-      <div className="glass rounded-[2rem] p-8">
-        <div className="h-5 w-40 animate-pulse rounded-full bg-slate-200" />
-        <div className="mt-4 h-14 max-w-2xl animate-pulse rounded-[1.5rem] bg-slate-200" />
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
-          {[0, 1, 2].map((item) => (
-            <div key={item} className="h-28 animate-pulse rounded-[1.5rem] bg-slate-100" />
-          ))}
-        </div>
-      </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        {[0, 1].map((item) => (
-          <div key={item} className="h-80 animate-pulse rounded-[2rem] bg-white shadow-sm" />
-        ))}
-      </div>
-    </div>
-  </section>
-);
-
-const dynamicTab = (loader: () => Promise<{ default: TabComponent }>) =>
-  dynamic(loader, {
-    loading: () => <TabLoadingState />,
-  });
-
-const tabComponents: Record<TabId, TabComponent> = {
-  cooperation: dynamicTab(() => import("@/components/CooperationHub")),
-  lex: dynamicTab(() => import("@/components/LexCore")),
-  outcome: dynamicTab(() => import("@/components/LitigationOutcome")),
-  intake: dynamicTab(() => import("@/components/ClientIntake")),
-  public: dynamicTab(() => import("@/components/LegalFirstAid")),
-  bible: dynamicTab(() => import("@/components/PanAfricanLaw")),
-  pipeline: dynamicTab(() => import("@/components/MatterPipeline")),
-  ledger: dynamicTab(() => import("@/components/CaseLedger")),
-  billing: dynamicTab(() => import("@/components/BillingPayments")),
-  alerts: dynamicTab(() => import("@/components/NotificationCenter")),
-  empowerment: dynamicTab(() => import("@/components/InternEmpowerment")),
-  vault: dynamicTab(() => import("@/components/FileVault")),
-  timer: dynamicTab(() => import("@/components/BillableTimer")),
-};
-
-const menuGroups: { title: string; items: MenuItem[] }[] = [
+const workingTracks = [
   {
-    title: "Operate",
-    items: [
-      { id: "cooperation", label: "Cooperation Engine", short: "Coop", icon: Users2 },
-      { id: "lex", label: "TSIDEK Command", short: "Core", icon: Cpu },
-      { id: "outcome", label: "Litigation Strategy", short: "Case", icon: Target },
-      { id: "pipeline", label: "Matter Pipeline", short: "Flow", icon: Milestone },
-    ],
+    title: "Matter rooms",
+    status: "Live path",
+    description:
+      "Create a matter, open the matter route, then work comments, tasks, documents, physical file tracking, compliance, jurisprudence, and collaboration from one place.",
+    cta: "Open a matter below",
+    href: "#new-matter",
+    icon: BriefcaseBusiness,
   },
   {
-    title: "Grow",
-    items: [
-      { id: "intake", label: "Client Intake", short: "Intake", icon: UserPlus },
-      { id: "public", label: "Justice Guide", short: "Guide", icon: Globe },
-      { id: "ledger", label: "Case Ledger", short: "Ledger", icon: LayoutDashboard },
-      { id: "billing", label: "Billing & Payments", short: "Funds", icon: WalletCards },
-    ],
+    title: "Structured intake",
+    status: "Live path",
+    description:
+      "Capture a client issue, classify the first working track, and create a real matter record that opens directly into the matter room.",
+    cta: "Open intake route",
+    href: "/intake",
+    icon: UserPlus,
   },
   {
-    title: "Knowledge",
-    items: [
-      { id: "bible", label: "Pan-African Bible", short: "Bible", icon: BookOpen },
-      { id: "alerts", label: "Control Tower", short: "Ops", icon: Bell },
-      { id: "empowerment", label: "Intern Mastery", short: "Team", icon: Award },
-      { id: "vault", label: "Sovereign Vault", short: "Vault", icon: FileStack },
-      { id: "timer", label: "Billable Pulse", short: "Time", icon: BriefcaseBusiness },
-    ],
+    title: "Controlled onboarding",
+    status: "Live path",
+    description:
+      "Email OTP, session-backed identity, and explicit firm onboarding are wired so the legal workspace starts from a real firm context.",
+    cta: "Go to access",
+    href: "/auth",
+    icon: Building2,
+  },
+  {
+    title: "Case file studio",
+    status: "Backed by API",
+    description:
+      "Inside each matter room, the case file studio can register case fields, digital case files, template profiles, and personalized draft generations.",
+    cta: "Use it from a matter room",
+    href: "#new-matter",
+    icon: FileStack,
+  },
+  {
+    title: "RAG source inbox",
+    status: "Staging path",
+    description:
+      "Place prepared jurisprudence, statutes, book scans, templates, and firm notes in a controlled local shelf before OCR, chunking, and embeddings.",
+    cta: "Open source inbox",
+    href: "/rag-inbox",
+    icon: Database,
   },
 ];
 
-const menuItems = menuGroups.flatMap((group) => group.items);
-const menuById = Object.fromEntries(menuItems.map((item) => [item.id, item])) as Record<TabId, MenuItem>;
+const controlledModules = [
+  "Conflict checking",
+  "Standalone billing",
+  "Standalone file vault",
+];
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<TabId>("cooperation");
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const deferredTab = useDeferredValue(activeTab);
-  const activeItem = menuById[activeTab];
-  const ActiveTabComponent = tabComponents[deferredTab];
-
-  const onSelectTab = (tab: TabId) => {
-    startTransition(() => {
-      setActiveTab(tab);
-      setMobileOpen(false);
-    });
-  };
-
   return (
-    <div className="min-h-screen bg-paper-white text-slate-700">
-      <aside className="fixed inset-y-0 left-0 z-50 hidden w-[290px] border-r border-white/70 bg-[#f8f7f3]/95 px-6 py-6 backdrop-blur xl:flex xl:flex-col">
-        <BrandBlock activeLabel={activeItem.label} />
-        <div className="mt-8 flex-1 space-y-8 overflow-y-auto pr-1">
-          {menuGroups.map((group) => (
-            <div key={group.title}>
-              <p className="mb-3 px-3 text-[10px] font-black uppercase tracking-[0.28em] text-slate-400">{group.title}</p>
-              <div className="space-y-1">
-                {group.items.map((item) => {
-                  const active = item.id === activeTab;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => onSelectTab(item.id)}
-                      className={`relative flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition ${
-                        active
-                          ? "bg-white text-heritage-green shadow-[0_12px_34px_rgba(0,54,41,0.08)]"
-                          : "text-slate-500 hover:bg-white/80 hover:text-heritage-green"
-                      }`}
-                    >
-                      {active && (
-                        <motion.div
-                          layoutId="sidebar-active"
-                          className="absolute inset-0 rounded-2xl border border-heritage-green/10"
-                        />
-                      )}
-                      <div className={`rounded-xl p-2 ${active ? "bg-heritage-green text-white" : "bg-white text-slate-400"}`}>
-                        <item.icon className="h-4 w-4" />
-                      </div>
-                      <div className="relative z-10">
-                        <p className="text-sm font-semibold">{item.label}</p>
-                        <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">{item.short}</p>
-                      </div>
-                    </button>
-                  );
-                })}
+    <main className="min-h-screen bg-paper-white text-slate-700">
+      <section className="border-b border-white/60 bg-[radial-gradient(circle_at_top_left,_rgba(197,160,89,0.18),_transparent_32%),linear-gradient(135deg,_#f7f5ef_0%,_#fbfaf6_42%,_#eef5f1_100%)] px-4 py-6 md:px-6 xl:px-8">
+        <div className="mx-auto max-w-[1700px] space-y-6">
+          <div className="flex flex-col gap-5 rounded-[2rem] border border-white/70 bg-white/80 p-6 shadow-[0_22px_60px_rgba(0,54,41,0.08)] backdrop-blur lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-4xl space-y-4">
+              <div className="inline-flex items-center gap-2 rounded-full border border-heritage-green/10 bg-heritage-green/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-heritage-green">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Presentation-safe prototype
               </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-6 rounded-[1.75rem] bg-[#082b22] p-5 text-white shadow-[0_20px_40px_rgba(0,54,41,0.18)]">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-white/10 p-3">
-              <ShieldCheck className="h-5 w-5 text-gold-accent" />
-            </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/50">Sovereign node</p>
-              <p className="mt-1 text-sm font-semibold">Firm-owned execution layer is active.</p>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      <div className="xl:pl-[290px]">
-        <header className="sticky top-0 z-40 border-b border-white/60 bg-[#f7f6f2]/80 px-4 py-4 backdrop-blur md:px-6 xl:px-8">
-          <div className="mx-auto flex max-w-[1700px] items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setMobileOpen((open) => !open)}
-                className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-500 xl:hidden"
-                aria-label="Toggle navigation"
-              >
-                {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-              </button>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-400">Pan-African legal operations</p>
-                <h1 className="mt-1 text-lg font-semibold text-heritage-green">{activeItem.label}</h1>
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">TSIDEK OS</p>
+                <h1 className="mt-3 text-4xl heading-serif text-heritage-green md:text-5xl">
+                  A matter-first legal operating system, not a gallery of legal tech screens.
+                </h1>
+              </div>
+              <p className="max-w-3xl text-sm leading-7 text-slate-600">
+                The strongest path in this build is now explicit: authenticate, create a matter, open the matter room, and
+                run documents, strategy, collaboration, compliance, and institutional memory from that route.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 lg:min-w-[320px]">
+              <AuthSessionPill />
+              <div className="rounded-[1.5rem] bg-[#082b22] p-5 text-white shadow-[0_18px_38px_rgba(0,54,41,0.16)]">
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/45">Readiness</p>
+                <p className="mt-2 text-lg font-semibold">Matter workflow is the real demo path.</p>
+                <p className="mt-2 text-sm leading-6 text-white/72">
+                  We intentionally hold weaker standalone modules back from the lead experience until their backend wiring is complete.
+                </p>
               </div>
             </div>
-
-            <div className="hidden items-center gap-3 md:flex">
-              <AuthSessionPill />
-              <HeaderPill icon={Users2} label="27 practitioners" />
-              <HeaderPill icon={ShieldCheck} label="93% human approval" />
-              <HeaderPill icon={User} label="Role-aware routing" />
-            </div>
           </div>
-        </header>
 
-        <FirmCockpit />
-
-        {mobileOpen && (
-          <div className="border-b border-slate-200 bg-[#f7f6f2] px-4 py-4 xl:hidden">
-            <div className="space-y-5">
-              {menuGroups.map((group) => (
-                <div key={group.title}>
-                  <p className="mb-2 text-[10px] font-black uppercase tracking-[0.28em] text-slate-400">{group.title}</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {group.items.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => onSelectTab(item.id)}
-                        className={`rounded-2xl px-4 py-3 text-left ${
-                          item.id === activeTab
-                            ? "bg-heritage-green text-white"
-                            : "bg-white text-slate-600"
-                        }`}
-                      >
-                        <item.icon className="mb-2 h-4 w-4" />
-                        <p className="text-sm font-semibold">{item.label}</p>
-                      </button>
-                    ))}
+          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+            <div className="grid gap-4 md:grid-cols-3">
+              {workingTracks.map((track) => (
+                <Link
+                  key={track.title}
+                  href={track.href}
+                  className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-heritage-green/25 hover:shadow-[0_18px_36px_rgba(0,54,41,0.08)]"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="rounded-2xl bg-heritage-green/6 p-3 text-heritage-green">
+                      <track.icon className="h-5 w-5" />
+                    </div>
+                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
+                      {track.status}
+                    </span>
                   </div>
-                </div>
+                  <h2 className="mt-4 text-xl heading-serif text-heritage-green">{track.title}</h2>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">{track.description}</p>
+                  <div className="mt-4 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+                    <span>{track.cta}</span>
+                    <ArrowRight className="h-3.5 w-3.5 text-heritage-green" />
+                  </div>
+                </Link>
               ))}
             </div>
-          </div>
-        )}
 
-        <main className="mx-auto max-w-[1700px]">
-          <div className="px-4 pb-4 pt-6 md:px-6 xl:px-8">
-            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-slate-400">Supporting tools</p>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-              These tools remain available, but the matter room is now the primary working surface. Open a case first, then
-              use the supporting modules when they help move the file forward.
-            </p>
+            <div className="rounded-[1.6rem] border border-slate-200 bg-[#f8fbf9] p-5">
+              <div className="flex items-center gap-3">
+                <div className="rounded-2xl bg-gold-accent/15 p-3 text-[#8f6b21]">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Controlled release</p>
+                  <h2 className="mt-1 text-lg font-semibold text-heritage-green">Modules held back from the core demo</h2>
+                </div>
+              </div>
+              <p className="mt-4 text-sm leading-6 text-slate-600">
+                These surfaces still need stronger end-to-end backend execution, so they are not presented as primary flows on this homepage.
+              </p>
+              <div className="mt-5 space-y-3">
+                {controlledModules.map((item) => (
+                  <div key={item} className="flex items-center justify-between rounded-[1rem] border border-slate-200 bg-white px-4 py-3">
+                    <span className="text-sm text-slate-700">{item}</span>
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
+                      Next phase
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={deferredTab}
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -14 }}
-              transition={{ duration: 0.24, ease: "easeOut" }}
-            >
-              <ActiveTabComponent />
-            </motion.div>
-          </AnimatePresence>
-        </main>
-      </div>
-    </div>
-  );
-}
-
-function BrandBlock({ activeLabel }: { activeLabel: string }) {
-  return (
-    <div className="rounded-[2rem] border border-white/70 bg-[linear-gradient(160deg,_#083126_0%,_#0f4938_58%,_#c5a059_170%)] p-5 text-white shadow-[0_20px_44px_rgba(0,54,41,0.18)]">
-      <div className="flex items-center justify-between">
-        <div className="rounded-2xl bg-white/10 p-3">
-          <ShieldCheck className="h-6 w-6 text-gold-accent" />
         </div>
-        <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em]">
-          TSIDEK OS
-        </span>
-      </div>
-      <h1 className="mt-5 text-2xl heading-serif text-white">Legal cooperation, not legal chaos.</h1>
-      <p className="mt-3 text-sm leading-6 text-white/72">
-        A matter room that links people, documents, deadlines, and approvals without surrendering the firm&apos;s autonomy.
-      </p>
-      <div className="mt-5 rounded-[1.35rem] bg-white/8 p-4">
-        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/45">Focused module</p>
-        <p className="mt-2 text-sm font-semibold">{activeLabel}</p>
-      </div>
-    </div>
-  );
-}
+      </section>
 
-function HeaderPill({
-  icon: Icon,
-  label,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-}) {
-  return (
-    <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 shadow-sm">
-      <Icon className="h-3.5 w-3.5 text-heritage-green" />
-      <span>{label}</span>
-    </div>
+      <section className="px-4 py-6 md:px-6 xl:px-8">
+        <div className="mx-auto max-w-[1700px] space-y-4">
+          <div className="flex items-start justify-between gap-4 rounded-[1.7rem] border border-slate-200 bg-white p-5">
+            <div className="max-w-3xl">
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Working route</p>
+              <h2 className="mt-2 text-2xl heading-serif text-heritage-green">Open a matter and do the real work there</h2>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                Matter rooms remain the main operating surface for team collaboration, case file structure, live comments,
+                task orchestration, document registration, physical file linkage, compliance controls, and recall memory.
+              </p>
+            </div>
+            <div className="hidden rounded-[1.3rem] bg-[#082b22] px-4 py-3 text-white lg:block">
+              <div className="flex items-center gap-2">
+                <Workflow className="h-4 w-4 text-gold-accent" />
+                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-white/55">Current lead path</span>
+              </div>
+              <p className="mt-2 text-sm font-semibold">Cockpit → Matter → Workspaces</p>
+            </div>
+          </div>
+
+          <FirmCockpit />
+        </div>
+      </section>
+    </main>
   );
 }

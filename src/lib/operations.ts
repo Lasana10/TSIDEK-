@@ -48,6 +48,24 @@ export type GuidanceProfile = {
   updatedAt: string;
 };
 
+export type ClientUpdateRecord = {
+  id: string;
+  matterId: string;
+  channel: "Email" | "WhatsApp" | "SMS" | "In-app";
+  title: string;
+  message: string;
+  status: "Draft" | "Approved" | "Queued" | "Sent" | "Delivered" | "Acknowledged" | "Needs revision";
+  recipient: string | null;
+  deliveryNote: string | null;
+  draftedBy: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  dispatchedAt: string | null;
+  acknowledgedAt: string | null;
+  updatedAt: string;
+  createdAt: string;
+};
+
 export type AiAccount = {
   id: string;
   provider: string;
@@ -84,6 +102,7 @@ export type OperationalDashboard = {
   notifications: NotificationItem[];
   chatThreads: ChatThread[];
   guidanceProfiles: GuidanceProfile[];
+  clientUpdates: ClientUpdateRecord[];
   aiAccounts: AiAccount[];
   automations: AutomationRule[];
   memorySnapshots: MatterMemorySnapshot[];
@@ -189,6 +208,26 @@ const seededGuidanceProfiles: GuidanceProfile[] = [
     guidanceSummary: "Send annotated summaries with attachments and keep financial exposure in one digest.",
     nextAction: "Prepare insurer chronology summary for review.",
     updatedAt: "2026-06-20T08:05:00.000Z",
+  },
+];
+
+const seededClientUpdates: ClientUpdateRecord[] = [
+  {
+    id: "client-update-1",
+    matterId: "tsk-cm-2026-041",
+    channel: "WhatsApp",
+    title: "K-Metal SARL progress update",
+    message: "Partner review is complete. Filing dispatch is planned for tomorrow morning after final holiday verification.",
+    status: "Approved",
+    recipient: "+237699000111",
+    deliveryNote: "Awaiting operator dispatch.",
+    draftedBy: "Amina Bello",
+    approvedBy: "Sarah Mvondo",
+    approvedAt: "2026-07-20T10:15:00.000Z",
+    dispatchedAt: null,
+    acknowledgedAt: null,
+    updatedAt: "2026-07-20T10:15:00.000Z",
+    createdAt: "2026-07-20T09:50:00.000Z",
   },
 ];
 
@@ -324,6 +363,11 @@ async function loadDashboardFromSupabase(firmId?: string | null) {
     .select("id,firm_id,matter_id,summary,key_decision,unresolved_items,recalled_for,updated_at")
     .order("updated_at", { ascending: false })
     .limit(10);
+  let clientUpdateQuery = supabase
+    .from("matter_client_updates")
+    .select("id,firm_id,matter_id,channel,title,message,status,recipient,delivery_note,drafted_by,approved_by,approved_at,dispatched_at,acknowledged_at,updated_at,created_at")
+    .order("updated_at", { ascending: false })
+    .limit(20);
 
   if (firmId) {
     notificationQuery = notificationQuery.eq("firm_id", firmId);
@@ -332,9 +376,10 @@ async function loadDashboardFromSupabase(firmId?: string | null) {
     accountQuery = accountQuery.eq("firm_id", firmId);
     automationQuery = automationQuery.eq("firm_id", firmId);
     memoryQuery = memoryQuery.eq("firm_id", firmId);
+    clientUpdateQuery = clientUpdateQuery.eq("firm_id", firmId);
   }
 
-  const [notificationResult, threadResult, guidanceResult, accountResult, automationResult, memoryResult] =
+  const [notificationResult, threadResult, guidanceResult, accountResult, automationResult, memoryResult, clientUpdateResult] =
     await Promise.all([
       notificationQuery,
       threadQuery,
@@ -342,6 +387,7 @@ async function loadDashboardFromSupabase(firmId?: string | null) {
       accountQuery,
       automationQuery,
       memoryQuery,
+      clientUpdateQuery,
     ]);
 
   const threadIds = ((threadResult.data ?? []) as Array<{ id: string }>).map((thread) => thread.id);
@@ -365,6 +411,8 @@ async function loadDashboardFromSupabase(firmId?: string | null) {
   ) {
     return null;
   }
+
+  const safeClientUpdateRows = clientUpdateResult.error ? [] : (clientUpdateResult.data ?? []);
 
   const threadMessages = (messageResult.data ?? []) as Array<{
     id: string;
@@ -453,6 +501,39 @@ async function loadDashboardFromSupabase(firmId?: string | null) {
       nextAction: profile.next_action,
       updatedAt: profile.updated_at,
     })),
+    clientUpdates: (safeClientUpdateRows as Array<{
+      id: string;
+      matter_id: string;
+      channel: ClientUpdateRecord["channel"];
+      title: string;
+      message: string;
+      status: ClientUpdateRecord["status"];
+      recipient: string | null;
+      delivery_note: string | null;
+      drafted_by: string | null;
+      approved_by: string | null;
+      approved_at: string | null;
+      dispatched_at: string | null;
+      acknowledged_at: string | null;
+      updated_at: string;
+      created_at: string;
+    }>).map((item) => ({
+      id: item.id,
+      matterId: item.matter_id,
+      channel: item.channel,
+      title: item.title,
+      message: item.message,
+      status: item.status,
+      recipient: item.recipient,
+      deliveryNote: item.delivery_note,
+      draftedBy: item.drafted_by,
+      approvedBy: item.approved_by,
+      approvedAt: item.approved_at,
+      dispatchedAt: item.dispatched_at,
+      acknowledgedAt: item.acknowledged_at,
+      updatedAt: item.updated_at,
+      createdAt: item.created_at,
+    })),
     aiAccounts: ((accountResult.data ?? []) as Array<{
       id: string;
       provider: string;
@@ -516,6 +597,7 @@ export async function listOperationalDashboard(firmId?: string | null): Promise<
     notifications: pickRecent(seededNotifications, 5),
     chatThreads: seededChatThreads,
     guidanceProfiles: seededGuidanceProfiles,
+    clientUpdates: seededClientUpdates,
     aiAccounts: seededAiAccounts,
     automations: seededAutomations,
     memorySnapshots: seededMemorySnapshots,
@@ -781,6 +863,307 @@ export async function dispatchClientUpdate(input: {
     notification,
     delivery,
   };
+}
+
+export async function createClientUpdateDraft(input: {
+  matterId: string;
+  channel: ClientUpdateRecord["channel"];
+  title: string;
+  message: string;
+  draftedBy?: string | null;
+}) {
+  const supabase = createOperationalClient();
+  const now = new Date().toISOString();
+
+  if (!supabase) {
+    return mutatePrototypeDashboard((dashboard) => {
+      const record: ClientUpdateRecord = {
+        id: `local-client-update-${Date.now()}`,
+        matterId: input.matterId,
+        channel: input.channel,
+        title: input.title,
+        message: input.message,
+        status: "Draft",
+        recipient: null,
+        deliveryNote: "Draft saved locally pending partner approval.",
+        draftedBy: input.draftedBy ?? null,
+        approvedBy: null,
+        approvedAt: null,
+        dispatchedAt: null,
+        acknowledgedAt: null,
+        updatedAt: now,
+        createdAt: now,
+      };
+
+      return {
+        dashboard: {
+          ...dashboard,
+          clientUpdates: [record, ...dashboard.clientUpdates].slice(0, 30),
+        },
+        result: record,
+      };
+    });
+  }
+
+  const scope = await resolveFirmScopeForMatter(input.matterId);
+  if (!scope) {
+    throw new Error("Unable to resolve firm scope for client update draft.");
+  }
+
+  const result = await supabase
+    .from("matter_client_updates")
+    .insert({
+      firm_id: scope.firmId,
+      matter_id: input.matterId,
+      channel: input.channel,
+      title: input.title,
+      message: input.message,
+      status: "Draft",
+      drafted_by: input.draftedBy ?? null,
+      delivery_note: "Draft saved pending partner approval.",
+    })
+    .select("id,matter_id,channel,title,message,status,recipient,delivery_note,drafted_by,approved_by,approved_at,dispatched_at,acknowledged_at,updated_at,created_at")
+    .single();
+
+  if (result.error || !result.data) {
+    throw new Error(result.error?.message ?? "Unable to save client update draft.");
+  }
+
+  return {
+    id: result.data.id,
+    matterId: result.data.matter_id,
+    channel: result.data.channel as ClientUpdateRecord["channel"],
+    title: result.data.title,
+    message: result.data.message,
+    status: result.data.status as ClientUpdateRecord["status"],
+    recipient: result.data.recipient,
+    deliveryNote: result.data.delivery_note,
+    draftedBy: result.data.drafted_by,
+    approvedBy: result.data.approved_by,
+    approvedAt: result.data.approved_at,
+    dispatchedAt: result.data.dispatched_at,
+    acknowledgedAt: result.data.acknowledged_at,
+    updatedAt: result.data.updated_at,
+    createdAt: result.data.created_at,
+  } satisfies ClientUpdateRecord;
+}
+
+export async function approveClientUpdate(input: {
+  updateId: string;
+  approverId: string;
+}) {
+  const supabase = createOperationalClient();
+  const now = new Date().toISOString();
+
+  if (!supabase) {
+    return mutatePrototypeDashboard((dashboard) => {
+      const clientUpdates = dashboard.clientUpdates.map((item) =>
+        item.id === input.updateId
+          ? {
+              ...item,
+              status: "Approved" as const,
+              approvedBy: input.approverId,
+              approvedAt: now,
+              deliveryNote: "Approved for client dispatch.",
+              updatedAt: now,
+            }
+          : item
+      );
+
+      return {
+        dashboard: { ...dashboard, clientUpdates },
+        result: clientUpdates.find((item) => item.id === input.updateId) ?? null,
+      };
+    });
+  }
+
+  const result = await supabase
+    .from("matter_client_updates")
+    .update({
+      status: "Approved",
+      approved_by: input.approverId,
+      approved_at: now,
+      delivery_note: "Approved for client dispatch.",
+    })
+    .eq("id", input.updateId)
+    .select("id,matter_id,channel,title,message,status,recipient,delivery_note,drafted_by,approved_by,approved_at,dispatched_at,acknowledged_at,updated_at,created_at")
+    .single();
+
+  if (result.error || !result.data) {
+    throw new Error(result.error?.message ?? "Unable to approve client update.");
+  }
+
+  return {
+    id: result.data.id,
+    matterId: result.data.matter_id,
+    channel: result.data.channel as ClientUpdateRecord["channel"],
+    title: result.data.title,
+    message: result.data.message,
+    status: result.data.status as ClientUpdateRecord["status"],
+    recipient: result.data.recipient,
+    deliveryNote: result.data.delivery_note,
+    draftedBy: result.data.drafted_by,
+    approvedBy: result.data.approved_by,
+    approvedAt: result.data.approved_at,
+    dispatchedAt: result.data.dispatched_at,
+    acknowledgedAt: result.data.acknowledged_at,
+    updatedAt: result.data.updated_at,
+    createdAt: result.data.created_at,
+  } satisfies ClientUpdateRecord;
+}
+
+export async function dispatchApprovedClientUpdate(updateId: string) {
+  const dashboard = await listOperationalDashboard();
+  const record = dashboard.clientUpdates.find((item) => item.id === updateId);
+
+  if (!record) {
+    throw new Error("Client update not found.");
+  }
+  if (record.status !== "Approved" && record.status !== "Queued") {
+    throw new Error("Only approved client updates can be dispatched.");
+  }
+
+  const delivery = await deliverMatterUpdate({
+    matterId: record.matterId,
+    channel: record.channel,
+    title: record.title,
+    message: record.message,
+  });
+
+  await createNotification({
+    matterId: record.matterId,
+    channel: record.channel,
+    title: record.title,
+    message: record.message,
+    actionLabel: "Open matter",
+    status: delivery.status,
+    deliveryNote: delivery.note,
+    recipient: delivery.recipient,
+  });
+
+  const supabase = createOperationalClient();
+  const now = new Date().toISOString();
+  const nextStatus: ClientUpdateRecord["status"] = delivery.delivered ? "Sent" : "Queued";
+
+  if (!supabase) {
+    return mutatePrototypeDashboard((dashboardState) => {
+      const clientUpdates = dashboardState.clientUpdates.map((item) =>
+        item.id === updateId
+          ? {
+              ...item,
+              status: nextStatus,
+              recipient: delivery.recipient,
+              deliveryNote: delivery.note,
+              dispatchedAt: now,
+              updatedAt: now,
+            }
+          : item
+      );
+
+      return {
+        dashboard: { ...dashboardState, clientUpdates },
+        result: {
+          record: clientUpdates.find((item) => item.id === updateId) ?? null,
+          delivery,
+        },
+      };
+    });
+  }
+
+  const result = await supabase
+    .from("matter_client_updates")
+    .update({
+      status: nextStatus,
+      recipient: delivery.recipient,
+      delivery_note: delivery.note,
+      dispatched_at: now,
+    })
+    .eq("id", updateId)
+    .select("id,matter_id,channel,title,message,status,recipient,delivery_note,drafted_by,approved_by,approved_at,dispatched_at,acknowledged_at,updated_at,created_at")
+    .single();
+
+  if (result.error || !result.data) {
+    throw new Error(result.error?.message ?? "Unable to dispatch client update.");
+  }
+
+  return {
+    record: {
+      id: result.data.id,
+      matterId: result.data.matter_id,
+      channel: result.data.channel as ClientUpdateRecord["channel"],
+      title: result.data.title,
+      message: result.data.message,
+      status: result.data.status as ClientUpdateRecord["status"],
+      recipient: result.data.recipient,
+      deliveryNote: result.data.delivery_note,
+      draftedBy: result.data.drafted_by,
+      approvedBy: result.data.approved_by,
+      approvedAt: result.data.approved_at,
+      dispatchedAt: result.data.dispatched_at,
+      acknowledgedAt: result.data.acknowledged_at,
+      updatedAt: result.data.updated_at,
+      createdAt: result.data.created_at,
+    } satisfies ClientUpdateRecord,
+    delivery,
+  };
+}
+
+export async function acknowledgeClientUpdate(updateId: string) {
+  const supabase = createOperationalClient();
+  const now = new Date().toISOString();
+
+  if (!supabase) {
+    return mutatePrototypeDashboard((dashboard) => {
+      const clientUpdates = dashboard.clientUpdates.map((item) =>
+        item.id === updateId
+          ? {
+              ...item,
+              status: "Acknowledged" as const,
+              acknowledgedAt: now,
+              deliveryNote: item.deliveryNote ?? "Client acknowledgement recorded.",
+              updatedAt: now,
+            }
+          : item
+      );
+
+      return {
+        dashboard: { ...dashboard, clientUpdates },
+        result: clientUpdates.find((item) => item.id === updateId) ?? null,
+      };
+    });
+  }
+
+  const result = await supabase
+    .from("matter_client_updates")
+    .update({
+      status: "Acknowledged",
+      acknowledged_at: now,
+    })
+    .eq("id", updateId)
+    .select("id,matter_id,channel,title,message,status,recipient,delivery_note,drafted_by,approved_by,approved_at,dispatched_at,acknowledged_at,updated_at,created_at")
+    .single();
+
+  if (result.error || !result.data) {
+    throw new Error(result.error?.message ?? "Unable to record client acknowledgement.");
+  }
+
+  return {
+    id: result.data.id,
+    matterId: result.data.matter_id,
+    channel: result.data.channel as ClientUpdateRecord["channel"],
+    title: result.data.title,
+    message: result.data.message,
+    status: result.data.status as ClientUpdateRecord["status"],
+    recipient: result.data.recipient,
+    deliveryNote: result.data.delivery_note,
+    draftedBy: result.data.drafted_by,
+    approvedBy: result.data.approved_by,
+    approvedAt: result.data.approved_at,
+    dispatchedAt: result.data.dispatched_at,
+    acknowledgedAt: result.data.acknowledged_at,
+    updatedAt: result.data.updated_at,
+    createdAt: result.data.created_at,
+  } satisfies ClientUpdateRecord;
 }
 
 export async function upsertGuidanceProfile(input: {

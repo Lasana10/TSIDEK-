@@ -1,15 +1,8 @@
 import { NextResponse } from "next/server";
+import { statusForApiError } from "@/lib/api-errors";
 import { assertFirmPermission } from "@/lib/authorization";
 import { createMatterWorkspaceServer, listMatterWorkspacesServer } from "@/lib/matters.server";
 import { resolveRequestScope } from "@/lib/request-scope";
-
-function statusForError(error: unknown) {
-  if (error instanceof Error && error.message.includes("Complete onboarding")) {
-    return 403;
-  }
-
-  return 500;
-}
 
 export async function GET(request: Request) {
   try {
@@ -20,7 +13,7 @@ export async function GET(request: Request) {
   } catch (error) {
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : "Unable to load matters." },
-      { status: statusForError(error) }
+      { status: statusForApiError(error) }
     );
   }
 }
@@ -69,7 +62,7 @@ export async function POST(request: Request) {
     console.error("[API Matters Route] Error creating matter:", error);
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : "Unable to create matter." },
-      { status: statusForError(error) }
+      { status: statusForApiError(error) }
     );
   }
 }

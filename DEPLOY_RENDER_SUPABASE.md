@@ -16,6 +16,8 @@ git push -u origin main
 
 ### 2. Supabase auth settings
 
+Before enabling auth, run `supabase_schema.sql` and then `supabase_intake_workflow.sql` in the Supabase SQL Editor. The second migration creates the controlled intake, conflict, engagement, and matter-opening records used by `/intake`.
+
 In Supabase Auth settings, configure:
 
 - Site URL:
@@ -62,7 +64,10 @@ ONEDRIVE_TENANT_ID=
 ONEDRIVE_CLIENT_ID=
 ONEDRIVE_CLIENT_SECRET=
 ONEDRIVE_DRIVE_ID=
+ONEDRIVE_RAG_FOLDER_PATH=TSIDEK RAG Sources
 ```
+
+For the office-wide RAG source library, create a shared OneDrive or SharePoint document folder named `TSIDEK RAG Sources`, grant the app least-privilege Microsoft Graph read access, then set `ONEDRIVE_DRIVE_ID` and `ONEDRIVE_RAG_FOLDER_PATH` in Render.
 
 ### 4. Render service settings
 

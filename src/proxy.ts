@@ -52,9 +52,10 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isAuthRoute = pathname.startsWith("/auth");
   const isOnboardingRoute = pathname.startsWith("/onboarding");
-  const isProtectedPage = pathname === "/" || pathname.startsWith("/matters");
+  const isProtectedPage = pathname === "/" || pathname.startsWith("/matters") || pathname.startsWith("/rag-inbox") || pathname.startsWith("/intake");
   const isProtectedApi =
     pathname.startsWith("/api/matters") ||
+    pathname.startsWith("/api/intake") ||
     pathname.startsWith("/api/operations") ||
     pathname.startsWith("/api/session");
   const isOnboardingApi = pathname.startsWith("/api/onboarding");
@@ -87,6 +88,8 @@ export const config = {
   matcher: [
     "/",
     "/matters/:path*",
+    "/rag-inbox",
+    "/rag-inbox/:path*",
     "/auth/:path*",
     "/onboarding/:path*",
     "/api/matters/:path*",

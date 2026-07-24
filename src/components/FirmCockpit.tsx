@@ -73,9 +73,9 @@ export default function FirmCockpit() {
         if (!cancelled) {
           setMatters(payload.matters ?? []);
         }
-      } catch {
+      } catch (matterError) {
         if (!cancelled) {
-          setError("Live matters are not available yet. Showing the current prototype view.");
+          setError(matterError instanceof Error ? matterError.message : "Live matters are not available yet.");
         }
       } finally {
         if (!cancelled) {
@@ -89,7 +89,7 @@ export default function FirmCockpit() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   const visibleMatters = useMemo(() => {
     const needle = query.trim().toLowerCase();

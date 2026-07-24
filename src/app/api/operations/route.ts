@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
-import { assertMatterPermission, type PermissionKey } from "@/lib/authorization";
+import { statusForApiError } from "@/lib/api-errors";
+import { assertMatterPermission } from "@/lib/authorization";
 import { resolveRequestScope } from "@/lib/request-scope";
 import {
   appendChatMessage,
+  approveClientUpdate,
+  acknowledgeClientUpdate,
+  createClientUpdateDraft,
   dispatchClientUpdate,
+  dispatchApprovedClientUpdate,
   createMemorySnapshot,
   createNotification,
   listOperationalDashboard,
@@ -12,18 +17,11 @@ import {
   upsertGuidanceProfile,
 } from "@/lib/operations";
 
-function statusForError(error: unknown) {
-  if (error instanceof Error && error.message.includes("Complete onboarding")) {
-    return 403;
-  }
-
-  return 500;
-}
-
 async function resolveMatterIdForOperation(input: {
   scopeFirmId: string | null;
   threadId?: string;
   notificationId?: string;
+  clientUpdateId?: string;
   matterId?: string;
 }) {
   if (input.matterId) {
@@ -40,13 +38,24 @@ async function resolveMatterIdForOperation(input: {
     return dashboard.notifications.find((notification) => notification.id === input.notificationId)?.matterId ?? null;
   }
 
+  if (input.clientUpdateId) {
+    return dashboard.clientUpdates.find((item) => item.id === input.clientUpdateId)?.matterId ?? null;
+  }
+
   return null;
 }
 
 export async function GET(request: Request) {
-  const scope = await resolveRequestScope(request);
-  const dashboard = await listOperationalDashboard(scope.firmId);
-  return NextResponse.json({ ...dashboard, scope });
+  try {
+    const scope = await resolveRequestScope(request);
+    const dashboard = await listOperationalDashboard(scope.firmId);
+    return NextResponse.json({ ...dashboard, scope });
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : "Unable to load operations." },
+      { status: statusForApiError(error) }
+    );
+  }
 }
 
 export async function POST(request: Request) {
@@ -125,6 +134,71 @@ export async function POST(request: Request) {
         });
         return NextResponse.json({ success: true, ...payload });
       }
+      case "createClientUpdateDraft": {
+        await assertMatterPermission({
+          scope,
+          matterId: body.matterId,
+          permission: "assignWork",
+        });
+        const record = await createClientUpdateDraft({
+          matterId: body.matterId,
+          channel: body.channel,
+          title: body.title,
+          message: body.message,
+          draftedBy: scope.actorName,
+        });
+        return NextResponse.json({ success: true, record });
+      }
+      case "approveClientUpdate": {
+        const matterId = await resolveMatterIdForOperation({
+          scopeFirmId: scope.firmId,
+          clientUpdateId: body.updateId,
+        });
+        if (!matterId) {
+          return NextResponse.json({ success: false, error: "Client update not found." }, { status: 404 });
+        }
+        await assertMatterPermission({
+          scope,
+          matterId,
+          permission: "approveFilings",
+        });
+        if (!scope.actorLawyerId) {
+          return NextResponse.json({ success: false, error: "Acting lawyer profile is required for approval." }, { status: 400 });
+        }
+        const record = await approveClientUpdate({
+          updateId: body.updateId,
+          approverId: scope.actorLawyerId,
+        });
+        return NextResponse.json({ success: true, record });
+      }
+      case "dispatchApprovedClientUpdate": {
+        const matterId = await resolveMatterIdForOperation({
+          scopeFirmId: scope.firmId,
+          clientUpdateId: body.updateId,
+        });
+        if (!matterId) {
+          return NextResponse.json({ success: false, error: "Client update not found." }, { status: 404 });
+        }
+        await assertMatterPermission({
+          scope,
+          matterId,
+          permission: "approveFilings",
+        });
+        const payload = await dispatchApprovedClientUpdate(body.updateId);
+        return NextResponse.json({ success: true, ...payload });
+      }
+      case "acknowledgeClientUpdate": {
+        const matterId = await resolveMatterIdForOperation({
+          scopeFirmId: scope.firmId,
+          clientUpdateId: body.updateId,
+        });
+        if (!matterId) {
+          return NextResponse.json({ success: false, error: "Client update not found." }, { status: 404 });
+        }
+        await assertMatterPermission({ scope, matterId, allowAnyMember: true });
+        const record = await acknowledgeClientUpdate(body.updateId);
+        return NextResponse.json({ success: true, record });
+      }
       case "upsertGuidanceProfile": {
         await assertMatterPermission({ scope, matterId: body.matterId, allowAnyMember: true });
         const guidance = await upsertGuidanceProfile({
@@ -157,7 +231,7 @@ export async function POST(request: Request) {
     console.error("[API Operations Route] Error processing request:", error);
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : "Failed to process operational request." },
-      { status: statusForError(error) }
+      { status: statusForApiError(error) }
     );
   }
 }

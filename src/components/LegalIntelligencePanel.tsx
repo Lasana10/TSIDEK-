@@ -73,7 +73,7 @@ export default function LegalIntelligencePanel({
   const [knowledgeType, setKnowledgeType] = useState<"Precedent note" | "Book scan" | "Statute extract" | "Checklist" | "Strategy note">("Book scan");
   const [knowledgeTags, setKnowledgeTags] = useState("scan, doctrine");
   const [knowledgeSummary, setKnowledgeSummary] = useState("");
-  const [knowledgeStoragePath, setKnowledgeStoragePath] = useState("");
+  const [knowledgeStoragePath, setKnowledgeStoragePath] = useState("rag-sources/ready-made-documents/");
   const [knowledgeSensitivity, setKnowledgeSensitivity] = useState<"Internal" | "Restricted" | "Training-safe">("Restricted");
 
   const allTopics = useMemo(() => {
@@ -267,7 +267,7 @@ export default function LegalIntelligencePanel({
       () => {
         setKnowledgeTitle("");
         setKnowledgeSummary("");
-        setKnowledgeStoragePath("");
+        setKnowledgeStoragePath("rag-sources/ready-made-documents/");
       }
     );
   }
@@ -573,7 +573,10 @@ export default function LegalIntelligencePanel({
                   </select>
                 </div>
                 <input value={knowledgeTags} onChange={(event) => setKnowledgeTags(event.target.value)} placeholder="Tags, comma separated" className="rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none focus:border-heritage-green" />
-                <input value={knowledgeStoragePath} onChange={(event) => setKnowledgeStoragePath(event.target.value)} placeholder="Optional storage path or scan archive location" className="rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none focus:border-heritage-green" />
+                <input value={knowledgeStoragePath} onChange={(event) => setKnowledgeStoragePath(event.target.value)} placeholder="rag-sources/ready-made-documents/source-file.pdf" className="rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none focus:border-heritage-green" />
+                <p className="rounded-[1rem] border border-amber-100 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+                  Place prepared source files in rag-sources/ready-made-documents, then register the source here. OCR, embeddings, and source-grounded retrieval are the next worker layer.
+                </p>
                 <textarea value={knowledgeSummary} onChange={(event) => setKnowledgeSummary(event.target.value)} placeholder="Summarize the useful rule, practical takeaway, or scanned authority..." className="min-h-28 rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none focus:border-heritage-green" />
               </div>
               <ActionFooter

@@ -58,6 +58,8 @@ create table if not exists matters (
     risk_to_monitor text,
     ai_usage_rule text,
     next_draft text,
+    security_classification text not null default 'Standard' check (security_classification in ('Standard', 'Confidential', 'Partner-only')),
+    ethical_wall_enabled boolean not null default false,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
@@ -68,6 +70,16 @@ create table if not exists matter_members (
     lawyer_id uuid not null references lawyers(id) on delete cascade,
     firm_role_id uuid references firm_roles(id),
     is_primary boolean not null default false,
+    created_at timestamptz not null default now(),
+    unique (matter_id, lawyer_id)
+);
+
+create table if not exists matter_access_overrides (
+    id uuid primary key default uuid_generate_v4(),
+    matter_id uuid not null references matters(id) on delete cascade,
+    lawyer_id uuid not null references lawyers(id) on delete cascade,
+    access_status text not null check (access_status in ('allowed', 'screened')),
+    reason text,
     created_at timestamptz not null default now(),
     unique (matter_id, lawyer_id)
 );
@@ -112,10 +124,17 @@ create table if not exists documents (
     uploaded_by uuid references lawyers(id),
     title text not null,
     document_type text,
+    document_status text not null default 'Draft' check (document_status in ('Draft', 'Final', 'Filed', 'Archived')),
+    review_status text not null default 'Working' check (review_status in ('Working', 'Internal review', 'Approved', 'Needs revision')),
+    access_level text not null default 'Matter team' check (access_level in ('Matter team', 'Lead+Partner')),
+    sharing_policy text not null default 'Internal only' check (sharing_policy in ('Internal only', 'Client-share ready', 'Blocked')),
+    version_label text,
     onedrive_file_id text,
     storage_path text,
     ai_summary text,
     requires_compliance_audit boolean not null default false,
+    review_note text,
+    filed_at timestamptz,
     created_at timestamptz not null default now()
 );
 
@@ -343,6 +362,7 @@ alter table firms enable row level security;
 alter table lawyers enable row level security;
 alter table matters enable row level security;
 alter table matter_members enable row level security;
+alter table matter_access_overrides enable row level security;
 alter table tasks enable row level security;
 alter table matter_comments enable row level security;
 alter table documents enable row level security;
@@ -393,6 +413,22 @@ with check (
     exists (
         select 1 from matters
         where matters.id = matter_members.matter_id
+          and matters.firm_id = current_firm_id()
+    )
+);
+
+create policy "firm members can access matter access overrides" on matter_access_overrides
+for all using (
+    exists (
+        select 1 from matters
+        where matters.id = matter_access_overrides.matter_id
+          and matters.firm_id = current_firm_id()
+    )
+)
+with check (
+    exists (
+        select 1 from matters
+        where matters.id = matter_access_overrides.matter_id
           and matters.firm_id = current_firm_id()
     )
 );

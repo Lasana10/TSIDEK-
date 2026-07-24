@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import type { RequestScope } from "@/lib/request-scope";
+import { isDemoModeEnabled } from "@/lib/runtime-mode";
 
 export type PermissionKey =
   | "openMatters"
@@ -43,7 +44,7 @@ async function loadActorMembership(input: { matterId: string; actorLawyerId: str
     return null;
   }
 
-  const [memberResult, lawyerResult, matterResult] = await Promise.all([
+  const [memberResult, lawyerResult, matterResult, accessOverrideResult] = await Promise.all([
     supabase
       .from("matter_members")
       .select("lawyer_id,firm_role_id,is_primary")
@@ -57,8 +58,14 @@ async function loadActorMembership(input: { matterId: string; actorLawyerId: str
       .maybeSingle(),
     supabase
       .from("matters")
-      .select("id,firm_id,lead_lawyer_id")
+      .select("id,firm_id,lead_lawyer_id,security_classification,ethical_wall_enabled")
       .eq("id", input.matterId)
+      .maybeSingle(),
+    supabase
+      .from("matter_access_overrides")
+      .select("access_status,reason")
+      .eq("matter_id", input.matterId)
+      .eq("lawyer_id", input.actorLawyerId)
       .maybeSingle(),
   ]);
 
@@ -74,10 +81,20 @@ async function loadActorMembership(input: { matterId: string; actorLawyerId: str
     throw new Error(matterResult.error.message);
   }
 
+  if (accessOverrideResult.error) {
+    throw new Error(accessOverrideResult.error.message);
+  }
+
   return {
     membership: memberResult.data,
     lawyer: lawyerResult.data,
     matter: matterResult.data,
+    accessOverride: accessOverrideResult.data as
+      | {
+          access_status: "allowed" | "screened";
+          reason: string | null;
+        }
+      | null,
   };
 }
 
@@ -110,7 +127,7 @@ export async function assertMatterPermission(input: {
 }) {
   const { scope, matterId, permission, allowAnyMember } = input;
 
-  if (scope.source === "prototype-demo") {
+  if (scope.source === "prototype-demo" && isDemoModeEnabled()) {
     return scope;
   }
 
@@ -131,11 +148,27 @@ export async function assertMatterPermission(input: {
     throw new Error("Matter access denied for the current firm scope.");
   }
 
+  const overrideAllowed = membership.accessOverride?.access_status === "allowed";
+  const overrideScreened = membership.accessOverride?.access_status === "screened";
   const isLeadLawyer = membership.matter.lead_lawyer_id === scope.actorLawyerId;
-  const isMatterMember = Boolean(membership.membership) || isLeadLawyer;
+  const isPartner = membership.lawyer.role === "Partner";
+  const isMatterMember = Boolean(membership.membership) || isLeadLawyer || overrideAllowed;
+
+  if (overrideScreened) {
+    throw new Error("Access denied: this lawyer is screened from the matter by an ethical wall.");
+  }
 
   if (!isMatterMember) {
     throw new Error("The acting lawyer is not assigned to this matter.");
+  }
+
+  if (
+    membership.matter.security_classification === "Partner-only" &&
+    !isLeadLawyer &&
+    !isPartner &&
+    !overrideAllowed
+  ) {
+    throw new Error("Access denied: this matter is restricted to partners, the lead lawyer, or explicitly approved access.");
   }
 
   if (allowAnyMember && !permission) {
@@ -160,7 +193,7 @@ export async function assertFirmPermission(input: {
 }) {
   const { scope, permission } = input;
 
-  if (scope.source === "prototype-demo") {
+  if (scope.source === "prototype-demo" && isDemoModeEnabled()) {
     return scope;
   }
 

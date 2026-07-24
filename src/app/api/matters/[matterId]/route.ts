@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { statusForApiError } from "@/lib/api-errors";
 import { assertMatterPermission, type PermissionKey } from "@/lib/authorization";
 import { assertMatterScopeAccess } from "@/lib/request-scope";
 import {
@@ -19,34 +20,67 @@ import {
   getMatterRoomById,
   removeMatterMember,
   upsertMatterCaseField,
+  updateMatterDocumentControl,
   updateComplianceChecklistItemStatus,
   upsertPhysicalFile,
   updateMatterTaskStatus,
 } from "@/lib/matter-room";
+import {
+  getMatterSecurityProfile,
+  updateMatterSecurityProfile,
+  upsertMatterAccessOverride,
+} from "@/lib/matter-security";
 import { calculateMatterDeadline } from "@/lib/deadlines";
+import type { MatterRoomData } from "@/lib/matter-room";
+import type { RequestScope } from "@/lib/request-scope";
 
-function statusForError(error: unknown) {
-  if (error instanceof Error && error.message.includes("Complete onboarding")) {
-    return 403;
+function filterRoomForScope(scope: RequestScope, room: MatterRoomData | null) {
+  if (!room) {
+    return room;
   }
 
-  return 500;
+  const isPartner = scope.actorRole === "Partner";
+  const isLeadLawyer = scope.actorName.trim().toLowerCase() === room.matter.leadLawyer.trim().toLowerCase();
+
+  if (isPartner || isLeadLawyer) {
+    return room;
+  }
+
+  return {
+    ...room,
+    documents: room.documents.filter((document) => document.accessLevel !== "Lead+Partner"),
+  };
+}
+
+function roomResponse(scope: RequestScope, room: MatterRoomData | null, extras?: Record<string, unknown>) {
+  return NextResponse.json({
+    success: true,
+    room: filterRoomForScope(scope, room),
+    ...extras,
+  });
 }
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ matterId: string }> }
 ) {
-  const { matterId } = await params;
-  const scope = await assertMatterScopeAccess(request, matterId);
-  await assertMatterPermission({ scope, matterId, allowAnyMember: true });
-  const room = await getMatterRoomById(matterId);
+  try {
+    const { matterId } = await params;
+    const scope = await assertMatterScopeAccess(request, matterId);
+    await assertMatterPermission({ scope, matterId, allowAnyMember: true });
+    const [room, security] = await Promise.all([getMatterRoomById(matterId), getMatterSecurityProfile(matterId)]);
 
-  if (!room) {
-    return NextResponse.json({ error: "Matter not found" }, { status: 404 });
+    if (!room) {
+      return NextResponse.json({ error: "Matter not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ room: filterRoomForScope(scope, room), security });
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : "Unable to load matter room." },
+      { status: statusForApiError(error) }
+    );
   }
-
-  return NextResponse.json({ room });
 }
 
 export async function POST(
@@ -67,6 +101,7 @@ export async function POST(
       assignMember: "assignWork",
       removeMember: "assignWork",
       createDocument: "manageEvidence",
+      updateDocumentControl: "manageEvidence",
       createCasePreparation: "manageEvidence",
       createJurisprudenceEntry: "manageEvidence",
       createCouncilRegisterEntry: "manageEvidence",
@@ -79,6 +114,8 @@ export async function POST(
       generatePersonalizedDraft: "manageEvidence",
       archivePersonalizedDraft: "manageEvidence",
       calculateDeadline: "editDeadlines",
+      updateSecurityProfile: "approveFilings",
+      upsertAccessOverride: "approveFilings",
     };
 
     const requiredPermission = permissionByAction[body.action];
@@ -102,7 +139,7 @@ export async function POST(
           body: body.body,
           commentType: body.commentType,
         });
-        return NextResponse.json({ success: true, room });
+        return roomResponse(scope, room);
       }
       case "createTask": {
         const room = await createMatterTask({
@@ -112,7 +149,7 @@ export async function POST(
           deadline: body.deadline,
           assignedTo: body.assignedTo,
         });
-        return NextResponse.json({ success: true, room });
+        return roomResponse(scope, room);
       }
       case "updateTaskStatus": {
         const room = await updateMatterTaskStatus({
@@ -120,7 +157,7 @@ export async function POST(
           taskId: body.taskId,
           status: body.status,
         });
-        return NextResponse.json({ success: true, room });
+        return roomResponse(scope, room);
       }
       case "upsertPhysicalFile": {
         const room = await upsertPhysicalFile({
@@ -131,7 +168,7 @@ export async function POST(
           custodyStatus: body.custodyStatus,
           qrPayload: body.qrPayload,
         });
-        return NextResponse.json({ success: true, room });
+        return roomResponse(scope, room);
       }
       case "createCustodyEvent": {
         const room = await createCustodyEvent({
@@ -141,7 +178,7 @@ export async function POST(
           custodyStatus: body.custodyStatus,
           location: body.location,
         });
-        return NextResponse.json({ success: true, room });
+        return roomResponse(scope, room);
       }
       case "assignMember": {
         const room = await assignMatterMember({
@@ -150,26 +187,45 @@ export async function POST(
           firmRoleId: body.firmRoleId,
           isPrimary: body.isPrimary,
         });
-        return NextResponse.json({ success: true, room });
+        return roomResponse(scope, room);
       }
       case "removeMember": {
         const room = await removeMatterMember({
           matterId,
           lawyerId: body.lawyerId,
         });
-        return NextResponse.json({ success: true, room });
+        return roomResponse(scope, room);
       }
       case "createDocument": {
         const room = await createMatterDocument({
           matterId,
           title: body.title,
           documentType: body.documentType,
+          documentStatus: body.documentStatus,
+          reviewStatus: body.reviewStatus,
+          accessLevel: body.accessLevel,
+          sharingPolicy: body.sharingPolicy,
+          versionLabel: body.versionLabel,
           storagePath: body.storagePath,
           oneDriveFileId: body.oneDriveFileId,
           aiSummary: body.aiSummary,
           requiresComplianceAudit: body.requiresComplianceAudit,
+          reviewNote: body.reviewNote,
         });
-        return NextResponse.json({ success: true, room });
+        return roomResponse(scope, room);
+      }
+      case "updateDocumentControl": {
+        const room = await updateMatterDocumentControl({
+          matterId,
+          documentId: body.documentId,
+          documentStatus: body.documentStatus,
+          reviewStatus: body.reviewStatus,
+          accessLevel: body.accessLevel,
+          sharingPolicy: body.sharingPolicy,
+          versionLabel: body.versionLabel,
+          reviewNote: body.reviewNote,
+        });
+        return roomResponse(scope, room);
       }
       case "createCasePreparation": {
         const room = await createCasePreparationItem({
@@ -181,7 +237,7 @@ export async function POST(
           status: body.status,
           notes: body.notes,
         });
-        return NextResponse.json({ success: true, room });
+        return roomResponse(scope, room);
       }
       case "createJurisprudenceEntry": {
         const room = await createJurisprudenceEntry({
@@ -197,7 +253,7 @@ export async function POST(
           sourceUrl: body.sourceUrl,
           relevanceLabel: body.relevanceLabel,
         });
-        return NextResponse.json({ success: true, room });
+        return roomResponse(scope, room);
       }
       case "createCouncilRegisterEntry": {
         const room = await createCouncilRegisterEntry({
@@ -211,7 +267,7 @@ export async function POST(
           followUpDate: body.followUpDate,
           historyNote: body.historyNote,
         });
-        return NextResponse.json({ success: true, room });
+        return roomResponse(scope, room);
       }
       case "createComplianceChecklistItem": {
         const room = await createComplianceChecklistItem({
@@ -224,7 +280,7 @@ export async function POST(
           status: body.status,
           evidenceNote: body.evidenceNote,
         });
-        return NextResponse.json({ success: true, room });
+        return roomResponse(scope, room);
       }
       case "updateComplianceChecklistItemStatus": {
         const room = await updateComplianceChecklistItemStatus({
@@ -232,7 +288,7 @@ export async function POST(
           checklistItemId: body.checklistItemId,
           status: body.status,
         });
-        return NextResponse.json({ success: true, room });
+        return roomResponse(scope, room);
       }
       case "createKnowledgeEntry": {
         const room = await createKnowledgeEntry({
@@ -244,7 +300,7 @@ export async function POST(
           storagePath: body.storagePath,
           sensitivity: body.sensitivity,
         });
-        return NextResponse.json({ success: true, room });
+        return roomResponse(scope, room);
       }
       case "upsertCaseField": {
         const room = await upsertMatterCaseField({
@@ -254,7 +310,7 @@ export async function POST(
           fieldValue: body.fieldValue,
           fieldGroup: body.fieldGroup,
         });
-        return NextResponse.json({ success: true, room });
+        return roomResponse(scope, room);
       }
       case "createDigitalCaseFile": {
         const room = await createDigitalCaseFile({
@@ -267,7 +323,7 @@ export async function POST(
           versionLabel: body.versionLabel,
           status: body.status,
         });
-        return NextResponse.json({ success: true, room });
+        return roomResponse(scope, room);
       }
       case "createDocumentTemplate": {
         const room = await createDocumentTemplate({
@@ -279,7 +335,7 @@ export async function POST(
           templateBody: body.templateBody,
           preservedFormNote: body.preservedFormNote,
         });
-        return NextResponse.json({ success: true, room });
+        return roomResponse(scope, room);
       }
       case "generatePersonalizedDraft": {
         const payload = await generatePersonalizedMatterDraft({
@@ -288,7 +344,7 @@ export async function POST(
           title: body.title,
           contextNote: body.contextNote,
         });
-        return NextResponse.json({ success: true, room: payload.room, draft: payload.draft });
+        return roomResponse(scope, payload.room, { draft: payload.draft });
       }
       case "archivePersonalizedDraft": {
         const room = await archivePersonalizedDraft({
@@ -299,7 +355,26 @@ export async function POST(
           storagePath: body.storagePath,
           oneDriveFileId: body.oneDriveFileId,
         });
-        return NextResponse.json({ success: true, room });
+        return roomResponse(scope, room);
+      }
+      case "updateSecurityProfile": {
+        const security = await updateMatterSecurityProfile({
+          matterId,
+          securityClassification: body.securityClassification,
+          ethicalWallEnabled: Boolean(body.ethicalWallEnabled),
+        });
+        const room = await getMatterRoomById(matterId);
+        return roomResponse(scope, room, { security });
+      }
+      case "upsertAccessOverride": {
+        const security = await upsertMatterAccessOverride({
+          matterId,
+          lawyerId: body.lawyerId,
+          accessStatus: body.accessStatus,
+          reason: body.reason,
+        });
+        const room = await getMatterRoomById(matterId);
+        return roomResponse(scope, room, { security });
       }
       case "calculateDeadline": {
         const preview = calculateMatterDeadline({
@@ -318,7 +393,7 @@ export async function POST(
         success: false,
         error: error instanceof Error ? error.message : "Failed to process matter room request.",
       },
-      { status: statusForError(error) }
+      { status: statusForApiError(error) }
     );
   }
 }

@@ -33,7 +33,8 @@ import type {
   MatterRoomData,
   MatterRoomTask,
 } from "@/lib/matter-room";
-import type { OperationalDashboard } from "@/lib/operations";
+import type { ClientUpdateRecord, OperationalDashboard } from "@/lib/operations";
+import type { MatterAccessStatus, MatterSecurityProfile } from "@/lib/matter-security";
 
 export type WorkspaceTab = "overview" | "documents" | "strategy" | "studio" | "intelligence" | "collaboration" | "governance";
 type MatterSubmitState =
@@ -46,6 +47,7 @@ type MatterSubmitState =
   | "comment"
   | "task"
   | "document"
+  | "document-upload"
   | "member"
   | "physical-file"
   | "custody";
@@ -100,11 +102,18 @@ function createFallbackMatterRoom(matter: MatterWorkspaceData): MatterRoomData {
       id: `${matter.id}-document-${index + 1}`,
       title: item.name,
       documentType: item.type,
+      documentStatus: item.state === "Finalized" ? "Final" : "Draft",
+      reviewStatus: item.state === "Finalized" ? "Approved" : "Working",
+      accessLevel: item.type === "Compliance" ? "Lead+Partner" : "Matter team",
+      sharingPolicy: item.type === "Compliance" ? "Blocked" : "Internal only",
+      versionLabel: `v${index + 1}`,
       storagePath: "Matter vault path pending live registry",
       oneDriveFileId: null,
       syncStatus: "Local only",
       aiSummary: item.state,
       requiresComplianceAudit: item.type === "Compliance",
+      reviewNote: item.state === "Finalized" ? "Seeded finalized document imported into the workspace." : null,
+      filedAt: null,
       createdAt: "Seeded record",
     })),
     tasks: matter.timeline.map((item, index) => ({
@@ -289,10 +298,20 @@ export default function MatterWorkspace({
   const [taskAssigneeDraft, setTaskAssigneeDraft] = useState("");
   const [documentTitleDraft, setDocumentTitleDraft] = useState("");
   const [documentTypeDraft, setDocumentTypeDraft] = useState("Drafting");
+  const [documentStatusDraft, setDocumentStatusDraft] =
+    useState<"Draft" | "Final" | "Filed" | "Archived">("Draft");
+  const [documentReviewStatusDraft, setDocumentReviewStatusDraft] =
+    useState<"Working" | "Internal review" | "Approved" | "Needs revision">("Working");
+  const [documentAccessLevelDraft, setDocumentAccessLevelDraft] =
+    useState<"Matter team" | "Lead+Partner">("Matter team");
+  const [documentSharingPolicyDraft, setDocumentSharingPolicyDraft] =
+    useState<"Internal only" | "Client-share ready" | "Blocked">("Internal only");
+  const [documentVersionLabelDraft, setDocumentVersionLabelDraft] = useState("v1");
   const [documentPathDraft, setDocumentPathDraft] = useState("");
   const [documentOneDriveIdDraft, setDocumentOneDriveIdDraft] = useState("");
   const [documentSummaryDraft, setDocumentSummaryDraft] = useState("");
   const [documentComplianceDraft, setDocumentComplianceDraft] = useState(false);
+  const [documentReviewNoteDraft, setDocumentReviewNoteDraft] = useState("");
   const [fileCodeDraft, setFileCodeDraft] = useState(matter.physicalFileId);
   const [fileLabelDraft, setFileLabelDraft] = useState(matter.physicalLabel);
   const [fileLocationDraft, setFileLocationDraft] = useState(matter.physicalLocation);
@@ -311,6 +330,16 @@ export default function MatterWorkspace({
   const [memoryDecisionDraft, setMemoryDecisionDraft] = useState("");
   const [memoryUnresolvedDraft, setMemoryUnresolvedDraft] = useState("");
   const [notificationBusyId, setNotificationBusyId] = useState<string | null>(null);
+  const [clientUpdateBusyId, setClientUpdateBusyId] = useState<string | null>(null);
+  const [documentBusyId, setDocumentBusyId] = useState<string | null>(null);
+  const [securityProfile, setSecurityProfile] = useState<MatterSecurityProfile | null>(null);
+  const [securityClassificationDraft, setSecurityClassificationDraft] =
+    useState<"Standard" | "Confidential" | "Partner-only">(matter.securityClassification);
+  const [ethicalWallEnabledDraft, setEthicalWallEnabledDraft] = useState(matter.ethicalWallEnabled);
+  const [accessOverrideLawyerIdDraft, setAccessOverrideLawyerIdDraft] = useState("");
+  const [accessOverrideStatusDraft, setAccessOverrideStatusDraft] = useState<MatterAccessStatus>("screened");
+  const [accessOverrideReasonDraft, setAccessOverrideReasonDraft] = useState("");
+  const [securityBusy, setSecurityBusy] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState<MatterSubmitState>(null);
 
   useEffect(() => {
@@ -327,11 +356,19 @@ export default function MatterWorkspace({
         ]);
 
         if (!cancelled && roomResponse.ok) {
-          const roomPayload = (await roomResponse.json()) as { room?: MatterRoomData };
+          const roomPayload = (await roomResponse.json()) as { room?: MatterRoomData; security?: MatterSecurityProfile };
           if (roomPayload.room) {
             startTransition(() => {
               setRoom(roomPayload.room!);
               setTaskAssigneeDraft(roomPayload.room!.teamMembers[0]?.id ?? "");
+            });
+          }
+          if (roomPayload.security) {
+            const nextSecurity = roomPayload.security;
+            startTransition(() => {
+              setSecurityProfile(nextSecurity);
+              setSecurityClassificationDraft(nextSecurity.securityClassification);
+              setEthicalWallEnabledDraft(nextSecurity.ethicalWallEnabled);
             });
           }
         }
@@ -362,15 +399,30 @@ export default function MatterWorkspace({
   }, [matter]);
 
   const matterRoom = room?.matter.id === matter.id ? room : createFallbackMatterRoom(matter);
+  const canPersistMatterRoom = matterRoom.source !== "fallback";
+  const matterRoomSourceLabel =
+    matterRoom.source === "live"
+      ? "Supabase room data"
+      : matterRoom.source === "prototype"
+        ? "Local prototype storage"
+        : "Seeded fallback data";
+  const saveActionLabel =
+    matterRoom.source === "live"
+      ? "Saved to Supabase"
+      : matterRoom.source === "prototype"
+        ? "Saved locally"
+        : "Open persisted workspace";
 
   const matterOperations = useMemo(() => {
     const notifications = (dashboard?.notifications ?? []).filter((item) => item.matterId === matter.id);
+    const clientUpdates = (dashboard?.clientUpdates ?? []).filter((item) => item.matterId === matter.id);
     const thread = (dashboard?.chatThreads ?? []).find((item) => item.matterId === matter.id) ?? null;
     const guidance = (dashboard?.guidanceProfiles ?? []).find((item) => item.matterId === matter.id) ?? null;
     const memory = (dashboard?.memorySnapshots ?? []).find((item) => item.matterId === matter.id) ?? null;
 
     return {
       notifications,
+      clientUpdates,
       thread,
       guidance,
       memory,
@@ -442,35 +494,119 @@ export default function MatterWorkspace({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "dispatchClientUpdate",
+          action: "createClientUpdateDraft",
           matterId: matter.id,
           channel: matterOperations.guidance?.preferredChannel ?? "Email",
           title: `${matter.clientName} progress update`,
           message: clientUpdate.trim(),
-          actionLabel: "Open matter",
         }),
       });
 
       if (!response.ok) {
         const payload = (await response.json()) as { error?: string };
-        throw new Error(payload.error ?? "Unable to dispatch client update");
+        throw new Error(payload.error ?? "Unable to save client update draft");
       }
 
+      await response.json();
+      setClientUpdate("");
+      setRoomNotice("Client update draft saved. Partner approval is required before dispatch.");
+      await refreshOperations();
+    } catch (error) {
+      setRoomError(error instanceof Error ? error.message : "Unable to save the client update draft.");
+    } finally {
+      setIsSubmitting(null);
+    }
+  }
+
+  async function approveClientUpdateRecord(updateId: string) {
+    setClientUpdateBusyId(updateId);
+    setRoomError(null);
+    setRoomNotice(null);
+    try {
+      const response = await fetch("/api/operations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "approveClientUpdate",
+          updateId,
+        }),
+      });
+
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to approve client update.");
+      }
+
+      setRoomNotice("Client update approved for dispatch.");
+      await refreshOperations();
+    } catch (error) {
+      setRoomError(error instanceof Error ? error.message : "Unable to approve the client update.");
+    } finally {
+      setClientUpdateBusyId(null);
+    }
+  }
+
+  async function dispatchClientUpdateRecord(updateId: string) {
+    setClientUpdateBusyId(updateId);
+    setRoomError(null);
+    setRoomNotice(null);
+    try {
+      const response = await fetch("/api/operations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "dispatchApprovedClientUpdate",
+          updateId,
+        }),
+      });
+
       const payload = (await response.json()) as {
+        error?: string;
         delivery?: { note?: string; delivered?: boolean; recipient?: string | null };
       };
-      setClientUpdate("");
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to dispatch client update.");
+      }
+
       setRoomNotice(
         payload.delivery?.note ??
           (payload.delivery?.delivered
             ? "Client update sent successfully."
-            : "Client update recorded, but delivery still needs configuration.")
+            : "Client update queued or recorded for follow-up.")
       );
       await refreshOperations();
     } catch (error) {
       setRoomError(error instanceof Error ? error.message : "Unable to dispatch the client update.");
     } finally {
-      setIsSubmitting(null);
+      setClientUpdateBusyId(null);
+    }
+  }
+
+  async function acknowledgeClientUpdateRecord(updateId: string) {
+    setClientUpdateBusyId(updateId);
+    setRoomError(null);
+    setRoomNotice(null);
+    try {
+      const response = await fetch("/api/operations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "acknowledgeClientUpdate",
+          updateId,
+        }),
+      });
+
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to record acknowledgement.");
+      }
+
+      setRoomNotice("Client acknowledgement recorded in the matter communication log.");
+      await refreshOperations();
+    } catch (error) {
+      setRoomError(error instanceof Error ? error.message : "Unable to record the client acknowledgement.");
+    } finally {
+      setClientUpdateBusyId(null);
     }
   }
 
@@ -586,6 +722,89 @@ export default function MatterWorkspace({
       setRoomError(error instanceof Error ? error.message : "Unable to capture memory checkpoint.");
     } finally {
       setIsSubmitting(null);
+    }
+  }
+
+  async function submitSecurityProfile() {
+    setSecurityBusy(true);
+    setRoomError(null);
+    setRoomNotice(null);
+    try {
+      const response = await fetch(`/api/matters/${matter.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "updateSecurityProfile",
+          securityClassification: securityClassificationDraft,
+          ethicalWallEnabled: ethicalWallEnabledDraft,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        error?: string;
+        room?: MatterRoomData;
+        security?: MatterSecurityProfile;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to update matter security.");
+      }
+
+      if (payload.room) {
+        setRoom(payload.room);
+      }
+      if (payload.security) {
+        setSecurityProfile(payload.security);
+      }
+      setRoomNotice("Matter security profile updated.");
+    } catch (error) {
+      setRoomError(error instanceof Error ? error.message : "Unable to update matter security.");
+    } finally {
+      setSecurityBusy(false);
+    }
+  }
+
+  async function submitAccessOverride() {
+    if (!accessOverrideLawyerIdDraft.trim()) {
+      return;
+    }
+
+    setSecurityBusy(true);
+    setRoomError(null);
+    setRoomNotice(null);
+    try {
+      const response = await fetch(`/api/matters/${matter.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "upsertAccessOverride",
+          lawyerId: accessOverrideLawyerIdDraft.trim(),
+          accessStatus: accessOverrideStatusDraft,
+          reason: accessOverrideReasonDraft.trim() || null,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        error?: string;
+        room?: MatterRoomData;
+        security?: MatterSecurityProfile;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to save access override.");
+      }
+
+      if (payload.room) {
+        setRoom(payload.room);
+      }
+      if (payload.security) {
+        setSecurityProfile(payload.security);
+      }
+      setAccessOverrideLawyerIdDraft("");
+      setAccessOverrideReasonDraft("");
+      setRoomNotice("Matter access override recorded.");
+    } catch (error) {
+      setRoomError(error instanceof Error ? error.message : "Unable to save matter access override.");
+    } finally {
+      setSecurityBusy(false);
     }
   }
 
@@ -822,10 +1041,16 @@ export default function MatterWorkspace({
           action: "createDocument",
           title: documentTitleDraft.trim(),
           documentType: documentTypeDraft,
+          documentStatus: documentStatusDraft,
+          reviewStatus: documentReviewStatusDraft,
+          accessLevel: documentAccessLevelDraft,
+          sharingPolicy: documentSharingPolicyDraft,
+          versionLabel: documentVersionLabelDraft.trim() || null,
           storagePath: documentPathDraft.trim() || null,
           oneDriveFileId: documentOneDriveIdDraft.trim() || null,
           aiSummary: documentSummaryDraft.trim() || null,
           requiresComplianceAudit: documentComplianceDraft,
+          reviewNote: documentReviewNoteDraft.trim() || null,
         }),
       });
 
@@ -846,10 +1071,108 @@ export default function MatterWorkspace({
       setDocumentOneDriveIdDraft("");
       setDocumentSummaryDraft("");
       setDocumentComplianceDraft(false);
+      setDocumentStatusDraft("Draft");
+      setDocumentReviewStatusDraft("Working");
+      setDocumentAccessLevelDraft("Matter team");
+      setDocumentSharingPolicyDraft("Internal only");
+      setDocumentVersionLabelDraft("v1");
+      setDocumentReviewNoteDraft("");
     } catch (error) {
       setRoomError(error instanceof Error ? error.message : "Unable to register the document.");
     } finally {
       setIsSubmitting(null);
+    }
+  }
+
+  async function uploadMatterDocument(file: File) {
+    setIsSubmitting("document-upload");
+    setRoomError(null);
+
+    try {
+      const formData = new FormData();
+      formData.set("target", "matter-document");
+      formData.set("matterId", matter.id);
+      formData.set("file", file);
+      formData.set("title", documentTitleDraft.trim() || file.name);
+      formData.set("documentType", documentTypeDraft);
+      formData.set("documentStatus", documentStatusDraft);
+      formData.set("reviewStatus", documentReviewStatusDraft);
+      formData.set("accessLevel", documentAccessLevelDraft);
+      formData.set("sharingPolicy", documentSharingPolicyDraft);
+      formData.set("versionLabel", documentVersionLabelDraft.trim() || "v1");
+      formData.set("reviewNote", documentReviewNoteDraft.trim());
+      formData.set("aiSummary", documentSummaryDraft.trim());
+      formData.set("requiresComplianceAudit", documentComplianceDraft ? "true" : "false");
+      formData.set("registerKnowledge", "true");
+      formData.set(
+        "knowledgeSummary",
+        documentSummaryDraft.trim() || `${file.name} was uploaded and staged for later source-grounded processing.`
+      );
+
+      const response = await fetch("/api/file-vault", {
+        method: "POST",
+        body: formData,
+      });
+
+      const payload = (await response.json()) as { room?: MatterRoomData; error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to upload the matter document.");
+      }
+
+      if (payload.room) {
+        setRoom(payload.room);
+      } else {
+        await refreshMatterRoom();
+      }
+    } catch (error) {
+      setRoomError(error instanceof Error ? error.message : "Unable to upload the matter document.");
+    } finally {
+      setIsSubmitting(null);
+    }
+  }
+
+  async function updateDocumentControlRecord(input: {
+    documentId: string;
+    documentStatus: "Draft" | "Final" | "Filed" | "Archived";
+    reviewStatus: "Working" | "Internal review" | "Approved" | "Needs revision";
+    accessLevel: "Matter team" | "Lead+Partner";
+    sharingPolicy: "Internal only" | "Client-share ready" | "Blocked";
+    versionLabel: string;
+    reviewNote: string;
+  }) {
+    setDocumentBusyId(input.documentId);
+    setRoomError(null);
+    try {
+      const response = await fetch(`/api/matters/${matter.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "updateDocumentControl",
+          documentId: input.documentId,
+          documentStatus: input.documentStatus,
+          reviewStatus: input.reviewStatus,
+          accessLevel: input.accessLevel,
+          sharingPolicy: input.sharingPolicy,
+          versionLabel: input.versionLabel.trim() || null,
+          reviewNote: input.reviewNote.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error ?? "Unable to update document control");
+      }
+
+      const payload = (await response.json()) as { room?: MatterRoomData };
+      if (payload.room) {
+        setRoom(payload.room);
+      } else {
+        await refreshMatterRoom();
+      }
+    } catch (error) {
+      setRoomError(error instanceof Error ? error.message : "Unable to update document control.");
+    } finally {
+      setDocumentBusyId(null);
     }
   }
 
@@ -1022,12 +1345,12 @@ export default function MatterWorkspace({
             <div className="flex justify-end">
               <span
                 className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${
-                  matterRoom.source === "live"
+                  canPersistMatterRoom
                     ? "bg-emerald-50 text-emerald-700"
                     : "bg-amber-50 text-amber-700"
                 }`}
               >
-                {matterRoom.source === "live" ? "Live room data" : "Fallback room data"}
+                {matterRoomSourceLabel}
               </span>
             </div>
           </div>
@@ -1084,6 +1407,9 @@ export default function MatterWorkspace({
               isRefreshing={isRefreshing}
               isSubmitting={isSubmitting}
               notificationBusyId={notificationBusyId}
+              clientUpdateBusyId={clientUpdateBusyId}
+              canPersistMatterRoom={canPersistMatterRoom}
+              saveActionLabel={saveActionLabel}
               onClientUpdateChange={setClientUpdate}
               onTaskTitleChange={setTaskTitleDraft}
               onTaskDescriptionChange={setTaskDescriptionDraft}
@@ -1092,6 +1418,9 @@ export default function MatterWorkspace({
               onDeadlineRuleChange={setDeadlineRuleDraft}
               onDeadlineStartChange={setDeadlineStartDraft}
               onSubmitClientUpdate={() => void submitClientUpdate()}
+              onApproveClientUpdate={(updateId) => void approveClientUpdateRecord(updateId)}
+              onDispatchClientUpdate={(updateId) => void dispatchClientUpdateRecord(updateId)}
+              onAcknowledgeClientUpdate={(updateId) => void acknowledgeClientUpdateRecord(updateId)}
               onSubmitDeadlineCalculation={() => void submitDeadlineCalculation()}
               onSubmitMatterTask={() => void submitMatterTask()}
               onToggleTaskStatus={(task) => void toggleTaskStatus(task)}
@@ -1103,6 +1432,12 @@ export default function MatterWorkspace({
               matterRoom={matterRoom}
               documentTitleDraft={documentTitleDraft}
               documentTypeDraft={documentTypeDraft}
+              documentStatusDraft={documentStatusDraft}
+              documentReviewStatusDraft={documentReviewStatusDraft}
+              documentAccessLevelDraft={documentAccessLevelDraft}
+              documentSharingPolicyDraft={documentSharingPolicyDraft}
+              documentVersionLabelDraft={documentVersionLabelDraft}
+              documentReviewNoteDraft={documentReviewNoteDraft}
               documentPathDraft={documentPathDraft}
               documentOneDriveIdDraft={documentOneDriveIdDraft}
               documentSummaryDraft={documentSummaryDraft}
@@ -1117,8 +1452,17 @@ export default function MatterWorkspace({
               custodyEventLocationDraft={custodyEventLocationDraft}
               custodyEventStatusDraft={custodyEventStatusDraft}
               isSubmitting={isSubmitting}
+              documentBusyId={documentBusyId}
+              canPersistMatterRoom={canPersistMatterRoom}
+              saveActionLabel={saveActionLabel}
               onDocumentTitleChange={setDocumentTitleDraft}
               onDocumentTypeChange={setDocumentTypeDraft}
+              onDocumentStatusChange={setDocumentStatusDraft}
+              onDocumentReviewStatusChange={setDocumentReviewStatusDraft}
+              onDocumentAccessLevelChange={setDocumentAccessLevelDraft}
+              onDocumentSharingPolicyChange={setDocumentSharingPolicyDraft}
+              onDocumentVersionLabelChange={setDocumentVersionLabelDraft}
+              onDocumentReviewNoteChange={setDocumentReviewNoteDraft}
               onDocumentPathChange={setDocumentPathDraft}
               onDocumentOneDriveIdChange={setDocumentOneDriveIdDraft}
               onDocumentSummaryChange={setDocumentSummaryDraft}
@@ -1133,6 +1477,8 @@ export default function MatterWorkspace({
               onCustodyEventLocationChange={setCustodyEventLocationDraft}
               onCustodyEventStatusChange={setCustodyEventStatusDraft}
               onSubmitMatterDocument={() => void submitMatterDocument()}
+              onUploadMatterDocument={(file) => void uploadMatterDocument(file)}
+              onUpdateDocumentControl={(input) => void updateDocumentControlRecord(input)}
               onSubmitPhysicalFileUpdate={() => void submitPhysicalFileUpdate()}
               onSubmitCustodyEvent={() => void submitCustodyEvent()}
             />
@@ -1164,6 +1510,8 @@ export default function MatterWorkspace({
               chatMessageDraft={chatMessageDraft}
               isSubmitting={isSubmitting}
               notificationBusyId={notificationBusyId}
+              canPersistMatterRoom={canPersistMatterRoom}
+              saveActionLabel={saveActionLabel}
               onMemberDraftChange={setMemberDraft}
               onCommentDraftChange={setCommentDraft}
               onChatMessageDraftChange={setChatMessageDraft}
@@ -1179,19 +1527,33 @@ export default function MatterWorkspace({
               matter={matter}
               matterRoom={matterRoom}
               matterOperations={matterOperations}
+              securityProfile={securityProfile}
+              securityClassificationDraft={securityClassificationDraft}
+              ethicalWallEnabledDraft={ethicalWallEnabledDraft}
+              accessOverrideLawyerIdDraft={accessOverrideLawyerIdDraft}
+              accessOverrideStatusDraft={accessOverrideStatusDraft}
+              accessOverrideReasonDraft={accessOverrideReasonDraft}
               guidanceSummaryDraft={guidanceSummaryDraft}
               nextActionDraft={nextActionDraft}
               memorySummaryDraft={memorySummaryDraft}
               memoryDecisionDraft={memoryDecisionDraft}
               memoryUnresolvedDraft={memoryUnresolvedDraft}
               isSubmitting={isSubmitting}
+              securityBusy={securityBusy}
               onGuidanceSummaryChange={setGuidanceSummaryDraft}
               onNextActionChange={setNextActionDraft}
               onMemorySummaryChange={setMemorySummaryDraft}
               onMemoryDecisionChange={setMemoryDecisionDraft}
               onMemoryUnresolvedChange={setMemoryUnresolvedDraft}
+              onSecurityClassificationChange={setSecurityClassificationDraft}
+              onEthicalWallEnabledChange={setEthicalWallEnabledDraft}
+              onAccessOverrideLawyerIdChange={setAccessOverrideLawyerIdDraft}
+              onAccessOverrideStatusChange={setAccessOverrideStatusDraft}
+              onAccessOverrideReasonChange={setAccessOverrideReasonDraft}
               onSubmitGuidanceRefresh={() => void submitGuidanceRefresh()}
               onSubmitMemoryCheckpoint={() => void submitMemoryCheckpoint()}
+              onSubmitSecurityProfile={() => void submitSecurityProfile()}
+              onSubmitAccessOverride={() => void submitAccessOverride()}
             />
           )}
         </motion.div>
@@ -1215,6 +1577,9 @@ function OverviewPanel({
   isRefreshing,
   isSubmitting,
   notificationBusyId,
+  clientUpdateBusyId,
+  canPersistMatterRoom,
+  saveActionLabel,
   onClientUpdateChange,
   onTaskTitleChange,
   onTaskDescriptionChange,
@@ -1223,6 +1588,9 @@ function OverviewPanel({
   onDeadlineRuleChange,
   onDeadlineStartChange,
   onSubmitClientUpdate,
+  onApproveClientUpdate,
+  onDispatchClientUpdate,
+  onAcknowledgeClientUpdate,
   onSubmitDeadlineCalculation,
   onSubmitMatterTask,
   onToggleTaskStatus,
@@ -1242,6 +1610,9 @@ function OverviewPanel({
   isRefreshing: boolean;
   isSubmitting: MatterSubmitState;
   notificationBusyId: string | null;
+  clientUpdateBusyId: string | null;
+  canPersistMatterRoom: boolean;
+  saveActionLabel: string;
   onClientUpdateChange: (value: string) => void;
   onTaskTitleChange: (value: string) => void;
   onTaskDescriptionChange: (value: string) => void;
@@ -1250,6 +1621,9 @@ function OverviewPanel({
   onDeadlineRuleChange: (value: string) => void;
   onDeadlineStartChange: (value: string) => void;
   onSubmitClientUpdate: () => void;
+  onApproveClientUpdate: (updateId: string) => void;
+  onDispatchClientUpdate: (updateId: string) => void;
+  onAcknowledgeClientUpdate: (updateId: string) => void;
   onSubmitDeadlineCalculation: () => void;
   onSubmitMatterTask: () => void;
   onToggleTaskStatus: (task: MatterRoomTask) => void;
@@ -1419,10 +1793,10 @@ function OverviewPanel({
               />
               <button
                 onClick={onSubmitMatterTask}
-                disabled={isSubmitting === "task" || !taskTitleDraft.trim() || matterRoom.source !== "live"}
+                disabled={isSubmitting === "task" || !taskTitleDraft.trim() || !canPersistMatterRoom}
                 className="rounded-full bg-[#082921] px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white transition disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isSubmitting === "task" ? "Saving..." : matterRoom.source === "live" ? "Create task" : "Live backend required"}
+                {isSubmitting === "task" ? "Saving..." : canPersistMatterRoom ? "Create task" : saveActionLabel}
               </button>
             </div>
           </div>
@@ -1518,6 +1892,80 @@ function OverviewPanel({
 
           <div className="mt-6 rounded-[1.35rem] border border-slate-200 bg-white p-4">
             <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Client communication ledger</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  Draft, approve, dispatch, and acknowledge client-facing updates as controlled legal communications.
+                </p>
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                {matterOperations.clientUpdates.length} records
+              </span>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {matterOperations.clientUpdates.length ? (
+                matterOperations.clientUpdates.map((update) => (
+                  <div key={update.id} className="rounded-[1.1rem] border border-slate-200 bg-[#fcfcfb] p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                            {update.channel}
+                          </span>
+                          <span className="rounded-full bg-heritage-green/6 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-heritage-green">
+                            {update.status}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-sm font-semibold text-slate-900">{update.title}</p>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">{update.message}</p>
+                        <p className="mt-3 text-xs text-slate-500">
+                          {update.deliveryNote ?? "No delivery note yet."}
+                          {update.recipient ? ` Recipient: ${update.recipient}` : ""}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 md:max-w-[16rem] md:justify-end">
+                        {update.status === "Draft" && (
+                          <button
+                            onClick={() => onApproveClientUpdate(update.id)}
+                            disabled={clientUpdateBusyId === update.id}
+                            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 transition disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {clientUpdateBusyId === update.id ? "Saving..." : "Approve"}
+                          </button>
+                        )}
+                        {(update.status === "Approved" || update.status === "Queued") && (
+                          <button
+                            onClick={() => onDispatchClientUpdate(update.id)}
+                            disabled={clientUpdateBusyId === update.id}
+                            className="rounded-full bg-heritage-green px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {clientUpdateBusyId === update.id ? "Sending..." : "Dispatch"}
+                          </button>
+                        )}
+                        {(update.status === "Sent" || update.status === "Delivered" || update.status === "Queued") && (
+                          <button
+                            onClick={() => onAcknowledgeClientUpdate(update.id)}
+                            disabled={clientUpdateBusyId === update.id}
+                            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 transition disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {clientUpdateBusyId === update.id ? "Saving..." : "Acknowledge"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-[1.1rem] border border-dashed border-slate-200 bg-[#fcfcfb] p-4 text-sm text-slate-500">
+                  No client communication records yet for this matter.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-[1.35rem] border border-slate-200 bg-white p-4">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <FilePenLine className="h-4 w-4 text-heritage-green" />
                 <div>
@@ -1547,7 +1995,7 @@ function OverviewPanel({
                 disabled={isSubmitting === "client-update" || !clientUpdate.trim()}
                 className="rounded-full bg-heritage-green px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white transition disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isSubmitting === "client-update" ? "Sending..." : "Send update"}
+                {isSubmitting === "client-update" ? "Saving..." : "Save draft"}
               </button>
             </div>
           </div>
@@ -1583,6 +2031,12 @@ function DocumentsPanel({
   matterRoom,
   documentTitleDraft,
   documentTypeDraft,
+  documentStatusDraft,
+  documentReviewStatusDraft,
+  documentAccessLevelDraft,
+  documentSharingPolicyDraft,
+  documentVersionLabelDraft,
+  documentReviewNoteDraft,
   documentPathDraft,
   documentOneDriveIdDraft,
   documentSummaryDraft,
@@ -1597,8 +2051,17 @@ function DocumentsPanel({
   custodyEventLocationDraft,
   custodyEventStatusDraft,
   isSubmitting,
+  documentBusyId,
+  canPersistMatterRoom,
+  saveActionLabel,
   onDocumentTitleChange,
   onDocumentTypeChange,
+  onDocumentStatusChange,
+  onDocumentReviewStatusChange,
+  onDocumentAccessLevelChange,
+  onDocumentSharingPolicyChange,
+  onDocumentVersionLabelChange,
+  onDocumentReviewNoteChange,
   onDocumentPathChange,
   onDocumentOneDriveIdChange,
   onDocumentSummaryChange,
@@ -1613,12 +2076,20 @@ function DocumentsPanel({
   onCustodyEventLocationChange,
   onCustodyEventStatusChange,
   onSubmitMatterDocument,
+  onUploadMatterDocument,
+  onUpdateDocumentControl,
   onSubmitPhysicalFileUpdate,
   onSubmitCustodyEvent,
 }: {
   matterRoom: MatterRoomData;
   documentTitleDraft: string;
   documentTypeDraft: string;
+  documentStatusDraft: "Draft" | "Final" | "Filed" | "Archived";
+  documentReviewStatusDraft: "Working" | "Internal review" | "Approved" | "Needs revision";
+  documentAccessLevelDraft: "Matter team" | "Lead+Partner";
+  documentSharingPolicyDraft: "Internal only" | "Client-share ready" | "Blocked";
+  documentVersionLabelDraft: string;
+  documentReviewNoteDraft: string;
   documentPathDraft: string;
   documentOneDriveIdDraft: string;
   documentSummaryDraft: string;
@@ -1633,8 +2104,17 @@ function DocumentsPanel({
   custodyEventLocationDraft: string;
   custodyEventStatusDraft: string;
   isSubmitting: MatterSubmitState;
+  documentBusyId: string | null;
+  canPersistMatterRoom: boolean;
+  saveActionLabel: string;
   onDocumentTitleChange: (value: string) => void;
   onDocumentTypeChange: (value: string) => void;
+  onDocumentStatusChange: (value: "Draft" | "Final" | "Filed" | "Archived") => void;
+  onDocumentReviewStatusChange: (value: "Working" | "Internal review" | "Approved" | "Needs revision") => void;
+  onDocumentAccessLevelChange: (value: "Matter team" | "Lead+Partner") => void;
+  onDocumentSharingPolicyChange: (value: "Internal only" | "Client-share ready" | "Blocked") => void;
+  onDocumentVersionLabelChange: (value: string) => void;
+  onDocumentReviewNoteChange: (value: string) => void;
   onDocumentPathChange: (value: string) => void;
   onDocumentOneDriveIdChange: (value: string) => void;
   onDocumentSummaryChange: (value: string) => void;
@@ -1649,9 +2129,62 @@ function DocumentsPanel({
   onCustodyEventLocationChange: (value: string) => void;
   onCustodyEventStatusChange: (value: string) => void;
   onSubmitMatterDocument: () => void;
+  onUploadMatterDocument: (file: File) => void;
+  onUpdateDocumentControl: (input: {
+    documentId: string;
+    documentStatus: "Draft" | "Final" | "Filed" | "Archived";
+    reviewStatus: "Working" | "Internal review" | "Approved" | "Needs revision";
+    accessLevel: "Matter team" | "Lead+Partner";
+    sharingPolicy: "Internal only" | "Client-share ready" | "Blocked";
+    versionLabel: string;
+    reviewNote: string;
+  }) => void;
   onSubmitPhysicalFileUpdate: () => void;
   onSubmitCustodyEvent: () => void;
 }) {
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [documentControlDrafts, setDocumentControlDrafts] = useState<
+    Record<
+      string,
+      {
+        documentStatus: "Draft" | "Final" | "Filed" | "Archived";
+        reviewStatus: "Working" | "Internal review" | "Approved" | "Needs revision";
+        accessLevel: "Matter team" | "Lead+Partner";
+        sharingPolicy: "Internal only" | "Client-share ready" | "Blocked";
+        versionLabel: string;
+        reviewNote: string;
+      }
+    >
+  >({});
+
+  function patchDocumentControlDraft(
+    documentId: string,
+    patch: Partial<{
+      documentStatus: "Draft" | "Final" | "Filed" | "Archived";
+      reviewStatus: "Working" | "Internal review" | "Approved" | "Needs revision";
+      accessLevel: "Matter team" | "Lead+Partner";
+      sharingPolicy: "Internal only" | "Client-share ready" | "Blocked";
+      versionLabel: string;
+      reviewNote: string;
+    }>
+  ) {
+    setDocumentControlDrafts((current) => {
+      const existing = current[documentId];
+      return {
+        ...current,
+        [documentId]: {
+          documentStatus: existing?.documentStatus ?? "Draft",
+          reviewStatus: existing?.reviewStatus ?? "Working",
+          accessLevel: existing?.accessLevel ?? "Matter team",
+          sharingPolicy: existing?.sharingPolicy ?? "Internal only",
+          versionLabel: existing?.versionLabel ?? "v1",
+          reviewNote: existing?.reviewNote ?? "",
+          ...patch,
+        },
+      };
+    });
+  }
+
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
       <div className="rounded-[1.6rem] border border-slate-200 bg-[#fcfcfb] p-5">
@@ -1677,6 +2210,12 @@ function DocumentsPanel({
                   <span className="rounded-full bg-heritage-green/6 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-heritage-green">
                     {item.documentType}
                   </span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-700">
+                    {item.accessLevel}
+                  </span>
+                  <span className="rounded-full bg-rose-50 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-rose-700">
+                    {item.sharingPolicy}
+                  </span>
                   {item.requiresComplianceAudit && (
                     <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-700">
                       Compliance
@@ -1695,6 +2234,128 @@ function DocumentsPanel({
           ))}
         </div>
 
+        <div className="mt-5 space-y-3">
+          {matterRoom.documents.map((item) => {
+            const draft = documentControlDrafts[item.id] ?? {
+              documentStatus: item.documentStatus,
+              reviewStatus: item.reviewStatus,
+              accessLevel: item.accessLevel,
+              sharingPolicy: item.sharingPolicy,
+              versionLabel: item.versionLabel ?? "v1",
+              reviewNote: item.reviewNote ?? "",
+            };
+
+            return (
+              <div key={`${item.id}-control`} className="rounded-[1.2rem] border border-dashed border-slate-300 bg-[#f8faf9] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Control: {item.title}</p>
+                    <p className="mt-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                      {item.documentStatus} • {item.reviewStatus}
+                    </p>
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    {item.versionLabel ? `Version ${item.versionLabel}` : "Version not set"}
+                    {item.filedAt ? ` • Filed ${item.filedAt}` : ""}
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  <select
+                    value={draft.documentStatus}
+                    onChange={(event) =>
+                      patchDocumentControlDraft(item.id, {
+                        documentStatus: event.target.value as "Draft" | "Final" | "Filed" | "Archived",
+                      })
+                    }
+                    className="w-full rounded-[1rem] border border-slate-200 bg-white p-3 text-sm outline-none transition focus:border-heritage-green"
+                  >
+                    <option value="Draft">Draft</option>
+                    <option value="Final">Final</option>
+                    <option value="Filed">Filed</option>
+                    <option value="Archived">Archived</option>
+                  </select>
+                  <select
+                    value={draft.reviewStatus}
+                    onChange={(event) =>
+                      patchDocumentControlDraft(item.id, {
+                        reviewStatus: event.target.value as
+                          | "Working"
+                          | "Internal review"
+                          | "Approved"
+                          | "Needs revision",
+                      })
+                    }
+                    className="w-full rounded-[1rem] border border-slate-200 bg-white p-3 text-sm outline-none transition focus:border-heritage-green"
+                  >
+                    <option value="Working">Working</option>
+                    <option value="Internal review">Internal review</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Needs revision">Needs revision</option>
+                  </select>
+                  <input
+                    value={draft.versionLabel}
+                    onChange={(event) => patchDocumentControlDraft(item.id, { versionLabel: event.target.value })}
+                    placeholder="Version label"
+                    className="w-full rounded-[1rem] border border-slate-200 bg-white p-3 text-sm outline-none transition focus:border-heritage-green"
+                  />
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <select
+                    value={draft.accessLevel}
+                    onChange={(event) =>
+                      patchDocumentControlDraft(item.id, {
+                        accessLevel: event.target.value as "Matter team" | "Lead+Partner",
+                      })
+                    }
+                    className="w-full rounded-[1rem] border border-slate-200 bg-white p-3 text-sm outline-none transition focus:border-heritage-green"
+                  >
+                    <option value="Matter team">Matter team</option>
+                    <option value="Lead+Partner">Lead+Partner</option>
+                  </select>
+                  <select
+                    value={draft.sharingPolicy}
+                    onChange={(event) =>
+                      patchDocumentControlDraft(item.id, {
+                        sharingPolicy: event.target.value as "Internal only" | "Client-share ready" | "Blocked",
+                      })
+                    }
+                    className="w-full rounded-[1rem] border border-slate-200 bg-white p-3 text-sm outline-none transition focus:border-heritage-green"
+                  >
+                    <option value="Internal only">Internal only</option>
+                    <option value="Client-share ready">Client-share ready</option>
+                    <option value="Blocked">Blocked</option>
+                  </select>
+                </div>
+                <textarea
+                  value={draft.reviewNote}
+                  onChange={(event) => patchDocumentControlDraft(item.id, { reviewNote: event.target.value })}
+                  placeholder="Review note, approval context, or filing evidence"
+                  className="mt-3 min-h-20 w-full rounded-[1rem] border border-slate-200 bg-white p-4 text-sm outline-none transition focus:border-heritage-green"
+                />
+                <div className="mt-3 flex justify-end">
+                  <button
+                    onClick={() =>
+                      onUpdateDocumentControl({
+                        documentId: item.id,
+                        documentStatus: draft.documentStatus,
+                        reviewStatus: draft.reviewStatus,
+                        accessLevel: draft.accessLevel,
+                        sharingPolicy: draft.sharingPolicy,
+                        versionLabel: draft.versionLabel,
+                        reviewNote: draft.reviewNote,
+                      })
+                    }
+                    disabled={documentBusyId === item.id || !canPersistMatterRoom}
+                    className="rounded-full border border-slate-200 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-700 transition hover:border-heritage-green hover:text-heritage-green disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {documentBusyId === item.id ? "Saving..." : canPersistMatterRoom ? "Apply control" : saveActionLabel}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
         <div className="mt-5 rounded-[1.35rem] border border-slate-200 bg-white p-4">
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Register matter document</p>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -1710,6 +2371,61 @@ function DocumentsPanel({
               placeholder="Document type"
               className="w-full rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green"
             />
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <select
+              value={documentStatusDraft}
+              onChange={(event) => onDocumentStatusChange(event.target.value as "Draft" | "Final" | "Filed" | "Archived")}
+              className="w-full rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green"
+            >
+              <option value="Draft">Draft</option>
+              <option value="Final">Final</option>
+              <option value="Filed">Filed</option>
+              <option value="Archived">Archived</option>
+            </select>
+            <select
+              value={documentReviewStatusDraft}
+              onChange={(event) =>
+                onDocumentReviewStatusChange(
+                  event.target.value as "Working" | "Internal review" | "Approved" | "Needs revision"
+                )
+              }
+              className="w-full rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green"
+            >
+              <option value="Working">Working</option>
+              <option value="Internal review">Internal review</option>
+              <option value="Approved">Approved</option>
+              <option value="Needs revision">Needs revision</option>
+            </select>
+            <input
+              value={documentVersionLabelDraft}
+              onChange={(event) => onDocumentVersionLabelChange(event.target.value)}
+              placeholder="Version label"
+              className="w-full rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green"
+            />
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <select
+              value={documentAccessLevelDraft}
+              onChange={(event) => onDocumentAccessLevelChange(event.target.value as "Matter team" | "Lead+Partner")}
+              className="w-full rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green"
+            >
+              <option value="Matter team">Matter team</option>
+              <option value="Lead+Partner">Lead+Partner</option>
+            </select>
+            <select
+              value={documentSharingPolicyDraft}
+              onChange={(event) =>
+                onDocumentSharingPolicyChange(
+                  event.target.value as "Internal only" | "Client-share ready" | "Blocked"
+                )
+              }
+              className="w-full rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green"
+            >
+              <option value="Internal only">Internal only</option>
+              <option value="Client-share ready">Client-share ready</option>
+              <option value="Blocked">Blocked</option>
+            </select>
           </div>
           <input
             value={documentPathDraft}
@@ -1729,6 +2445,12 @@ function DocumentsPanel({
             placeholder="AI summary or registration note"
             className="mt-3 min-h-24 w-full rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green"
           />
+          <textarea
+            value={documentReviewNoteDraft}
+            onChange={(event) => onDocumentReviewNoteChange(event.target.value)}
+            placeholder="Review note or filing context"
+            className="mt-3 min-h-20 w-full rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green"
+          />
           <label className="mt-3 flex items-center gap-3 text-sm text-slate-600">
             <input
               type="checkbox"
@@ -1741,11 +2463,39 @@ function DocumentsPanel({
           <div className="mt-3 flex justify-end">
             <button
               onClick={onSubmitMatterDocument}
-              disabled={isSubmitting === "document" || !documentTitleDraft.trim() || matterRoom.source !== "live"}
+              disabled={isSubmitting === "document" || !documentTitleDraft.trim() || !canPersistMatterRoom}
               className="rounded-full bg-heritage-green px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white transition disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isSubmitting === "document" ? "Saving..." : matterRoom.source === "live" ? "Register document" : "Live backend required"}
+              {isSubmitting === "document" ? "Saving..." : canPersistMatterRoom ? "Register document" : saveActionLabel}
             </button>
+          </div>
+          <div className="mt-4 rounded-[1rem] border border-dashed border-slate-300 bg-[#f8faf9] p-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Upload directly into matter vault</p>
+            <input
+              type="file"
+              onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+              className="mt-3 block w-full text-sm text-slate-600"
+            />
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <p className="text-xs text-slate-500">
+                {uploadFile
+                  ? `${uploadFile.name} will be saved into the local matter vault and registered in the workspace.`
+                  : "Choose a file to save it in the matter vault and register it automatically."}
+              </p>
+              <button
+                onClick={() => {
+                  if (!uploadFile) {
+                    return;
+                  }
+                  onUploadMatterDocument(uploadFile);
+                  setUploadFile(null);
+                }}
+                disabled={isSubmitting === "document-upload" || !uploadFile || !canPersistMatterRoom}
+                className="rounded-full border border-slate-200 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-700 transition hover:border-heritage-green hover:text-heritage-green disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSubmitting === "document-upload" ? "Uploading..." : canPersistMatterRoom ? "Upload file" : saveActionLabel}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1801,10 +2551,10 @@ function DocumentsPanel({
             <div className="flex justify-end">
               <button
                 onClick={onSubmitPhysicalFileUpdate}
-                disabled={isSubmitting === "physical-file" || matterRoom.source !== "live"}
+                disabled={isSubmitting === "physical-file" || !canPersistMatterRoom}
                 className="rounded-full bg-[#082921] px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white transition disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isSubmitting === "physical-file" ? "Saving..." : matterRoom.source === "live" ? "Save registry" : "Live backend required"}
+                {isSubmitting === "physical-file" ? "Saving..." : canPersistMatterRoom ? "Save registry" : saveActionLabel}
               </button>
             </div>
           </div>
@@ -1851,10 +2601,10 @@ function DocumentsPanel({
             <div className="flex justify-end">
               <button
                 onClick={onSubmitCustodyEvent}
-                disabled={isSubmitting === "custody" || !custodyEventNoteDraft.trim() || matterRoom.source !== "live"}
+                disabled={isSubmitting === "custody" || !custodyEventNoteDraft.trim() || !canPersistMatterRoom}
                 className="rounded-full bg-heritage-green px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white transition disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isSubmitting === "custody" ? "Saving..." : matterRoom.source === "live" ? "Record custody event" : "Live backend required"}
+                {isSubmitting === "custody" ? "Saving..." : canPersistMatterRoom ? "Record custody event" : saveActionLabel}
               </button>
             </div>
           </div>
@@ -1928,6 +2678,8 @@ function CollaborationPanel({
   chatMessageDraft,
   isSubmitting,
   notificationBusyId,
+  canPersistMatterRoom,
+  saveActionLabel,
   onMemberDraftChange,
   onCommentDraftChange,
   onChatMessageDraftChange,
@@ -1945,6 +2697,8 @@ function CollaborationPanel({
   chatMessageDraft: string;
   isSubmitting: MatterSubmitState;
   notificationBusyId: string | null;
+  canPersistMatterRoom: boolean;
+  saveActionLabel: string;
   onMemberDraftChange: (value: string) => void;
   onCommentDraftChange: (value: string) => void;
   onChatMessageDraftChange: (value: string) => void;
@@ -1987,14 +2741,16 @@ function CollaborationPanel({
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
               {matterRoom.source === "live"
                 ? "Stored in matter_comments"
-                : "Fallback mode cannot persist comments"}
+                : matterRoom.source === "prototype"
+                  ? "Stored in local prototype matter room"
+                  : "Seeded fallback cannot persist comments"}
             </p>
             <button
               onClick={onSubmitMatterComment}
-              disabled={isSubmitting === "comment" || !commentDraft.trim() || matterRoom.source !== "live"}
+              disabled={isSubmitting === "comment" || !commentDraft.trim() || !canPersistMatterRoom}
               className="rounded-full bg-heritage-green px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white transition disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isSubmitting === "comment" ? "Saving..." : matterRoom.source === "live" ? "Save note" : "Live backend required"}
+              {isSubmitting === "comment" ? "Saving..." : canPersistMatterRoom ? "Save note" : saveActionLabel}
             </button>
           </div>
         </div>
@@ -2079,7 +2835,7 @@ function CollaborationPanel({
                     <span className="rounded-full bg-heritage-green/6 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-heritage-green">
                       {member.isPrimary ? "Primary" : member.role}
                     </span>
-                    {!member.isPrimary && matterRoom.source === "live" && (
+                    {!member.isPrimary && canPersistMatterRoom && (
                       <button
                         onClick={() => onRemoveMember(member.id)}
                         className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600"
@@ -2113,10 +2869,10 @@ function CollaborationPanel({
               </select>
               <button
                 onClick={onSubmitMemberAssignment}
-                disabled={isSubmitting === "member" || !memberDraft || matterRoom.source !== "live"}
+                disabled={isSubmitting === "member" || !memberDraft || !canPersistMatterRoom}
                 className="rounded-full bg-[#082921] px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white transition disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isSubmitting === "member" ? "Assigning..." : matterRoom.source === "live" ? "Assign member" : "Live backend required"}
+                {isSubmitting === "member" ? "Assigning..." : canPersistMatterRoom ? "Assign member" : saveActionLabel}
               </button>
             </div>
           </div>
@@ -2130,36 +2886,64 @@ function GovernancePanel({
   matter,
   matterRoom,
   matterOperations,
+  securityProfile,
+  securityClassificationDraft,
+  ethicalWallEnabledDraft,
+  accessOverrideLawyerIdDraft,
+  accessOverrideStatusDraft,
+  accessOverrideReasonDraft,
   guidanceSummaryDraft,
   nextActionDraft,
   memorySummaryDraft,
   memoryDecisionDraft,
   memoryUnresolvedDraft,
   isSubmitting,
+  securityBusy,
   onGuidanceSummaryChange,
   onNextActionChange,
   onMemorySummaryChange,
   onMemoryDecisionChange,
   onMemoryUnresolvedChange,
+  onSecurityClassificationChange,
+  onEthicalWallEnabledChange,
+  onAccessOverrideLawyerIdChange,
+  onAccessOverrideStatusChange,
+  onAccessOverrideReasonChange,
   onSubmitGuidanceRefresh,
   onSubmitMemoryCheckpoint,
+  onSubmitSecurityProfile,
+  onSubmitAccessOverride,
 }: {
   matter: MatterWorkspaceData;
   matterRoom: MatterRoomData;
   matterOperations: MatterOperations;
+  securityProfile: MatterSecurityProfile | null;
+  securityClassificationDraft: "Standard" | "Confidential" | "Partner-only";
+  ethicalWallEnabledDraft: boolean;
+  accessOverrideLawyerIdDraft: string;
+  accessOverrideStatusDraft: MatterAccessStatus;
+  accessOverrideReasonDraft: string;
   guidanceSummaryDraft: string;
   nextActionDraft: string;
   memorySummaryDraft: string;
   memoryDecisionDraft: string;
   memoryUnresolvedDraft: string;
   isSubmitting: MatterSubmitState;
+  securityBusy: boolean;
   onGuidanceSummaryChange: (value: string) => void;
   onNextActionChange: (value: string) => void;
   onMemorySummaryChange: (value: string) => void;
   onMemoryDecisionChange: (value: string) => void;
   onMemoryUnresolvedChange: (value: string) => void;
+  onSecurityClassificationChange: (value: "Standard" | "Confidential" | "Partner-only") => void;
+  onEthicalWallEnabledChange: (value: boolean) => void;
+  onAccessOverrideLawyerIdChange: (value: string) => void;
+  onAccessOverrideStatusChange: (value: MatterAccessStatus) => void;
+  onAccessOverrideReasonChange: (value: string) => void;
   onSubmitGuidanceRefresh: () => void;
   onSubmitMemoryCheckpoint: () => void;
+  onSubmitSecurityProfile: () => void;
+  onSubmitAccessOverride: () => void;
 }) {
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
@@ -2180,6 +2964,106 @@ function GovernancePanel({
                 <p className="text-sm leading-6 text-slate-700">{check}</p>
               </div>
             ))}
+          </div>
+
+          <div className="mt-6 rounded-[1.25rem] border border-slate-200 bg-[#f9fbfa] p-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Matter security model</p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <select
+                value={securityClassificationDraft}
+                onChange={(event) =>
+                  onSecurityClassificationChange(event.target.value as "Standard" | "Confidential" | "Partner-only")
+                }
+                className="w-full rounded-[1rem] border border-slate-200 bg-white p-4 text-sm outline-none transition focus:border-heritage-green"
+              >
+                <option value="Standard">Standard</option>
+                <option value="Confidential">Confidential</option>
+                <option value="Partner-only">Partner-only</option>
+              </select>
+              <label className="flex items-center gap-3 rounded-[1rem] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={ethicalWallEnabledDraft}
+                  onChange={(event) => onEthicalWallEnabledChange(event.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300"
+                />
+                Ethical wall enabled
+              </label>
+            </div>
+            <div className="mt-3 flex justify-end">
+              <button
+                onClick={onSubmitSecurityProfile}
+                disabled={securityBusy}
+                className="rounded-full bg-[#082921] px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {securityBusy ? "Saving..." : "Save security profile"}
+              </button>
+            </div>
+            <div className="mt-4 space-y-2 text-xs text-slate-500">
+              <p>Current profile: {securityProfile?.securityClassification ?? matter.securityClassification}</p>
+              <p>Ethical wall: {(securityProfile?.ethicalWallEnabled ?? matter.ethicalWallEnabled) ? "Enabled" : "Disabled"}</p>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[1.25rem] border border-slate-200 bg-[#f9fbfa] p-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Access overrides</p>
+            <div className="mt-3 space-y-3">
+              {(securityProfile?.accessOverrides ?? []).length ? (
+                (securityProfile?.accessOverrides ?? []).map((override) => (
+                  <div key={`${override.lawyerId}-${override.accessStatus}`} className="rounded-[1rem] border border-slate-200 bg-white p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-slate-900">{override.lawyerName}</p>
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-700">
+                        {override.accessStatus}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">{override.lawyerRole}</p>
+                    <p className="mt-2 text-xs leading-5 text-slate-600">{override.reason ?? "No reason recorded."}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-[1rem] border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-500">
+                  No explicit screened or allowed lawyers recorded yet.
+                </div>
+              )}
+            </div>
+            <div className="mt-4 grid gap-3">
+              <select
+                value={accessOverrideLawyerIdDraft}
+                onChange={(event) => onAccessOverrideLawyerIdChange(event.target.value)}
+                className="w-full rounded-[1rem] border border-slate-200 bg-white p-4 text-sm outline-none transition focus:border-heritage-green"
+              >
+                <option value="">Select lawyer</option>
+                {matterRoom.assignableLawyers.map((lawyer) => (
+                  <option key={lawyer.id} value={lawyer.id}>
+                    {lawyer.name} • {lawyer.role}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={accessOverrideStatusDraft}
+                onChange={(event) => onAccessOverrideStatusChange(event.target.value as MatterAccessStatus)}
+                className="w-full rounded-[1rem] border border-slate-200 bg-white p-4 text-sm outline-none transition focus:border-heritage-green"
+              >
+                <option value="screened">Screened</option>
+                <option value="allowed">Allowed</option>
+              </select>
+              <textarea
+                value={accessOverrideReasonDraft}
+                onChange={(event) => onAccessOverrideReasonChange(event.target.value)}
+                placeholder="Reason for this override"
+                className="min-h-20 w-full rounded-[1rem] border border-slate-200 bg-white p-4 text-sm outline-none transition focus:border-heritage-green"
+              />
+              <div className="flex justify-end">
+                <button
+                  onClick={onSubmitAccessOverride}
+                  disabled={securityBusy || !accessOverrideLawyerIdDraft}
+                  className="rounded-full border border-slate-200 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-700 transition disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {securityBusy ? "Saving..." : "Record override"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2310,6 +3194,7 @@ function GovernancePanel({
 
 type MatterOperations = {
   notifications: OperationalDashboard["notifications"];
+  clientUpdates: OperationalDashboard["clientUpdates"];
   thread: OperationalDashboard["chatThreads"][number] | null;
   guidance: OperationalDashboard["guidanceProfiles"][number] | null;
   memory: OperationalDashboard["memorySnapshots"][number] | null;

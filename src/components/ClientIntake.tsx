@@ -1,155 +1,334 @@
-"use client"
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { UserPlus, MessageSquare, DollarSign, ShieldAlert, FileText, ChevronRight, Mic, CheckCircle } from 'lucide-react';
+"use client";
+
+import React, { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowRight, BriefcaseBusiness, CheckCircle2, Mic, ShieldAlert, Sparkles, UserPlus } from "lucide-react";
+
+type IntakeClassification = {
+  matterType: string;
+  riskLevel: string;
+  primaryTrack: string;
+  nextDraft: string;
+  suggestedProvision: number;
+  rationale: string;
+};
+
+function classifyIntake(problemText: string, jurisdiction: string): IntakeClassification {
+  const text = problemText.toLowerCase();
+
+  if (text.includes("salary") || text.includes("dismiss") || text.includes("employment")) {
+    return {
+      matterType: "Labor dispute",
+      riskLevel: "High",
+      primaryTrack: `Urgent labor rights assessment in ${jurisdiction}`,
+      nextDraft: "Demand letter and labor chronology memo",
+      suggestedProvision: 350000,
+      rationale: "Employment disputes usually need urgent chronology work, documentary proof, and fast client guidance.",
+    };
+  }
+
+  if (text.includes("debt") || text.includes("invoice") || text.includes("payment") || text.includes("recovery")) {
+    return {
+      matterType: "Debt recovery / OHADA",
+      riskLevel: "Medium",
+      primaryTrack: `Structured recovery strategy in ${jurisdiction}`,
+      nextDraft: "Demand package and assignation working draft",
+      suggestedProvision: 750000,
+      rationale: "Recovery matters benefit from fast document indexing, chronology building, and pre-filing pressure.",
+    };
+  }
+
+  if (text.includes("insurance") || text.includes("claim") || text.includes("coverage")) {
+    return {
+      matterType: "Insurance dispute",
+      riskLevel: "High",
+      primaryTrack: `Coverage analysis and escalation path in ${jurisdiction}`,
+      nextDraft: "Coverage memo and escalation brief",
+      suggestedProvision: 650000,
+      rationale: "Insurance disputes often require policy interpretation, chronology validation, and annex review.",
+    };
+  }
+
+  if (text.includes("company") || text.includes("registration") || text.includes("shareholder") || text.includes("board")) {
+    return {
+      matterType: "Corporate advisory",
+      riskLevel: "Medium",
+      primaryTrack: `Corporate structuring and compliance support in ${jurisdiction}`,
+      nextDraft: "Corporate memo and action checklist",
+      suggestedProvision: 500000,
+      rationale: "Corporate files usually need careful document assembly and structured follow-up rather than immediate litigation.",
+    };
+  }
+
+  return {
+    matterType: "General legal matter",
+    riskLevel: "Medium",
+    primaryTrack: `Initial matter assessment in ${jurisdiction}`,
+    nextDraft: "Initial legal assessment note",
+    suggestedProvision: 400000,
+    rationale: "The intake needs a first-pass legal assessment before a more specific track is assigned.",
+  };
+}
 
 export default function ClientIntake() {
-  const [intakeComplete, setIntakeComplete] = useState(false);
-  const [step, setStep] = useState(1);
+  const router = useRouter();
+  const [clientName, setClientName] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [jurisdiction, setJurisdiction] = useState("Cameroon / OHADA");
+  const [problemText, setProblemText] = useState("");
+  const [statusMode, setStatusMode] = useState<"Lead" | "Onboarding">("Lead");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [createdMatterId, setCreatedMatterId] = useState<string | null>(null);
 
-  const runIntake = () => {
-    setStep(2);
-    setTimeout(() => {
-      setStep(3);
-      setTimeout(() => setIntakeComplete(true), 2000);
-    }, 2000);
-  };
+  const classification = useMemo(
+    () => classifyIntake(problemText, jurisdiction),
+    [problemText, jurisdiction]
+  );
+
+  async function createMatterFromIntake() {
+    if (!clientName.trim() || !problemText.trim()) {
+      setError("Client name and problem summary are required.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const title = `${clientName.trim()} intake`;
+      const synopsis = [
+        `Client contact: ${contactName.trim() || "Not provided"}.`,
+        `Initial intake summary: ${problemText.trim()}`,
+        `Classification rationale: ${classification.rationale}`,
+      ].join(" ");
+
+      const response = await fetch("/api/matters", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "createMatter",
+          title,
+          clientName: clientName.trim(),
+          matterType: classification.matterType,
+          jurisdiction,
+          riskLevel: classification.riskLevel,
+          status: statusMode,
+          synopsis,
+          primaryTrack: classification.primaryTrack,
+          riskToMonitor: "Validate evidence pack and client chronology",
+          aiUsageRule: "Initial intake suggestions require lawyer review before client advice",
+          nextDraft: classification.nextDraft,
+        }),
+      });
+
+      const payload = (await response.json()) as { success?: boolean; matterId?: string; error?: string };
+
+      if (!response.ok || !payload.success || !payload.matterId) {
+        throw new Error(payload.error ?? "Unable to create matter from intake.");
+      }
+
+      setCreatedMatterId(payload.matterId);
+      router.push(`/matters/${payload.matterId}`);
+      router.refresh();
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Unable to create matter from intake.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
-    <section className="p-8 max-w-7xl mx-auto space-y-12 bg-paper-white min-h-screen">
-      <div className="flex justify-between items-end border-b border-slate-200 pb-8">
-        <div className="space-y-2">
-          <h1 className="text-3xl heading-serif text-heritage-green">AI Client Intake & CRM</h1>
-          <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Conversion Engine • Automated Lead Qualification</p>
-        </div>
-        <button className="btn-classic text-xs">+ New Manual Intake</button>
-      </div>
+    <section className="min-h-screen bg-paper-white px-6 py-8 md:px-8">
+      <div className="mx-auto max-w-7xl space-y-10">
+        <div className="grid gap-8 xl:grid-cols-[1.05fr_0.95fr]">
+          <div className="rounded-[2rem] border border-white/70 bg-[linear-gradient(155deg,_#082b22_0%,_#0d4335_56%,_#c5a059_170%)] p-8 text-white shadow-[0_24px_54px_rgba(0,54,41,0.18)]">
+            <p className="text-[10px] font-black uppercase tracking-[0.32em] text-white/55">Structured intake</p>
+            <h1 className="mt-4 text-4xl heading-serif text-white">Turn a first client story into a real matter workspace.</h1>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-white/74">
+              This intake surface now feeds the matter backend instead of stopping at animation. We classify the issue,
+              shape the first working track, and open a real matter room for the team.
+            </p>
 
-      <div className="grid md:grid-cols-3 gap-8">
-        {/* Intake Process */}
-        <div className="md:col-span-2">
-          {!intakeComplete ? (
-            <div className="p-12 bg-white rounded-[3rem] border border-slate-200 shadow-xl space-y-8 flex flex-col items-center text-center">
-              <div className="w-20 h-20 bg-heritage-green/5 rounded-full flex items-center justify-center text-heritage-green mb-4">
-                 <Mic className="w-10 h-10" />
+            <div className="mt-8 grid gap-4 md:grid-cols-2">
+              <div className="rounded-[1.4rem] border border-white/10 bg-white/8 p-5">
+                <UserPlus className="h-5 w-5 text-gold-accent" />
+                <p className="mt-3 text-sm font-semibold">Lead to matter</p>
+                <p className="mt-2 text-sm leading-6 text-white/70">
+                  Creating from intake now generates a real matter record with synopsis, track, risk level, and next draft.
+                </p>
               </div>
-              <div className="space-y-2">
-                 <h2 className="text-2xl heading-serif text-heritage-green">New Client Voice/Text Intake</h2>
-                 <p className="text-sm text-slate-500 max-w-md mx-auto">TSIDEK Intelligence is ready to categorize the legal issue and suggest initial fees.</p>
+              <div className="rounded-[1.4rem] border border-white/10 bg-white/8 p-5">
+                <BriefcaseBusiness className="h-5 w-5 text-gold-accent" />
+                <p className="mt-3 text-sm font-semibold">Matter-first workflow</p>
+                <p className="mt-2 text-sm leading-6 text-white/70">
+                  Once the intake is created, the real work continues in the matter room where documents and collaboration live.
+                </p>
               </div>
-              <div className="w-full max-w-md">
-                 <textarea 
-                   placeholder="Enter the client's problem statement or upload a voice note..." 
-                   className="w-full bg-slate-50 border-none rounded-2xl p-6 text-sm outline-none focus:ring-1 focus:ring-heritage-green h-40 transition-all"
-                 />
+            </div>
+          </div>
+
+          <div className="glass rounded-[2rem] p-8">
+            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-slate-400">Intake form</p>
+            <h2 className="mt-3 text-2xl heading-serif text-heritage-green">Capture the client issue and open the file</h2>
+
+            <div className="mt-8 grid gap-4">
+              <input
+                value={clientName}
+                onChange={(event) => setClientName(event.target.value)}
+                placeholder="Client or entity name"
+                className="rounded-[1rem] border border-slate-200 bg-[#fcfcfb] px-4 py-4 text-sm outline-none focus:border-heritage-green"
+              />
+              <input
+                value={contactName}
+                onChange={(event) => setContactName(event.target.value)}
+                placeholder="Contact person"
+                className="rounded-[1rem] border border-slate-200 bg-[#fcfcfb] px-4 py-4 text-sm outline-none focus:border-heritage-green"
+              />
+              <input
+                value={jurisdiction}
+                onChange={(event) => setJurisdiction(event.target.value)}
+                placeholder="Jurisdiction"
+                className="rounded-[1rem] border border-slate-200 bg-[#fcfcfb] px-4 py-4 text-sm outline-none focus:border-heritage-green"
+              />
+              <textarea
+                value={problemText}
+                onChange={(event) => setProblemText(event.target.value)}
+                placeholder="Describe the client problem, dispute, urgency, and any known evidence..."
+                className="min-h-40 rounded-[1rem] border border-slate-200 bg-[#fcfcfb] px-4 py-4 text-sm outline-none focus:border-heritage-green"
+              />
+              <div className="grid gap-3 md:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setStatusMode("Lead")}
+                  className={`rounded-[1rem] border px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] transition ${
+                    statusMode === "Lead"
+                      ? "border-heritage-green bg-heritage-green text-white"
+                      : "border-slate-200 bg-white text-slate-500"
+                  }`}
+                >
+                  Save as lead
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusMode("Onboarding")}
+                  className={`rounded-[1rem] border px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] transition ${
+                    statusMode === "Onboarding"
+                      ? "border-heritage-green bg-heritage-green text-white"
+                      : "border-slate-200 bg-white text-slate-500"
+                  }`}
+                >
+                  Open as matter
+                </button>
               </div>
-              <button 
-                onClick={runIntake}
-                className="px-12 py-4 bg-heritage-green text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:scale-105 transition-all"
+            </div>
+
+            {error ? (
+              <div className="mt-6 rounded-[1.2rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                {error}
+              </div>
+            ) : null}
+
+            {createdMatterId ? (
+              <div className="mt-6 rounded-[1.2rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                Matter created successfully. Opening the matter room now.
+              </div>
+            ) : null}
+
+            <div className="mt-8">
+              <button
+                onClick={() => void createMatterFromIntake()}
+                disabled={isSubmitting || !clientName.trim() || !problemText.trim()}
+                className="inline-flex items-center gap-2 rounded-full bg-heritage-green px-5 py-3 text-[10px] font-black uppercase tracking-[0.22em] text-white transition disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {step === 1 ? 'Analyze Issue' : step === 2 ? 'Categorizing...' : 'Generating Opinion...'}
+                {isSubmitting ? "Creating matter..." : "Create intake matter"}
+                <ArrowRight className="h-4 w-4" />
               </button>
             </div>
-          ) : (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="space-y-8"
-            >
-               <div className="p-10 bg-white border border-slate-200 rounded-[3rem] shadow-xl space-y-8">
-                  <div className="flex justify-between items-start">
-                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
-                           <CheckCircle className="w-6 h-6" />
-                        </div>
-                        <div>
-                           <h3 className="text-xl font-bold text-heritage-green">Intake Synthesis Complete</h3>
-                           <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">TSIDEK Intelligence v3.1</p>
-                        </div>
-                     </div>
-                     <span className="text-xs font-black text-heritage-green bg-heritage-green/5 px-4 py-2 rounded-full">Case ID: INT-2024-001</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-8">
-                     <div className="space-y-4">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Legal Categorization</h4>
-                        <div className="p-6 bg-paper-white rounded-3xl border border-slate-100">
-                           <p className="text-sm font-bold text-slate-700">OHADA Commercial Dispute</p>
-                           <p className="text-[10px] text-slate-500 mt-1 uppercase">Subfield: Debt Recovery (AUPSRVE)</p>
-                        </div>
-                     </div>
-                     <div className="space-y-4">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Suggested Provision</h4>
-                        <div className="p-6 bg-heritage-green text-white rounded-3xl">
-                           <p className="text-xl font-black">750,000 XAF</p>
-                           <p className="text-[10px] opacity-70 mt-1 uppercase">Based on 85% Complexity Score</p>
-                        </div>
-                     </div>
-                  </div>
-
-                  <div className="space-y-4">
-                     <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">First-Pass Legal Opinion</h4>
-                     <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 italic text-sm text-slate-600 leading-relaxed">
-                        "The client presents a strong prima facie case for debt recovery under the Uniform Act. Key evidence missing: Formal Mise en Demeure. Recommend immediate Huissier service to trigger the procedural clock."
-                     </div>
-                  </div>
-
-                  <div className="flex gap-4">
-                     <button className="flex-1 py-4 bg-heritage-green text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg">Onboard as Active Matter</button>
-                     <button className="flex-1 py-4 border border-slate-200 text-slate-500 rounded-2xl text-[10px] font-black uppercase tracking-widest">Save as Lead</button>
-                  </div>
-               </div>
-            </motion.div>
-          )}
+          </div>
         </div>
 
-        {/* CRM / Risk Scoring */}
-        <div className="space-y-8">
-           <div className="p-8 bg-slate-900 rounded-[3rem] text-white space-y-6 shadow-2xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-8 opacity-10">
-                 <ShieldAlert className="w-32 h-32" />
+        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+          <div className="rounded-[1.8rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-heritage-green/6 p-3 text-heritage-green">
+                <Sparkles className="h-5 w-5" />
               </div>
-              <h3 className="text-xs font-black uppercase tracking-[0.2em] opacity-60">Lead Risk Scoring</h3>
-              <div className="space-y-6">
-                 <div>
-                    <div className="flex justify-between text-[10px] font-bold uppercase mb-2">
-                       <span>Profitability Potential</span>
-                       <span className="text-emerald-400">88%</span>
-                    </div>
-                    <div className="w-full h-1 bg-white/10 rounded-full">
-                       <div className="w-[88%] h-full bg-emerald-400 rounded-full" />
-                    </div>
-                 </div>
-                 <div>
-                    <div className="flex justify-between text-[10px] font-bold uppercase mb-2">
-                       <span>Payment Reliability</span>
-                       <span className="text-orange-400">Medium Risk</span>
-                    </div>
-                    <div className="w-full h-1 bg-white/10 rounded-full">
-                       <div className="w-1/2 h-full bg-orange-400 rounded-full" />
-                    </div>
-                 </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Classification result</p>
+                <h3 className="mt-1 text-lg font-semibold text-heritage-green">First-pass matter framing</h3>
               </div>
-           </div>
+            </div>
 
-           <div className="p-8 bg-paper-white border border-slate-200 rounded-[3rem] space-y-6 shadow-sm">
-              <div className="flex items-center gap-3 text-heritage-green">
-                 <DollarSign className="w-5 h-5" />
-                 <h4 className="text-xs font-black uppercase tracking-widest">Conversion Tracking</h4>
+            <div className="mt-5 space-y-4">
+              <InfoRow label="Matter type" value={classification.matterType} />
+              <InfoRow label="Risk level" value={classification.riskLevel} />
+              <InfoRow label="Primary track" value={classification.primaryTrack} />
+              <InfoRow label="Next draft" value={classification.nextDraft} />
+              <InfoRow label="Suggested provision" value={`${classification.suggestedProvision.toLocaleString()} XAF`} />
+            </div>
+          </div>
+
+          <div className="rounded-[1.8rem] border border-slate-200 bg-[#0b211c] p-6 text-white shadow-[0_20px_44px_rgba(0,0,0,0.16)]">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-white/10 p-3 text-gold-accent">
+                <Mic className="h-5 w-5" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                 <div className="p-4 bg-white rounded-2xl border border-slate-50 text-center">
-                    <p className="text-xl font-black text-heritage-green">14</p>
-                    <p className="text-[9px] text-slate-400 uppercase font-bold">New Leads</p>
-                 </div>
-                 <div className="p-4 bg-white rounded-2xl border border-slate-50 text-center">
-                    <p className="text-xl font-black text-heritage-green">82%</p>
-                    <p className="text-[9px] text-slate-400 uppercase font-bold">Conv. Rate</p>
-                 </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">Human control</p>
+                <h3 className="mt-1 text-lg font-semibold text-white">Why this intake path is safer</h3>
               </div>
-           </div>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <PolicyRow
+                icon={CheckCircle2}
+                title="Backend-backed creation"
+                body="The intake no longer dies in the UI. It writes a real matter through the existing matter API."
+              />
+              <PolicyRow
+                icon={ShieldAlert}
+                title="No fake legal advice"
+                body="The classification is an operational triage aid, not a legal conclusion. Lawyers still own legal judgment."
+              />
+              <PolicyRow
+                icon={BriefcaseBusiness}
+                title="Matter room continuity"
+                body="The value is continuity: intake leads directly into documents, tasks, collaboration, and compliance in the same system."
+              />
+            </div>
+          </div>
         </div>
       </div>
     </section>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border-b border-slate-200 pb-3 last:border-b-0 last:pb-0">
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-700">{value}</p>
+    </div>
+  );
+}
+
+function PolicyRow({
+  icon: Icon,
+  title,
+  body,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="rounded-[1.2rem] border border-white/10 bg-white/5 p-4">
+      <div className="flex items-center gap-3">
+        <Icon className="h-4 w-4 text-gold-accent" />
+        <p className="text-sm font-semibold text-white">{title}</p>
+      </div>
+      <p className="mt-2 text-sm leading-6 text-white/72">{body}</p>
+    </div>
   );
 }
