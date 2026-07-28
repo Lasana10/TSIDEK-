@@ -16,10 +16,12 @@ import {
   MemoryStick,
   MessageSquareText,
   QrCode,
+  Receipt,
   ScrollText,
   Shield,
   Sparkles,
   Users,
+  Wallet,
   Workflow,
 } from "lucide-react";
 import CaseFileStudioPanel from "@/components/CaseFileStudioPanel";
@@ -31,12 +33,21 @@ import type {
   MatterRoomComment,
   MatterRoomCustodyEvent,
   MatterRoomData,
+  MatterInvoice,
   MatterRoomTask,
 } from "@/lib/matter-room";
 import type { ClientUpdateRecord, OperationalDashboard } from "@/lib/operations";
 import type { MatterAccessStatus, MatterSecurityProfile } from "@/lib/matter-security";
 
-export type WorkspaceTab = "overview" | "documents" | "strategy" | "studio" | "intelligence" | "collaboration" | "governance";
+export type WorkspaceTab =
+  | "overview"
+  | "documents"
+  | "strategy"
+  | "studio"
+  | "intelligence"
+  | "collaboration"
+  | "governance"
+  | "finance";
 type MatterSubmitState =
   | null
   | "client-update"
@@ -50,7 +61,8 @@ type MatterSubmitState =
   | "document-upload"
   | "member"
   | "physical-file"
-  | "custody";
+  | "custody"
+  | "invoice";
 
 const workspaceTabs: { id: WorkspaceTab; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -60,6 +72,7 @@ const workspaceTabs: { id: WorkspaceTab; label: string }[] = [
   { id: "intelligence", label: "Intelligence" },
   { id: "collaboration", label: "Collaboration" },
   { id: "governance", label: "Governance" },
+  { id: "finance", label: "Finance" },
 ];
 
 const todayDateInput = new Date().toISOString().slice(0, 10);
@@ -155,6 +168,15 @@ function createFallbackMatterRoom(matter: MatterWorkspaceData): MatterRoomData {
         description: "Matter room is rendering from fallback data until the live persistence layer is connected.",
         createdAt: "Now",
         actorName: "TSIDEK Workspace",
+      },
+    ],
+    invoices: [
+      {
+        id: `${matter.id}-invoice-1`,
+        amountXaf: 450000,
+        status: "Sent",
+        dueDate: matter.timeline[0]?.date ?? null,
+        createdAt: "Seeded record",
       },
     ],
     casePreparation: [
@@ -332,6 +354,7 @@ export default function MatterWorkspace({
   const [notificationBusyId, setNotificationBusyId] = useState<string | null>(null);
   const [clientUpdateBusyId, setClientUpdateBusyId] = useState<string | null>(null);
   const [documentBusyId, setDocumentBusyId] = useState<string | null>(null);
+  const [invoiceBusyId, setInvoiceBusyId] = useState<string | null>(null);
   const [securityProfile, setSecurityProfile] = useState<MatterSecurityProfile | null>(null);
   const [securityClassificationDraft, setSecurityClassificationDraft] =
     useState<"Standard" | "Confidential" | "Partner-only">(matter.securityClassification);
@@ -339,6 +362,9 @@ export default function MatterWorkspace({
   const [accessOverrideLawyerIdDraft, setAccessOverrideLawyerIdDraft] = useState("");
   const [accessOverrideStatusDraft, setAccessOverrideStatusDraft] = useState<MatterAccessStatus>("screened");
   const [accessOverrideReasonDraft, setAccessOverrideReasonDraft] = useState("");
+  const [invoiceAmountDraft, setInvoiceAmountDraft] = useState("");
+  const [invoiceDueDateDraft, setInvoiceDueDateDraft] = useState("");
+  const [invoiceStatusDraft, setInvoiceStatusDraft] = useState<MatterInvoice["status"]>("Draft");
   const [securityBusy, setSecurityBusy] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState<MatterSubmitState>(null);
 
@@ -958,7 +984,7 @@ export default function MatterWorkspace({
       return;
     }
 
-    setIsSubmitting("member");
+    setIsSubmitting("task");
     setRoomError(null);
     try {
       const response = await fetch(`/api/matters/${matter.id}`, {
@@ -992,6 +1018,85 @@ export default function MatterWorkspace({
       setRoomError(error instanceof Error ? error.message : "Unable to create the task.");
     } finally {
       setIsSubmitting(null);
+    }
+  }
+
+  async function submitMatterInvoice() {
+    const amountXaf = Number(invoiceAmountDraft);
+    if (!Number.isFinite(amountXaf) || amountXaf <= 0) {
+      return;
+    }
+
+    setIsSubmitting("invoice");
+    setRoomError(null);
+    setRoomNotice(null);
+    try {
+      const response = await fetch(`/api/matters/${matter.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "createInvoice",
+          amountXaf,
+          dueDate: invoiceDueDateDraft || null,
+          status: invoiceStatusDraft,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error ?? "Unable to create invoice");
+      }
+
+      const payload = (await response.json()) as { room?: MatterRoomData };
+      if (payload.room) {
+        setRoom(payload.room);
+      } else {
+        await refreshMatterRoom();
+      }
+
+      setInvoiceAmountDraft("");
+      setInvoiceDueDateDraft("");
+      setInvoiceStatusDraft("Draft");
+      setRoomNotice("Invoice created and linked to the matter finance ledger.");
+    } catch (error) {
+      setRoomError(error instanceof Error ? error.message : "Unable to create invoice.");
+    } finally {
+      setIsSubmitting(null);
+    }
+  }
+
+  async function updateInvoiceStatus(invoiceId: string, status: MatterInvoice["status"]) {
+    setInvoiceBusyId(invoiceId);
+    setRoomError(null);
+    setRoomNotice(null);
+    try {
+      const response = await fetch(`/api/matters/${matter.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "updateInvoiceStatus",
+          invoiceId,
+          status,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error ?? "Unable to update invoice status");
+      }
+
+      const payload = (await response.json()) as { room?: MatterRoomData };
+      if (payload.room) {
+        setRoom(payload.room);
+      } else {
+        await refreshMatterRoom();
+      }
+
+      setRoomNotice(`Invoice status updated to ${status}.`);
+    } catch (error) {
+      setRoomError(error instanceof Error ? error.message : "Unable to update invoice status.");
+    } finally {
+      setInvoiceBusyId(null);
     }
   }
 
@@ -1554,6 +1659,23 @@ export default function MatterWorkspace({
               onSubmitMemoryCheckpoint={() => void submitMemoryCheckpoint()}
               onSubmitSecurityProfile={() => void submitSecurityProfile()}
               onSubmitAccessOverride={() => void submitAccessOverride()}
+            />
+          )}
+          {activeTab === "finance" && (
+            <FinancePanel
+              matterRoom={matterRoom}
+              invoiceAmountDraft={invoiceAmountDraft}
+              invoiceDueDateDraft={invoiceDueDateDraft}
+              invoiceStatusDraft={invoiceStatusDraft}
+              invoiceBusyId={invoiceBusyId}
+              isSubmitting={isSubmitting}
+              canPersistMatterRoom={canPersistMatterRoom}
+              saveActionLabel={saveActionLabel}
+              onInvoiceAmountChange={setInvoiceAmountDraft}
+              onInvoiceDueDateChange={setInvoiceDueDateDraft}
+              onInvoiceStatusChange={setInvoiceStatusDraft}
+              onSubmitMatterInvoice={() => void submitMatterInvoice()}
+              onUpdateInvoiceStatus={(invoiceId, status) => void updateInvoiceStatus(invoiceId, status)}
             />
           )}
         </motion.div>
@@ -3192,6 +3314,181 @@ function GovernancePanel({
   );
 }
 
+function FinancePanel({
+  matterRoom,
+  invoiceAmountDraft,
+  invoiceDueDateDraft,
+  invoiceStatusDraft,
+  invoiceBusyId,
+  isSubmitting,
+  canPersistMatterRoom,
+  saveActionLabel,
+  onInvoiceAmountChange,
+  onInvoiceDueDateChange,
+  onInvoiceStatusChange,
+  onSubmitMatterInvoice,
+  onUpdateInvoiceStatus,
+}: {
+  matterRoom: MatterRoomData;
+  invoiceAmountDraft: string;
+  invoiceDueDateDraft: string;
+  invoiceStatusDraft: MatterInvoice["status"];
+  invoiceBusyId: string | null;
+  isSubmitting: MatterSubmitState;
+  canPersistMatterRoom: boolean;
+  saveActionLabel: string;
+  onInvoiceAmountChange: (value: string) => void;
+  onInvoiceDueDateChange: (value: string) => void;
+  onInvoiceStatusChange: (value: MatterInvoice["status"]) => void;
+  onSubmitMatterInvoice: () => void;
+  onUpdateInvoiceStatus: (invoiceId: string, status: MatterInvoice["status"]) => void;
+}) {
+  const totalRaised = matterRoom.invoices.reduce((sum, invoice) => sum + invoice.amountXaf, 0);
+  const paidTotal = matterRoom.invoices
+    .filter((invoice) => invoice.status === "Paid")
+    .reduce((sum, invoice) => sum + invoice.amountXaf, 0);
+  const outstandingTotal = matterRoom.invoices
+    .filter((invoice) => invoice.status !== "Paid")
+    .reduce((sum, invoice) => sum + invoice.amountXaf, 0);
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+      <div className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-3">
+          <StatTile icon={Receipt} label="Invoices" value={`${matterRoom.invoices.length} recorded`} />
+          <StatTile icon={Wallet} label="Raised" value={formatXafCurrency(totalRaised)} />
+          <StatTile icon={CircleAlert} label="Outstanding" value={formatXafCurrency(outstandingTotal)} />
+        </div>
+
+        <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5">
+          <div className="flex items-center gap-3">
+            <Receipt className="h-5 w-5 text-heritage-green" />
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Matter billing ledger</p>
+              <h3 className="mt-1 text-lg font-semibold text-heritage-green">Track real invoice state inside the matter</h3>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {matterRoom.invoices.length ? (
+              matterRoom.invoices.map((invoice) => (
+                <div key={invoice.id} className="rounded-[1.2rem] border border-slate-200 bg-[#fcfcfb] p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                          {invoice.id.slice(0, 8)}
+                        </span>
+                        <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${invoiceStatusClasses[invoice.status]}`}>
+                          {invoice.status}
+                        </span>
+                      </div>
+                      <p className="mt-3 text-lg font-semibold text-slate-900">{formatXafCurrency(invoice.amountXaf)}</p>
+                      <p className="mt-2 text-xs text-slate-500">
+                        Due {invoice.dueDate ?? "not scheduled"} • Created {invoice.createdAt}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-2 md:min-w-40">
+                      <select
+                        value={invoice.status}
+                        onChange={(event) => onUpdateInvoiceStatus(invoice.id, event.target.value as MatterInvoice["status"])}
+                        disabled={invoiceBusyId === invoice.id}
+                        className="rounded-[1rem] border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-heritage-green disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <option value="Draft">Draft</option>
+                        <option value="Sent">Sent</option>
+                        <option value="Partial">Partial</option>
+                        <option value="Paid">Paid</option>
+                        <option value="Overdue">Overdue</option>
+                      </select>
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                        {invoiceBusyId === invoice.id ? "Saving status..." : "Status control"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-[1.2rem] border border-dashed border-slate-200 bg-[#fcfcfb] p-4 text-sm text-slate-500">
+                No invoices have been registered for this matter yet.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <div className="rounded-[1.6rem] border border-slate-200 bg-[linear-gradient(160deg,_#ffffff_0%,_#f5faf8_100%)] p-5">
+          <div className="flex items-center gap-3">
+            <Wallet className="h-5 w-5 text-heritage-green" />
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Finance snapshot</p>
+              <h3 className="mt-1 text-lg font-semibold text-heritage-green">Revenue visibility for the current matter</h3>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3">
+            <OpsTile
+              icon={Receipt}
+              label="Collected"
+              value={formatXafCurrency(paidTotal)}
+              hint="Sum of invoices already marked as paid in the matter ledger."
+            />
+            <OpsTile
+              icon={CircleAlert}
+              label="Pending"
+              value={formatXafCurrency(outstandingTotal)}
+              hint="Invoices still in draft, sent, partial, or overdue states."
+            />
+          </div>
+        </div>
+
+        <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Create invoice</p>
+          <div className="mt-4 grid gap-3">
+            <input
+              type="number"
+              min="0"
+              step="1000"
+              value={invoiceAmountDraft}
+              onChange={(event) => onInvoiceAmountChange(event.target.value)}
+              placeholder="Amount (XAF)"
+              className="w-full rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green"
+            />
+            <input
+              type="date"
+              value={invoiceDueDateDraft}
+              onChange={(event) => onInvoiceDueDateChange(event.target.value)}
+              className="w-full rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green"
+            />
+            <select
+              value={invoiceStatusDraft}
+              onChange={(event) => onInvoiceStatusChange(event.target.value as MatterInvoice["status"])}
+              className="w-full rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green"
+            >
+              <option value="Draft">Draft</option>
+              <option value="Sent">Sent</option>
+              <option value="Partial">Partial</option>
+              <option value="Paid">Paid</option>
+              <option value="Overdue">Overdue</option>
+            </select>
+            <div className="flex justify-end">
+              <button
+                onClick={onSubmitMatterInvoice}
+                disabled={isSubmitting === "invoice" || !invoiceAmountDraft.trim() || !canPersistMatterRoom}
+                className="rounded-full bg-[#082921] px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSubmitting === "invoice" ? "Saving..." : canPersistMatterRoom ? "Create invoice" : saveActionLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type MatterOperations = {
   notifications: OperationalDashboard["notifications"];
   clientUpdates: OperationalDashboard["clientUpdates"];
@@ -3305,4 +3602,20 @@ function OpsInline({
       <p className="mt-2 text-sm leading-6 text-slate-700">{value}</p>
     </div>
   );
+}
+
+const invoiceStatusClasses: Record<MatterInvoice["status"], string> = {
+  Draft: "bg-slate-100 text-slate-600",
+  Sent: "bg-sky-50 text-sky-700",
+  Partial: "bg-amber-50 text-amber-700",
+  Paid: "bg-emerald-50 text-emerald-700",
+  Overdue: "bg-rose-50 text-rose-700",
+};
+
+function formatXafCurrency(value: number) {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "XAF",
+    maximumFractionDigits: 0,
+  }).format(value);
 }

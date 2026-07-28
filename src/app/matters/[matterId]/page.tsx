@@ -16,6 +16,7 @@ function resolveWorkspaceTab(value: string | string[] | undefined): WorkspaceTab
     case "intelligence":
     case "collaboration":
     case "governance":
+    case "finance":
     case "overview":
       return tab;
     default:

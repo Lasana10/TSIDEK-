@@ -9,6 +9,7 @@ import {
   createCouncilRegisterEntry,
   createDigitalCaseFile,
   createDocumentTemplate,
+  createMatterInvoice,
   createMatterDocument,
   createCustodyEvent,
   createJurisprudenceEntry,
@@ -22,6 +23,7 @@ import {
   upsertMatterCaseField,
   updateMatterDocumentControl,
   updateComplianceChecklistItemStatus,
+  updateMatterInvoiceStatus,
   upsertPhysicalFile,
   updateMatterTaskStatus,
 } from "@/lib/matter-room";
@@ -110,6 +112,8 @@ export async function POST(
       createKnowledgeEntry: "manageEvidence",
       upsertCaseField: "manageEvidence",
       createDigitalCaseFile: "manageEvidence",
+      createInvoice: "viewBilling",
+      updateInvoiceStatus: "viewBilling",
       createDocumentTemplate: "manageEvidence",
       generatePersonalizedDraft: "manageEvidence",
       archivePersonalizedDraft: "manageEvidence",
@@ -321,6 +325,23 @@ export async function POST(
           storageProvider: body.storageProvider,
           referenceCode: body.referenceCode,
           versionLabel: body.versionLabel,
+          status: body.status,
+        });
+        return roomResponse(scope, room);
+      }
+      case "createInvoice": {
+        const room = await createMatterInvoice({
+          matterId,
+          amountXaf: Number(body.amountXaf),
+          dueDate: body.dueDate,
+          status: body.status,
+        });
+        return roomResponse(scope, room);
+      }
+      case "updateInvoiceStatus": {
+        const room = await updateMatterInvoiceStatus({
+          matterId,
+          invoiceId: body.invoiceId,
           status: body.status,
         });
         return roomResponse(scope, room);

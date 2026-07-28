@@ -161,6 +161,14 @@ export type MatterDigitalCaseFile = {
   uploadedAt: string;
 };
 
+export type MatterInvoice = {
+  id: string;
+  amountXaf: number;
+  status: "Draft" | "Sent" | "Partial" | "Paid" | "Overdue";
+  dueDate: string | null;
+  createdAt: string;
+};
+
 export type MatterTemplateProfile = TemplateProfile;
 
 export type MatterTemplateGeneration = {
@@ -197,6 +205,7 @@ export type MatterRoomData = {
   knowledgeEntries: MatterKnowledgeEntry[];
   caseFields: MatterCaseField[];
   digitalCaseFiles: MatterDigitalCaseFile[];
+  invoices: MatterInvoice[];
   templateProfiles: MatterTemplateProfile[];
   templateGenerations: MatterTemplateGeneration[];
 };
@@ -216,6 +225,14 @@ type LawyerLookupRow = {
 type RoleLookupRow = {
   id: string;
   name: string;
+};
+
+type InvoiceRow = {
+  id: string;
+  amount_xaf: number | string;
+  status: MatterInvoice["status"] | null;
+  due_date: string | null;
+  created_at: string;
 };
 
 type TaskRow = {
@@ -593,6 +610,15 @@ function buildFallbackMatterRoom(matter: MatterWorkspaceData): MatterRoomData {
         uploadedAt: "Seeded record",
       },
     ],
+    invoices: [
+      {
+        id: `${matter.id}-invoice-1`,
+        amountXaf: 350000,
+        status: "Draft",
+        dueDate: matter.timeline[0]?.date ?? null,
+        createdAt: "Seeded record",
+      },
+    ],
     templateProfiles: [
       {
         id: `${matter.id}-template-1`,
@@ -746,6 +772,7 @@ export async function getMatterRoomById(matterId: string): Promise<MatterRoomDat
     knowledgeResult,
     caseFieldResult,
     digitalCaseFileResult,
+    invoiceResult,
     templateProfileResult,
     templateGenerationResult,
   ] = await Promise.all([
@@ -833,6 +860,11 @@ export async function getMatterRoomById(matterId: string): Promise<MatterRoomDat
       .eq("matter_id", matterId)
       .order("uploaded_at", { ascending: false }),
     supabase
+      .from("invoices")
+      .select("id,amount_xaf,status,due_date,created_at")
+      .eq("matter_id", matterId)
+      .order("created_at", { ascending: false }),
+    supabase
       .from("document_templates")
       .select("id,title,practice_area,jurisdiction,language,template_body,preserved_form_note")
       .order("updated_at", { ascending: false })
@@ -859,6 +891,7 @@ export async function getMatterRoomById(matterId: string): Promise<MatterRoomDat
     knowledgeResult.error ||
     caseFieldResult.error ||
     digitalCaseFileResult.error ||
+    invoiceResult.error ||
     templateProfileResult.error ||
     templateGenerationResult.error
   ) {
@@ -883,6 +916,7 @@ export async function getMatterRoomById(matterId: string): Promise<MatterRoomDat
   const knowledgeRows = (knowledgeResult.data ?? []) as KnowledgeEntryRow[];
   const caseFieldRows = (caseFieldResult.data ?? []) as CaseFieldRow[];
   const digitalCaseFileRows = (digitalCaseFileResult.data ?? []) as DigitalCaseFileRow[];
+  const invoiceRows = (invoiceResult.data ?? []) as InvoiceRow[];
   const templateProfileRows = (templateProfileResult.data ?? []) as DocumentTemplateRow[];
   const templateGenerationRows = (templateGenerationResult.data ?? []) as TemplateGenerationRow[];
 
@@ -1130,6 +1164,13 @@ export async function getMatterRoomById(matterId: string): Promise<MatterRoomDat
           uploadedAt: formatStoredDate(item.uploaded_at),
         }))
       : fallbackRoom.digitalCaseFiles,
+    invoices: invoiceRows.map((item) => ({
+      id: item.id,
+      amountXaf: typeof item.amount_xaf === "number" ? item.amount_xaf : Number(item.amount_xaf ?? 0),
+      status: item.status ?? "Draft",
+      dueDate: item.due_date ? formatStoredDate(item.due_date) : null,
+      createdAt: formatStoredDate(item.created_at),
+    })),
     templateProfiles: templateProfileRows.length
       ? templateProfileRows.map((item) => ({
           id: item.id,
@@ -2621,6 +2662,137 @@ export async function createDigitalCaseFile(input: {
     matterId: input.matterId,
     actionType: "digital_case_file_added",
     description: `Digital case file "${input.fileLabel}" was registered.`,
+  });
+
+  return getMatterRoomById(input.matterId);
+}
+
+export async function createMatterInvoice(input: {
+  matterId: string;
+  amountXaf: number;
+  dueDate?: string | null;
+  status?: MatterInvoice["status"];
+}) {
+  const supabase = createMatterRoomClient();
+  if (!supabase) {
+    const fallbackRoom = await getMatterRoomById(input.matterId);
+    if (!fallbackRoom) {
+      throw new Error("Matter room not found for invoice creation.");
+    }
+
+    return mutatePrototypeMatterRoom(input.matterId, fallbackRoom, (room) => {
+      const createdAt = new Date().toISOString();
+      const nextRoom = {
+        ...room,
+        source: "live" as const,
+        invoices: [
+          {
+            id: `invoice-${Date.now()}`,
+            amountXaf: input.amountXaf,
+            status: input.status ?? "Draft",
+            dueDate: input.dueDate ? formatStoredDate(input.dueDate) : null,
+            createdAt: formatStoredDate(createdAt),
+          },
+          ...room.invoices,
+        ],
+        auditTrail: [
+          {
+            id: `audit-${Date.now()}`,
+            actionType: "invoice_created",
+            description: `Invoice for ${input.amountXaf.toLocaleString("fr-FR")} XAF was recorded.`,
+            createdAt,
+            actorName: "TSIDEK Operator",
+          },
+          ...room.auditTrail,
+        ].slice(0, 20),
+      };
+      return { room: nextRoom, result: nextRoom };
+    });
+  }
+
+  const scope = await resolveMatterFirmScope(input.matterId);
+  if (!scope) {
+    throw new Error("Unable to resolve matter scope for invoice creation.");
+  }
+
+  const result = await scope.supabase.from("invoices").insert({
+    matter_id: input.matterId,
+    amount_xaf: input.amountXaf,
+    status: input.status ?? "Draft",
+    due_date: input.dueDate ?? null,
+  });
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  await recordMatterAudit({
+    supabase: scope.supabase,
+    firmId: scope.firmId,
+    matterId: input.matterId,
+    actionType: "invoice_created",
+    description: `Invoice for ${input.amountXaf.toLocaleString("fr-FR")} XAF was recorded.`,
+  });
+
+  return getMatterRoomById(input.matterId);
+}
+
+export async function updateMatterInvoiceStatus(input: {
+  matterId: string;
+  invoiceId: string;
+  status: MatterInvoice["status"];
+}) {
+  const supabase = createMatterRoomClient();
+  if (!supabase) {
+    const fallbackRoom = await getMatterRoomById(input.matterId);
+    if (!fallbackRoom) {
+      throw new Error("Matter room not found for invoice status update.");
+    }
+
+    return mutatePrototypeMatterRoom(input.matterId, fallbackRoom, (room) => {
+      const createdAt = new Date().toISOString();
+      const nextRoom = {
+        ...room,
+        source: "live" as const,
+        invoices: room.invoices.map((invoice) =>
+          invoice.id === input.invoiceId ? { ...invoice, status: input.status } : invoice
+        ),
+        auditTrail: [
+          {
+            id: `audit-${Date.now()}`,
+            actionType: "invoice_status_updated",
+            description: `Invoice status changed to ${input.status}.`,
+            createdAt,
+            actorName: "TSIDEK Operator",
+          },
+          ...room.auditTrail,
+        ].slice(0, 20),
+      };
+      return { room: nextRoom, result: nextRoom };
+    });
+  }
+
+  const scope = await resolveMatterFirmScope(input.matterId);
+  if (!scope) {
+    throw new Error("Unable to resolve matter scope for invoice update.");
+  }
+
+  const result = await scope.supabase
+    .from("invoices")
+    .update({ status: input.status })
+    .eq("id", input.invoiceId)
+    .eq("matter_id", input.matterId);
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  await recordMatterAudit({
+    supabase: scope.supabase,
+    firmId: scope.firmId,
+    matterId: input.matterId,
+    actionType: "invoice_status_updated",
+    description: `Invoice status changed to ${input.status}.`,
   });
 
   return getMatterRoomById(input.matterId);
