@@ -47,6 +47,14 @@ services:
         value: "v20.0"
       - key: GEMINI_API_KEY
         sync: false
+      - key: PAWAPAY_API_URL
+        value: "https://api.pawapay.io/v1"
+      - key: PAWAPAY_API_KEY
+        sync: false
+      - key: PAWAPAY_CALLBACK_URL
+        sync: false
+      - key: PAWAPAY_PAYMENT_REQUEST_PATH
+        sync: false
       - key: ONEDRIVE_TENANT_ID
         sync: false
       - key: ONEDRIVE_CLIENT_ID

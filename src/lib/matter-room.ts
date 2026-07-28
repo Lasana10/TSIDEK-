@@ -169,6 +169,31 @@ export type MatterInvoice = {
   createdAt: string;
 };
 
+export type MatterPayment = {
+  id: string;
+  amountXaf: number;
+  currency: "XAF" | "XOF";
+  provider: "MTN" | "ORANGE" | "BANK" | "CASH";
+  phoneNumber: string | null;
+  paymentKind: "Provision" | "Invoice payment" | "Retainer" | "Client funds";
+  accountType: "Client funds" | "Firm operating";
+  status: "Requested" | "Pending" | "Confirmed" | "Failed" | "Cancelled";
+  providerReference: string | null;
+  note: string | null;
+  createdAt: string;
+};
+
+export type MatterDisbursement = {
+  id: string;
+  amountXaf: number;
+  category: "Court fees" | "Bailiff" | "Registry" | "Transport" | "Expert" | "Other";
+  payee: string;
+  status: "Planned" | "Approved" | "Paid" | "Reconciled";
+  proofDocumentId: string | null;
+  note: string | null;
+  createdAt: string;
+};
+
 export type MatterTemplateProfile = TemplateProfile;
 
 export type MatterTemplateGeneration = {
@@ -206,6 +231,8 @@ export type MatterRoomData = {
   caseFields: MatterCaseField[];
   digitalCaseFiles: MatterDigitalCaseFile[];
   invoices: MatterInvoice[];
+  payments: MatterPayment[];
+  disbursements: MatterDisbursement[];
   templateProfiles: MatterTemplateProfile[];
   templateGenerations: MatterTemplateGeneration[];
 };
@@ -232,6 +259,31 @@ type InvoiceRow = {
   amount_xaf: number | string;
   status: MatterInvoice["status"] | null;
   due_date: string | null;
+  created_at: string;
+};
+
+type PaymentRow = {
+  id: string;
+  amount_xaf: number | string;
+  currency: MatterPayment["currency"] | null;
+  provider: MatterPayment["provider"] | null;
+  phone_number: string | null;
+  payment_kind: MatterPayment["paymentKind"] | null;
+  account_type: MatterPayment["accountType"] | null;
+  status: MatterPayment["status"] | null;
+  provider_reference: string | null;
+  note: string | null;
+  created_at: string;
+};
+
+type DisbursementRow = {
+  id: string;
+  amount_xaf: number | string;
+  category: MatterDisbursement["category"] | null;
+  payee: string | null;
+  status: MatterDisbursement["status"] | null;
+  proof_document_id: string | null;
+  note: string | null;
   created_at: string;
 };
 
@@ -619,6 +671,33 @@ function buildFallbackMatterRoom(matter: MatterWorkspaceData): MatterRoomData {
         createdAt: "Seeded record",
       },
     ],
+    payments: [
+      {
+        id: `${matter.id}-payment-1`,
+        amountXaf: 150000,
+        currency: "XAF",
+        provider: "MTN",
+        phoneNumber: null,
+        paymentKind: "Provision",
+        accountType: "Client funds",
+        status: "Requested",
+        providerReference: null,
+        note: "Seeded payment request until live finance tables are applied.",
+        createdAt: "Seeded record",
+      },
+    ],
+    disbursements: [
+      {
+        id: `${matter.id}-disbursement-1`,
+        amountXaf: 50000,
+        category: "Court fees",
+        payee: "Registry",
+        status: "Planned",
+        proofDocumentId: null,
+        note: "Seeded disbursement plan until live finance tables are applied.",
+        createdAt: "Seeded record",
+      },
+    ],
     templateProfiles: [
       {
         id: `${matter.id}-template-1`,
@@ -773,6 +852,8 @@ export async function getMatterRoomById(matterId: string): Promise<MatterRoomDat
     caseFieldResult,
     digitalCaseFileResult,
     invoiceResult,
+    paymentResult,
+    disbursementResult,
     templateProfileResult,
     templateGenerationResult,
   ] = await Promise.all([
@@ -865,6 +946,16 @@ export async function getMatterRoomById(matterId: string): Promise<MatterRoomDat
       .eq("matter_id", matterId)
       .order("created_at", { ascending: false }),
     supabase
+      .from("matter_payments")
+      .select("id,amount_xaf,currency,provider,phone_number,payment_kind,account_type,status,provider_reference,note,created_at")
+      .eq("matter_id", matterId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("matter_disbursements")
+      .select("id,amount_xaf,category,payee,status,proof_document_id,note,created_at")
+      .eq("matter_id", matterId)
+      .order("created_at", { ascending: false }),
+    supabase
       .from("document_templates")
       .select("id,title,practice_area,jurisdiction,language,template_body,preserved_form_note")
       .order("updated_at", { ascending: false })
@@ -917,6 +1008,8 @@ export async function getMatterRoomById(matterId: string): Promise<MatterRoomDat
   const caseFieldRows = (caseFieldResult.data ?? []) as CaseFieldRow[];
   const digitalCaseFileRows = (digitalCaseFileResult.data ?? []) as DigitalCaseFileRow[];
   const invoiceRows = (invoiceResult.data ?? []) as InvoiceRow[];
+  const paymentRows = (paymentResult.error ? [] : paymentResult.data ?? []) as PaymentRow[];
+  const disbursementRows = (disbursementResult.error ? [] : disbursementResult.data ?? []) as DisbursementRow[];
   const templateProfileRows = (templateProfileResult.data ?? []) as DocumentTemplateRow[];
   const templateGenerationRows = (templateGenerationResult.data ?? []) as TemplateGenerationRow[];
 
@@ -1169,6 +1262,29 @@ export async function getMatterRoomById(matterId: string): Promise<MatterRoomDat
       amountXaf: typeof item.amount_xaf === "number" ? item.amount_xaf : Number(item.amount_xaf ?? 0),
       status: item.status ?? "Draft",
       dueDate: item.due_date ? formatStoredDate(item.due_date) : null,
+      createdAt: formatStoredDate(item.created_at),
+    })),
+    payments: paymentRows.map((item) => ({
+      id: item.id,
+      amountXaf: typeof item.amount_xaf === "number" ? item.amount_xaf : Number(item.amount_xaf ?? 0),
+      currency: item.currency ?? "XAF",
+      provider: item.provider ?? "MTN",
+      phoneNumber: item.phone_number,
+      paymentKind: item.payment_kind ?? "Provision",
+      accountType: item.account_type ?? "Client funds",
+      status: item.status ?? "Requested",
+      providerReference: item.provider_reference,
+      note: item.note,
+      createdAt: formatStoredDate(item.created_at),
+    })),
+    disbursements: disbursementRows.map((item) => ({
+      id: item.id,
+      amountXaf: typeof item.amount_xaf === "number" ? item.amount_xaf : Number(item.amount_xaf ?? 0),
+      category: item.category ?? "Other",
+      payee: item.payee ?? "Payee not recorded",
+      status: item.status ?? "Planned",
+      proofDocumentId: item.proof_document_id,
+      note: item.note,
       createdAt: formatStoredDate(item.created_at),
     })),
     templateProfiles: templateProfileRows.length
@@ -2793,6 +2909,177 @@ export async function updateMatterInvoiceStatus(input: {
     matterId: input.matterId,
     actionType: "invoice_status_updated",
     description: `Invoice status changed to ${input.status}.`,
+  });
+
+  return getMatterRoomById(input.matterId);
+}
+
+export async function createMatterPayment(input: {
+  matterId: string;
+  amountXaf: number;
+  currency?: MatterPayment["currency"];
+  provider?: MatterPayment["provider"];
+  phoneNumber?: string | null;
+  paymentKind?: MatterPayment["paymentKind"];
+  accountType?: MatterPayment["accountType"];
+  status?: MatterPayment["status"];
+  providerReference?: string | null;
+  note?: string | null;
+}) {
+  const supabase = createMatterRoomClient();
+  const payment: MatterPayment = {
+    id: `payment-${Date.now()}`,
+    amountXaf: input.amountXaf,
+    currency: input.currency ?? "XAF",
+    provider: input.provider ?? "MTN",
+    phoneNumber: input.phoneNumber?.trim() || null,
+    paymentKind: input.paymentKind ?? "Provision",
+    accountType: input.accountType ?? "Client funds",
+    status: input.status ?? "Requested",
+    providerReference: input.providerReference?.trim() || null,
+    note: input.note?.trim() || null,
+    createdAt: formatStoredDate(new Date().toISOString()),
+  };
+
+  if (!supabase) {
+    const fallbackRoom = await getMatterRoomById(input.matterId);
+    if (!fallbackRoom) {
+      throw new Error("Matter room not found for payment recording.");
+    }
+
+    return mutatePrototypeMatterRoom(input.matterId, fallbackRoom, (room) => {
+      const createdAt = new Date().toISOString();
+      const nextRoom = {
+        ...room,
+        source: "live" as const,
+        payments: [payment, ...room.payments],
+        auditTrail: [
+          {
+            id: `audit-${Date.now()}`,
+            actionType: "payment_recorded",
+            description: `${payment.paymentKind} payment of ${input.amountXaf.toLocaleString("fr-FR")} XAF was recorded as ${payment.status}.`,
+            createdAt,
+            actorName: "TSIDEK Operator",
+          },
+          ...room.auditTrail,
+        ].slice(0, 20),
+      };
+      return { room: nextRoom, result: nextRoom };
+    });
+  }
+
+  const scope = await resolveMatterFirmScope(input.matterId);
+  if (!scope) {
+    throw new Error("Unable to resolve matter scope for payment recording.");
+  }
+
+  const result = await scope.supabase.from("matter_payments").insert({
+    firm_id: scope.firmId,
+    matter_id: input.matterId,
+    amount_xaf: payment.amountXaf,
+    currency: payment.currency,
+    provider: payment.provider,
+    phone_number: payment.phoneNumber,
+    payment_kind: payment.paymentKind,
+    account_type: payment.accountType,
+    status: payment.status,
+    provider_reference: payment.providerReference,
+    note: payment.note,
+  });
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  await recordMatterAudit({
+    supabase: scope.supabase,
+    firmId: scope.firmId,
+    matterId: input.matterId,
+    actionType: "payment_recorded",
+    description: `${payment.paymentKind} payment of ${input.amountXaf.toLocaleString("fr-FR")} XAF was recorded as ${payment.status}.`,
+  });
+
+  return getMatterRoomById(input.matterId);
+}
+
+export async function createMatterDisbursement(input: {
+  matterId: string;
+  amountXaf: number;
+  category?: MatterDisbursement["category"];
+  payee: string;
+  status?: MatterDisbursement["status"];
+  proofDocumentId?: string | null;
+  note?: string | null;
+}) {
+  const supabase = createMatterRoomClient();
+  const disbursement: MatterDisbursement = {
+    id: `disbursement-${Date.now()}`,
+    amountXaf: input.amountXaf,
+    category: input.category ?? "Other",
+    payee: input.payee.trim(),
+    status: input.status ?? "Planned",
+    proofDocumentId: input.proofDocumentId?.trim() || null,
+    note: input.note?.trim() || null,
+    createdAt: formatStoredDate(new Date().toISOString()),
+  };
+
+  if (!disbursement.payee) {
+    throw new Error("Disbursement payee is required.");
+  }
+
+  if (!supabase) {
+    const fallbackRoom = await getMatterRoomById(input.matterId);
+    if (!fallbackRoom) {
+      throw new Error("Matter room not found for disbursement recording.");
+    }
+
+    return mutatePrototypeMatterRoom(input.matterId, fallbackRoom, (room) => {
+      const createdAt = new Date().toISOString();
+      const nextRoom = {
+        ...room,
+        source: "live" as const,
+        disbursements: [disbursement, ...room.disbursements],
+        auditTrail: [
+          {
+            id: `audit-${Date.now()}`,
+            actionType: "disbursement_recorded",
+            description: `${disbursement.category} disbursement of ${input.amountXaf.toLocaleString("fr-FR")} XAF was recorded for ${disbursement.payee}.`,
+            createdAt,
+            actorName: "TSIDEK Operator",
+          },
+          ...room.auditTrail,
+        ].slice(0, 20),
+      };
+      return { room: nextRoom, result: nextRoom };
+    });
+  }
+
+  const scope = await resolveMatterFirmScope(input.matterId);
+  if (!scope) {
+    throw new Error("Unable to resolve matter scope for disbursement recording.");
+  }
+
+  const result = await scope.supabase.from("matter_disbursements").insert({
+    firm_id: scope.firmId,
+    matter_id: input.matterId,
+    amount_xaf: disbursement.amountXaf,
+    category: disbursement.category,
+    payee: disbursement.payee,
+    status: disbursement.status,
+    proof_document_id: disbursement.proofDocumentId,
+    note: disbursement.note,
+  });
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+
+  await recordMatterAudit({
+    supabase: scope.supabase,
+    firmId: scope.firmId,
+    matterId: input.matterId,
+    actionType: "disbursement_recorded",
+    description: `${disbursement.category} disbursement of ${input.amountXaf.toLocaleString("fr-FR")} XAF was recorded for ${disbursement.payee}.`,
   });
 
   return getMatterRoomById(input.matterId);

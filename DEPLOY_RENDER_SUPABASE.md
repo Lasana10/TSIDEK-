@@ -16,7 +16,7 @@ git push -u origin main
 
 ### 2. Supabase auth settings
 
-Before enabling auth, run `supabase_schema.sql` and then `supabase_intake_workflow.sql` in the Supabase SQL Editor. The second migration creates the controlled intake, conflict, engagement, and matter-opening records used by `/intake`.
+Before enabling auth, run `supabase_schema.sql`, `supabase_intake_workflow.sql`, and `supabase_finance_controls.sql` in the Supabase SQL Editor. The intake migration creates the controlled intake, conflict, engagement, and matter-opening records used by `/intake`; the finance migration adds matter payments, client-fund classification, and disbursements.
 
 In Supabase Auth settings, configure:
 
@@ -61,6 +61,10 @@ WHATSAPP_ACCESS_TOKEN=
 WHATSAPP_PHONE_NUMBER_ID=
 WHATSAPP_GRAPH_VERSION=v20.0
 GEMINI_API_KEY=
+PAWAPAY_API_URL=https://api.pawapay.io/v1
+PAWAPAY_API_KEY=
+PAWAPAY_CALLBACK_URL=
+PAWAPAY_PAYMENT_REQUEST_PATH=
 ONEDRIVE_TENANT_ID=
 ONEDRIVE_CLIENT_ID=
 ONEDRIVE_CLIENT_SECRET=
@@ -69,6 +73,8 @@ ONEDRIVE_RAG_FOLDER_PATH=TSIDEK RAG Sources
 ```
 
 For the office-wide RAG source library, create a shared OneDrive or SharePoint document folder named `TSIDEK RAG Sources`, grant the app least-privilege Microsoft Graph read access, then set `ONEDRIVE_DRIVE_ID` and `ONEDRIVE_RAG_FOLDER_PATH` in Render.
+
+For mobile-money payments, keep PawaPay disabled until the live provider account gives the exact request endpoint and callback rules. Set `PAWAPAY_PAYMENT_REQUEST_PATH` only from the official provider dashboard or documentation; the code will not fake successful prompts when that value is missing.
 
 ### 4. Render service settings
 

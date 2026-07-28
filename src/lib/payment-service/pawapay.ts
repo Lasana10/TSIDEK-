@@ -1,52 +1,93 @@
-/**
- * @ada/payment-service: PawaPay Integration (MTN & Orange Money)
- * Handles legal provisions, escrow, and automated invoicing for OHADA jurisdictions.
- */
+export type MobileMoneyProvider = "MTN" | "ORANGE";
 
-export interface PaymentPayload {
+export type PaymentPayload = {
   amount: number;
-  currency: 'XAF' | 'XOF';
+  currency: "XAF" | "XOF";
   phoneNumber: string;
-  provider: 'MTN' | 'ORANGE';
+  provider: MobileMoneyProvider;
   matterId: string;
   description: string;
-}
+};
 
-export interface MatterFinancials {
-  provisionReceived: number;
-  feesIncurred: number;
-  balance: number;
-  currency: 'XAF' | 'XOF';
+export type PawaPayInitiationResult =
+  | {
+      configured: true;
+      success: true;
+      transactionId: string;
+      status: "PENDING_USER_CONFIRMATION";
+      providerMessage: string;
+    }
+  | {
+      configured: false;
+      success: false;
+      status: "NOT_CONFIGURED";
+      providerMessage: string;
+    };
+
+function getPawaPayConfig() {
+  const apiKey = process.env.PAWAPAY_API_KEY;
+  const callbackUrl = process.env.PAWAPAY_CALLBACK_URL;
+  const baseUrl = process.env.PAWAPAY_API_URL ?? "https://api.pawapay.io/v1";
+  const requestPath = process.env.PAWAPAY_PAYMENT_REQUEST_PATH;
+
+  if (!apiKey || !callbackUrl || !requestPath) {
+    return null;
+  }
+
+  return { apiKey, callbackUrl, baseUrl, requestPath };
 }
 
 export class PaymentService {
-  private static PAWAPAY_API_URL = "https://api.pawapay.io/v1";
+  static async initiateMobilePayment(payload: PaymentPayload): Promise<PawaPayInitiationResult> {
+    const config = getPawaPayConfig();
 
-  /**
-   * Initiates a Mobile Money payment for a legal provision or invoice.
-   */
-  static async initiateMobilePayment(payload: PaymentPayload) {
-    console.log(`[PaymentService] Initiating ${payload.provider} payment for Matter ${payload.matterId}...`);
-    
-    // In production, this calls PawaPay with the firm's API key
-    // We simulate a successful initiation
+    if (!config) {
+      return {
+        configured: false,
+        success: false,
+        status: "NOT_CONFIGURED",
+        providerMessage:
+          "PawaPay is not configured. Add PAWAPAY_API_KEY, PAWAPAY_CALLBACK_URL, and PAWAPAY_PAYMENT_REQUEST_PATH before sending real mobile-money prompts.",
+      };
+    }
+
+    const transactionId = `TSIDEK-${payload.matterId}-${Date.now()}`.slice(0, 80);
+    const response = await fetch(`${config.baseUrl}${config.requestPath}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        payoutId: transactionId,
+        amount: String(payload.amount),
+        currency: payload.currency,
+        correspondent: payload.provider,
+        recipient: {
+          type: "MSISDN",
+          address: { value: payload.phoneNumber },
+        },
+        customerTimestamp: new Date().toISOString(),
+        statementDescription: payload.description,
+        metadata: [
+          { fieldName: "matterId", fieldValue: payload.matterId },
+          { fieldName: "system", fieldValue: "TSIDEK" },
+        ],
+        callbackUrl: config.callbackUrl,
+      }),
+    });
+
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(detail || "PawaPay rejected the payment initiation request.");
+    }
+
     return {
+      configured: true,
       success: true,
-      transactionId: `TSID-${Math.random().toString(36).substring(7).toUpperCase()}`,
-      status: 'PENDING_USER_CONFIRMATION',
-      providerMessage: "Please dial *126# (MTN) or *150# (Orange) to confirm payment."
-    };
-  }
-
-  /**
-   * Generates a billing provision report for the case.
-   */
-  static async getMatterFinancials(matterId: string): Promise<MatterFinancials> {
-    return {
-      provisionReceived: 500000,
-      feesIncurred: 150000,
-      balance: 350000,
-      currency: 'XAF'
+      transactionId,
+      status: "PENDING_USER_CONFIRMATION",
+      providerMessage: "Mobile-money prompt submitted to the provider.",
     };
   }
 }

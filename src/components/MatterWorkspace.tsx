@@ -33,7 +33,9 @@ import type {
   MatterRoomComment,
   MatterRoomCustodyEvent,
   MatterRoomData,
+  MatterDisbursement,
   MatterInvoice,
+  MatterPayment,
   MatterRoomTask,
 } from "@/lib/matter-room";
 import type { ClientUpdateRecord, OperationalDashboard } from "@/lib/operations";
@@ -62,7 +64,9 @@ type MatterSubmitState =
   | "member"
   | "physical-file"
   | "custody"
-  | "invoice";
+  | "invoice"
+  | "payment"
+  | "disbursement";
 
 const workspaceTabs: { id: WorkspaceTab; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -176,6 +180,33 @@ function createFallbackMatterRoom(matter: MatterWorkspaceData): MatterRoomData {
         amountXaf: 450000,
         status: "Sent",
         dueDate: matter.timeline[0]?.date ?? null,
+        createdAt: "Seeded record",
+      },
+    ],
+    payments: [
+      {
+        id: `${matter.id}-payment-1`,
+        amountXaf: 150000,
+        currency: "XAF",
+        provider: "MTN",
+        phoneNumber: null,
+        paymentKind: "Provision",
+        accountType: "Client funds",
+        status: "Requested",
+        providerReference: null,
+        note: "Fallback payment request until live finance tables are applied.",
+        createdAt: "Seeded record",
+      },
+    ],
+    disbursements: [
+      {
+        id: `${matter.id}-disbursement-1`,
+        amountXaf: 50000,
+        category: "Court fees",
+        payee: "Registry",
+        status: "Planned",
+        proofDocumentId: null,
+        note: "Fallback disbursement plan until live finance tables are applied.",
         createdAt: "Seeded record",
       },
     ],
@@ -365,6 +396,20 @@ export default function MatterWorkspace({
   const [invoiceAmountDraft, setInvoiceAmountDraft] = useState("");
   const [invoiceDueDateDraft, setInvoiceDueDateDraft] = useState("");
   const [invoiceStatusDraft, setInvoiceStatusDraft] = useState<MatterInvoice["status"]>("Draft");
+  const [paymentAmountDraft, setPaymentAmountDraft] = useState("");
+  const [paymentPhoneDraft, setPaymentPhoneDraft] = useState("");
+  const [paymentProviderDraft, setPaymentProviderDraft] = useState<MatterPayment["provider"]>("MTN");
+  const [paymentKindDraft, setPaymentKindDraft] = useState<MatterPayment["paymentKind"]>("Provision");
+  const [paymentAccountTypeDraft, setPaymentAccountTypeDraft] = useState<MatterPayment["accountType"]>("Client funds");
+  const [paymentStatusDraft, setPaymentStatusDraft] = useState<MatterPayment["status"]>("Requested");
+  const [paymentNoteDraft, setPaymentNoteDraft] = useState("");
+  const [disbursementAmountDraft, setDisbursementAmountDraft] = useState("");
+  const [disbursementPayeeDraft, setDisbursementPayeeDraft] = useState("");
+  const [disbursementCategoryDraft, setDisbursementCategoryDraft] =
+    useState<MatterDisbursement["category"]>("Court fees");
+  const [disbursementStatusDraft, setDisbursementStatusDraft] =
+    useState<MatterDisbursement["status"]>("Planned");
+  const [disbursementNoteDraft, setDisbursementNoteDraft] = useState("");
   const [securityBusy, setSecurityBusy] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState<MatterSubmitState>(null);
 
@@ -1100,6 +1145,107 @@ export default function MatterWorkspace({
     }
   }
 
+  async function submitMatterPayment() {
+    const amountXaf = Number(paymentAmountDraft);
+    if (!Number.isFinite(amountXaf) || amountXaf <= 0) {
+      return;
+    }
+
+    setIsSubmitting("payment");
+    setRoomError(null);
+    setRoomNotice(null);
+    try {
+      const response = await fetch(`/api/matters/${matter.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "createPayment",
+          amountXaf,
+          currency: "XAF",
+          provider: paymentProviderDraft,
+          phoneNumber: paymentPhoneDraft.trim() || null,
+          paymentKind: paymentKindDraft,
+          accountType: paymentAccountTypeDraft,
+          status: paymentStatusDraft,
+          note: paymentNoteDraft.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error ?? "Unable to record payment.");
+      }
+
+      const payload = (await response.json()) as { room?: MatterRoomData };
+      if (payload.room) {
+        setRoom(payload.room);
+      } else {
+        await refreshMatterRoom();
+      }
+
+      setPaymentAmountDraft("");
+      setPaymentPhoneDraft("");
+      setPaymentProviderDraft("MTN");
+      setPaymentKindDraft("Provision");
+      setPaymentAccountTypeDraft("Client funds");
+      setPaymentStatusDraft("Requested");
+      setPaymentNoteDraft("");
+      setRoomNotice("Payment request recorded in the matter finance ledger.");
+    } catch (error) {
+      setRoomError(error instanceof Error ? error.message : "Unable to record payment.");
+    } finally {
+      setIsSubmitting(null);
+    }
+  }
+
+  async function submitMatterDisbursement() {
+    const amountXaf = Number(disbursementAmountDraft);
+    if (!Number.isFinite(amountXaf) || amountXaf <= 0 || !disbursementPayeeDraft.trim()) {
+      return;
+    }
+
+    setIsSubmitting("disbursement");
+    setRoomError(null);
+    setRoomNotice(null);
+    try {
+      const response = await fetch(`/api/matters/${matter.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "createDisbursement",
+          amountXaf,
+          category: disbursementCategoryDraft,
+          payee: disbursementPayeeDraft.trim(),
+          status: disbursementStatusDraft,
+          note: disbursementNoteDraft.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error ?? "Unable to record disbursement.");
+      }
+
+      const payload = (await response.json()) as { room?: MatterRoomData };
+      if (payload.room) {
+        setRoom(payload.room);
+      } else {
+        await refreshMatterRoom();
+      }
+
+      setDisbursementAmountDraft("");
+      setDisbursementPayeeDraft("");
+      setDisbursementCategoryDraft("Court fees");
+      setDisbursementStatusDraft("Planned");
+      setDisbursementNoteDraft("");
+      setRoomNotice("Disbursement recorded in the matter finance ledger.");
+    } catch (error) {
+      setRoomError(error instanceof Error ? error.message : "Unable to record disbursement.");
+    } finally {
+      setIsSubmitting(null);
+    }
+  }
+
   async function toggleTaskStatus(task: MatterRoomTask) {
     const nextStatus = task.status === "Done" ? "Open" : "Done";
 
@@ -1667,6 +1813,18 @@ export default function MatterWorkspace({
               invoiceAmountDraft={invoiceAmountDraft}
               invoiceDueDateDraft={invoiceDueDateDraft}
               invoiceStatusDraft={invoiceStatusDraft}
+              paymentAmountDraft={paymentAmountDraft}
+              paymentPhoneDraft={paymentPhoneDraft}
+              paymentProviderDraft={paymentProviderDraft}
+              paymentKindDraft={paymentKindDraft}
+              paymentAccountTypeDraft={paymentAccountTypeDraft}
+              paymentStatusDraft={paymentStatusDraft}
+              paymentNoteDraft={paymentNoteDraft}
+              disbursementAmountDraft={disbursementAmountDraft}
+              disbursementPayeeDraft={disbursementPayeeDraft}
+              disbursementCategoryDraft={disbursementCategoryDraft}
+              disbursementStatusDraft={disbursementStatusDraft}
+              disbursementNoteDraft={disbursementNoteDraft}
               invoiceBusyId={invoiceBusyId}
               isSubmitting={isSubmitting}
               canPersistMatterRoom={canPersistMatterRoom}
@@ -1674,7 +1832,21 @@ export default function MatterWorkspace({
               onInvoiceAmountChange={setInvoiceAmountDraft}
               onInvoiceDueDateChange={setInvoiceDueDateDraft}
               onInvoiceStatusChange={setInvoiceStatusDraft}
+              onPaymentAmountChange={setPaymentAmountDraft}
+              onPaymentPhoneChange={setPaymentPhoneDraft}
+              onPaymentProviderChange={setPaymentProviderDraft}
+              onPaymentKindChange={setPaymentKindDraft}
+              onPaymentAccountTypeChange={setPaymentAccountTypeDraft}
+              onPaymentStatusChange={setPaymentStatusDraft}
+              onPaymentNoteChange={setPaymentNoteDraft}
+              onDisbursementAmountChange={setDisbursementAmountDraft}
+              onDisbursementPayeeChange={setDisbursementPayeeDraft}
+              onDisbursementCategoryChange={setDisbursementCategoryDraft}
+              onDisbursementStatusChange={setDisbursementStatusDraft}
+              onDisbursementNoteChange={setDisbursementNoteDraft}
               onSubmitMatterInvoice={() => void submitMatterInvoice()}
+              onSubmitMatterPayment={() => void submitMatterPayment()}
+              onSubmitMatterDisbursement={() => void submitMatterDisbursement()}
               onUpdateInvoiceStatus={(invoiceId, status) => void updateInvoiceStatus(invoiceId, status)}
             />
           )}
@@ -3319,6 +3491,18 @@ function FinancePanel({
   invoiceAmountDraft,
   invoiceDueDateDraft,
   invoiceStatusDraft,
+  paymentAmountDraft,
+  paymentPhoneDraft,
+  paymentProviderDraft,
+  paymentKindDraft,
+  paymentAccountTypeDraft,
+  paymentStatusDraft,
+  paymentNoteDraft,
+  disbursementAmountDraft,
+  disbursementPayeeDraft,
+  disbursementCategoryDraft,
+  disbursementStatusDraft,
+  disbursementNoteDraft,
   invoiceBusyId,
   isSubmitting,
   canPersistMatterRoom,
@@ -3326,13 +3510,39 @@ function FinancePanel({
   onInvoiceAmountChange,
   onInvoiceDueDateChange,
   onInvoiceStatusChange,
+  onPaymentAmountChange,
+  onPaymentPhoneChange,
+  onPaymentProviderChange,
+  onPaymentKindChange,
+  onPaymentAccountTypeChange,
+  onPaymentStatusChange,
+  onPaymentNoteChange,
+  onDisbursementAmountChange,
+  onDisbursementPayeeChange,
+  onDisbursementCategoryChange,
+  onDisbursementStatusChange,
+  onDisbursementNoteChange,
   onSubmitMatterInvoice,
+  onSubmitMatterPayment,
+  onSubmitMatterDisbursement,
   onUpdateInvoiceStatus,
 }: {
   matterRoom: MatterRoomData;
   invoiceAmountDraft: string;
   invoiceDueDateDraft: string;
   invoiceStatusDraft: MatterInvoice["status"];
+  paymentAmountDraft: string;
+  paymentPhoneDraft: string;
+  paymentProviderDraft: MatterPayment["provider"];
+  paymentKindDraft: MatterPayment["paymentKind"];
+  paymentAccountTypeDraft: MatterPayment["accountType"];
+  paymentStatusDraft: MatterPayment["status"];
+  paymentNoteDraft: string;
+  disbursementAmountDraft: string;
+  disbursementPayeeDraft: string;
+  disbursementCategoryDraft: MatterDisbursement["category"];
+  disbursementStatusDraft: MatterDisbursement["status"];
+  disbursementNoteDraft: string;
   invoiceBusyId: string | null;
   isSubmitting: MatterSubmitState;
   canPersistMatterRoom: boolean;
@@ -3340,7 +3550,21 @@ function FinancePanel({
   onInvoiceAmountChange: (value: string) => void;
   onInvoiceDueDateChange: (value: string) => void;
   onInvoiceStatusChange: (value: MatterInvoice["status"]) => void;
+  onPaymentAmountChange: (value: string) => void;
+  onPaymentPhoneChange: (value: string) => void;
+  onPaymentProviderChange: (value: MatterPayment["provider"]) => void;
+  onPaymentKindChange: (value: MatterPayment["paymentKind"]) => void;
+  onPaymentAccountTypeChange: (value: MatterPayment["accountType"]) => void;
+  onPaymentStatusChange: (value: MatterPayment["status"]) => void;
+  onPaymentNoteChange: (value: string) => void;
+  onDisbursementAmountChange: (value: string) => void;
+  onDisbursementPayeeChange: (value: string) => void;
+  onDisbursementCategoryChange: (value: MatterDisbursement["category"]) => void;
+  onDisbursementStatusChange: (value: MatterDisbursement["status"]) => void;
+  onDisbursementNoteChange: (value: string) => void;
   onSubmitMatterInvoice: () => void;
+  onSubmitMatterPayment: () => void;
+  onSubmitMatterDisbursement: () => void;
   onUpdateInvoiceStatus: (invoiceId: string, status: MatterInvoice["status"]) => void;
 }) {
   const totalRaised = matterRoom.invoices.reduce((sum, invoice) => sum + invoice.amountXaf, 0);
@@ -3350,14 +3574,24 @@ function FinancePanel({
   const outstandingTotal = matterRoom.invoices
     .filter((invoice) => invoice.status !== "Paid")
     .reduce((sum, invoice) => sum + invoice.amountXaf, 0);
+  const confirmedPayments = matterRoom.payments
+    .filter((payment) => payment.status === "Confirmed")
+    .reduce((sum, payment) => sum + payment.amountXaf, 0);
+  const clientFunds = matterRoom.payments
+    .filter((payment) => payment.accountType === "Client funds" && payment.status === "Confirmed")
+    .reduce((sum, payment) => sum + payment.amountXaf, 0);
+  const plannedDisbursements = matterRoom.disbursements
+    .filter((disbursement) => disbursement.status !== "Reconciled")
+    .reduce((sum, disbursement) => sum + disbursement.amountXaf, 0);
+  const availableClientFunds = clientFunds - plannedDisbursements;
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
       <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-3">
           <StatTile icon={Receipt} label="Invoices" value={`${matterRoom.invoices.length} recorded`} />
-          <StatTile icon={Wallet} label="Raised" value={formatXafCurrency(totalRaised)} />
-          <StatTile icon={CircleAlert} label="Outstanding" value={formatXafCurrency(outstandingTotal)} />
+          <StatTile icon={Wallet} label="Confirmed funds" value={formatXafCurrency(confirmedPayments)} />
+          <StatTile icon={CircleAlert} label="Client balance" value={formatXafCurrency(availableClientFunds)} />
         </div>
 
         <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5">
@@ -3416,6 +3650,85 @@ function FinancePanel({
             )}
           </div>
         </div>
+
+        <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5">
+          <div className="flex items-center gap-3">
+            <Wallet className="h-5 w-5 text-heritage-green" />
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Payments and client funds</p>
+              <h3 className="mt-1 text-lg font-semibold text-heritage-green">Track money received separately from earned fees</h3>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {matterRoom.payments.length ? (
+              matterRoom.payments.map((payment) => (
+                <div key={payment.id} className="rounded-[1.2rem] border border-slate-200 bg-[#fcfcfb] p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${paymentStatusClasses[payment.status]}`}>
+                          {payment.status}
+                        </span>
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">
+                          {payment.accountType}
+                        </span>
+                      </div>
+                      <p className="mt-3 text-lg font-semibold text-slate-900">{formatXafCurrency(payment.amountXaf)}</p>
+                      <p className="mt-2 text-xs leading-5 text-slate-500">
+                        {payment.paymentKind} • {payment.provider}
+                        {payment.phoneNumber ? ` • ${payment.phoneNumber}` : ""}
+                      </p>
+                    </div>
+                    <p className="max-w-sm text-xs leading-5 text-slate-500">{payment.note ?? payment.providerReference ?? "No payment note recorded."}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-[1.2rem] border border-dashed border-slate-200 bg-[#fcfcfb] p-4 text-sm text-slate-500">
+                No payment requests or receipts recorded yet.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5">
+          <div className="flex items-center gap-3">
+            <CircleAlert className="h-5 w-5 text-heritage-green" />
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Disbursements</p>
+              <h3 className="mt-1 text-lg font-semibold text-heritage-green">Court, registry, bailiff, and expert expenses</h3>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {matterRoom.disbursements.length ? (
+              matterRoom.disbursements.map((disbursement) => (
+                <div key={disbursement.id} className="rounded-[1.2rem] border border-slate-200 bg-[#fcfcfb] p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${disbursementStatusClasses[disbursement.status]}`}>
+                          {disbursement.status}
+                        </span>
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">
+                          {disbursement.category}
+                        </span>
+                      </div>
+                      <p className="mt-3 text-lg font-semibold text-slate-900">{formatXafCurrency(disbursement.amountXaf)}</p>
+                      <p className="mt-2 text-xs leading-5 text-slate-500">{disbursement.payee} • {disbursement.createdAt}</p>
+                    </div>
+                    <p className="max-w-sm text-xs leading-5 text-slate-500">{disbursement.note ?? "No disbursement note recorded."}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-[1.2rem] border border-dashed border-slate-200 bg-[#fcfcfb] p-4 text-sm text-slate-500">
+                No disbursements planned yet.
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="space-y-6">
@@ -3431,15 +3744,15 @@ function FinancePanel({
           <div className="mt-5 grid gap-3">
             <OpsTile
               icon={Receipt}
-              label="Collected"
-              value={formatXafCurrency(paidTotal)}
-              hint="Sum of invoices already marked as paid in the matter ledger."
+              label="Invoices raised"
+              value={formatXafCurrency(totalRaised)}
+              hint={`${formatXafCurrency(paidTotal)} already marked as paid. ${formatXafCurrency(outstandingTotal)} remains open.`}
             />
             <OpsTile
               icon={CircleAlert}
-              label="Pending"
-              value={formatXafCurrency(outstandingTotal)}
-              hint="Invoices still in draft, sent, partial, or overdue states."
+              label="Disbursements"
+              value={formatXafCurrency(plannedDisbursements)}
+              hint="Planned or active expenses that still need approval, payment, or reconciliation."
             />
           </div>
         </div>
@@ -3480,6 +3793,121 @@ function FinancePanel({
                 className="rounded-full bg-[#082921] px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white transition disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSubmitting === "invoice" ? "Saving..." : canPersistMatterRoom ? "Create invoice" : saveActionLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Request or record payment</p>
+          <div className="mt-4 grid gap-3">
+            <input
+              type="number"
+              min="0"
+              step="1000"
+              value={paymentAmountDraft}
+              onChange={(event) => onPaymentAmountChange(event.target.value)}
+              placeholder="Amount (XAF)"
+              className="w-full rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green"
+            />
+            <input
+              value={paymentPhoneDraft}
+              onChange={(event) => onPaymentPhoneChange(event.target.value)}
+              placeholder="Client phone for MoMo prompt"
+              className="w-full rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green"
+            />
+            <div className="grid gap-3 md:grid-cols-2">
+              <select value={paymentProviderDraft} onChange={(event) => onPaymentProviderChange(event.target.value as MatterPayment["provider"])} className="rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green">
+                <option value="MTN">MTN</option>
+                <option value="ORANGE">ORANGE</option>
+                <option value="BANK">BANK</option>
+                <option value="CASH">CASH</option>
+              </select>
+              <select value={paymentStatusDraft} onChange={(event) => onPaymentStatusChange(event.target.value as MatterPayment["status"])} className="rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green">
+                <option value="Requested">Requested</option>
+                <option value="Pending">Pending</option>
+                <option value="Confirmed">Confirmed</option>
+                <option value="Failed">Failed</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <select value={paymentKindDraft} onChange={(event) => onPaymentKindChange(event.target.value as MatterPayment["paymentKind"])} className="rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green">
+                <option value="Provision">Provision</option>
+                <option value="Invoice payment">Invoice payment</option>
+                <option value="Retainer">Retainer</option>
+                <option value="Client funds">Client funds</option>
+              </select>
+              <select value={paymentAccountTypeDraft} onChange={(event) => onPaymentAccountTypeChange(event.target.value as MatterPayment["accountType"])} className="rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green">
+                <option value="Client funds">Client funds</option>
+                <option value="Firm operating">Firm operating</option>
+              </select>
+            </div>
+            <textarea
+              value={paymentNoteDraft}
+              onChange={(event) => onPaymentNoteChange(event.target.value)}
+              placeholder="Payment purpose, provider reference, or confirmation note"
+              className="min-h-20 w-full rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green"
+            />
+            <div className="flex justify-end">
+              <button
+                onClick={onSubmitMatterPayment}
+                disabled={isSubmitting === "payment" || !paymentAmountDraft.trim() || !canPersistMatterRoom}
+                className="rounded-full bg-[#082921] px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSubmitting === "payment" ? "Saving..." : canPersistMatterRoom ? "Record payment" : saveActionLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Plan disbursement</p>
+          <div className="mt-4 grid gap-3">
+            <input
+              type="number"
+              min="0"
+              step="1000"
+              value={disbursementAmountDraft}
+              onChange={(event) => onDisbursementAmountChange(event.target.value)}
+              placeholder="Amount (XAF)"
+              className="w-full rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green"
+            />
+            <input
+              value={disbursementPayeeDraft}
+              onChange={(event) => onDisbursementPayeeChange(event.target.value)}
+              placeholder="Payee"
+              className="w-full rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green"
+            />
+            <div className="grid gap-3 md:grid-cols-2">
+              <select value={disbursementCategoryDraft} onChange={(event) => onDisbursementCategoryChange(event.target.value as MatterDisbursement["category"])} className="rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green">
+                <option value="Court fees">Court fees</option>
+                <option value="Bailiff">Bailiff</option>
+                <option value="Registry">Registry</option>
+                <option value="Transport">Transport</option>
+                <option value="Expert">Expert</option>
+                <option value="Other">Other</option>
+              </select>
+              <select value={disbursementStatusDraft} onChange={(event) => onDisbursementStatusChange(event.target.value as MatterDisbursement["status"])} className="rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green">
+                <option value="Planned">Planned</option>
+                <option value="Approved">Approved</option>
+                <option value="Paid">Paid</option>
+                <option value="Reconciled">Reconciled</option>
+              </select>
+            </div>
+            <textarea
+              value={disbursementNoteDraft}
+              onChange={(event) => onDisbursementNoteChange(event.target.value)}
+              placeholder="Purpose, proof expectation, or reconciliation note"
+              className="min-h-20 w-full rounded-[1rem] border border-slate-200 bg-[#fcfcfb] p-4 text-sm outline-none transition focus:border-heritage-green"
+            />
+            <div className="flex justify-end">
+              <button
+                onClick={onSubmitMatterDisbursement}
+                disabled={isSubmitting === "disbursement" || !disbursementAmountDraft.trim() || !disbursementPayeeDraft.trim() || !canPersistMatterRoom}
+                className="rounded-full bg-[#082921] px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSubmitting === "disbursement" ? "Saving..." : canPersistMatterRoom ? "Record disbursement" : saveActionLabel}
               </button>
             </div>
           </div>
@@ -3610,6 +4038,21 @@ const invoiceStatusClasses: Record<MatterInvoice["status"], string> = {
   Partial: "bg-amber-50 text-amber-700",
   Paid: "bg-emerald-50 text-emerald-700",
   Overdue: "bg-rose-50 text-rose-700",
+};
+
+const paymentStatusClasses: Record<MatterPayment["status"], string> = {
+  Requested: "bg-slate-100 text-slate-600",
+  Pending: "bg-sky-50 text-sky-700",
+  Confirmed: "bg-emerald-50 text-emerald-700",
+  Failed: "bg-rose-50 text-rose-700",
+  Cancelled: "bg-zinc-100 text-zinc-600",
+};
+
+const disbursementStatusClasses: Record<MatterDisbursement["status"], string> = {
+  Planned: "bg-slate-100 text-slate-600",
+  Approved: "bg-sky-50 text-sky-700",
+  Paid: "bg-amber-50 text-amber-700",
+  Reconciled: "bg-emerald-50 text-emerald-700",
 };
 
 function formatXafCurrency(value: number) {

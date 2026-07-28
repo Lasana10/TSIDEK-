@@ -1,19 +1,16 @@
 "use client"
 import React from 'react';
 import { Wallet, Receipt, ArrowUpRight, ArrowDownLeft, ShieldCheck, Download } from 'lucide-react';
-import { PaymentService, type MatterFinancials } from '@/lib/payment-service/pawapay';
 
 export default function BillingPayments() {
-  const [financials, setFinancials] = React.useState<MatterFinancials | null>(null);
-
-  React.useEffect(() => {
-    PaymentService.getMatterFinancials("CM-2024-089").then(setFinancials);
-  }, []);
-
+  const financials = {
+    provisionReceived: 0,
+    feesIncurred: 0,
+    balance: 0,
+    currency: "XAF",
+  };
   const transactions = [
-    { date: "2024-05-02", desc: "Provision sur Honoraires", amount: "500,000 XAF", type: "Credit", method: "MTN MoMo" },
-    { date: "2024-05-04", desc: "Frais de Greffe - TGI Douala", amount: "-50,000 XAF", type: "Debit", method: "Internal" },
-    { date: "2024-05-05", desc: "Signification d'Acte", amount: "-25,000 XAF", type: "Debit", method: "Huissier" }
+    { date: "Pending", desc: "No standalone transaction source connected", amount: "0 XAF", type: "Credit", method: "Matter finance tab" },
   ];
 
   return (
@@ -21,7 +18,7 @@ export default function BillingPayments() {
       <div className="flex justify-between items-end border-b border-slate-200 pb-8">
         <div className="space-y-2">
           <h1 className="text-3xl heading-serif text-heritage-green">Billing & Provisions</h1>
-          <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Financial Engine • PawaPay Integrated</p>
+          <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Legacy standalone view • use matter finance for live work</p>
         </div>
         <div className="flex gap-4">
           <button className="btn-classic text-xs">Generate Statement</button>
@@ -38,7 +35,7 @@ export default function BillingPayments() {
                  <Wallet className="w-6 h-6 opacity-50" />
                  <span className="text-[10px] font-bold uppercase tracking-widest opacity-70">Escrow Balance</span>
                </div>
-               <h2 className="text-4xl font-black mb-2">{financials?.balance?.toLocaleString?.() ?? "0"} XAF</h2>
+               <h2 className="text-4xl font-black mb-2">{financials.balance.toLocaleString()} XAF</h2>
                <p className="text-xs opacity-60">Ready for procedural disbursements</p>
             </div>
             <div className="card-heritage p-8 rounded-lg bg-white border-slate-200">
@@ -46,7 +43,7 @@ export default function BillingPayments() {
                  <Receipt className="w-6 h-6 text-heritage-green" />
                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Provisions</span>
                </div>
-               <h2 className="text-4xl font-black text-heritage-green">{financials?.provisionReceived?.toLocaleString?.() ?? "0"} XAF</h2>
+               <h2 className="text-4xl font-black text-heritage-green">{financials.provisionReceived.toLocaleString()} XAF</h2>
                <p className="text-xs text-slate-400 font-medium">Secured via MTN / Orange Money</p>
             </div>
           </div>
@@ -85,7 +82,7 @@ export default function BillingPayments() {
           <div className="glass p-6 rounded-lg space-y-6 border-slate-200 shadow-sm">
             <h3 className="text-sm font-bold uppercase tracking-widest text-heritage-green">Request Provision</h3>
             <p className="text-[10px] text-slate-400 leading-relaxed italic">
-              Send an instant payment prompt to the client via PawaPay (MTN / Orange Money).
+              Payment prompts are recorded from the matter finance tab. Real PawaPay sending requires provider credentials and callback configuration.
             </p>
             <div className="space-y-4">
               <input type="text" placeholder="Amount (XAF)" className="w-full bg-paper-white border border-slate-200 rounded p-3 text-xs outline-none focus:ring-1 focus:ring-heritage-green" />

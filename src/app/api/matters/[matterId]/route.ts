@@ -9,7 +9,9 @@ import {
   createCouncilRegisterEntry,
   createDigitalCaseFile,
   createDocumentTemplate,
+  createMatterDisbursement,
   createMatterInvoice,
+  createMatterPayment,
   createMatterDocument,
   createCustodyEvent,
   createJurisprudenceEntry,
@@ -114,6 +116,8 @@ export async function POST(
       createDigitalCaseFile: "manageEvidence",
       createInvoice: "viewBilling",
       updateInvoiceStatus: "viewBilling",
+      createPayment: "viewBilling",
+      createDisbursement: "viewBilling",
       createDocumentTemplate: "manageEvidence",
       generatePersonalizedDraft: "manageEvidence",
       archivePersonalizedDraft: "manageEvidence",
@@ -343,6 +347,33 @@ export async function POST(
           matterId,
           invoiceId: body.invoiceId,
           status: body.status,
+        });
+        return roomResponse(scope, room);
+      }
+      case "createPayment": {
+        const room = await createMatterPayment({
+          matterId,
+          amountXaf: Number(body.amountXaf),
+          currency: body.currency,
+          provider: body.provider,
+          phoneNumber: body.phoneNumber,
+          paymentKind: body.paymentKind,
+          accountType: body.accountType,
+          status: body.status,
+          providerReference: body.providerReference,
+          note: body.note,
+        });
+        return roomResponse(scope, room);
+      }
+      case "createDisbursement": {
+        const room = await createMatterDisbursement({
+          matterId,
+          amountXaf: Number(body.amountXaf),
+          category: body.category,
+          payee: body.payee,
+          status: body.status,
+          proofDocumentId: body.proofDocumentId,
+          note: body.note,
         });
         return roomResponse(scope, room);
       }
