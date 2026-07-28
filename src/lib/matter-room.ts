@@ -2,6 +2,7 @@ import { getMatterWorkspaceByIdServer } from "@/lib/matters.server";
 import type { MatterWorkspaceData } from "@/lib/matters";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { readPrototypeCollection, writePrototypeCollection } from "@/lib/prototype-state.server";
+import { isDemoModeEnabled } from "@/lib/runtime-mode";
 import {
   loadBuiltinTemplateBody,
   personalizeTemplate,
@@ -660,6 +661,10 @@ async function mutatePrototypeMatterRoom<T>(
   fallbackRoom: MatterRoomData,
   mutate: (room: MatterRoomData) => { room: MatterRoomData; result: T }
 ) {
+  if (!isDemoModeEnabled()) {
+    throw new Error("Live Supabase persistence is required for matter-room writes in production.");
+  }
+
   const current = await getPrototypeMatterRoom(matterId, fallbackRoom);
   const payload = mutate(current);
   await savePrototypeMatterRoom(payload.room);
@@ -719,6 +724,10 @@ export async function getMatterRoomById(matterId: string): Promise<MatterRoomDat
 
   const supabase = createMatterRoomClient();
   if (!supabase) {
+    if (!isDemoModeEnabled()) {
+      return null;
+    }
+
     return getPrototypeMatterRoom(matterId, fallbackRoom);
   }
 
@@ -853,6 +862,10 @@ export async function getMatterRoomById(matterId: string): Promise<MatterRoomDat
     templateProfileResult.error ||
     templateGenerationResult.error
   ) {
+    if (!isDemoModeEnabled()) {
+      return null;
+    }
+
     return fallbackRoom;
   }
 
@@ -883,6 +896,10 @@ export async function getMatterRoomById(matterId: string): Promise<MatterRoomDat
     : { data: [], error: null };
 
   if (custodyResult.error) {
+    if (!isDemoModeEnabled()) {
+      return null;
+    }
+
     return fallbackRoom;
   }
 
@@ -913,6 +930,10 @@ export async function getMatterRoomById(matterId: string): Promise<MatterRoomDat
   ]);
 
   if (lawyerResult.error || roleResult.error) {
+    if (!isDemoModeEnabled()) {
+      return null;
+    }
+
     return fallbackRoom;
   }
 

@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { getSupabasePublishableKey } from "@/lib/supabase-config";
+import { isDemoModeEnabled } from "@/lib/runtime-mode";
 
 export type MatterTimelineItem = {
   date: string;
@@ -357,14 +358,14 @@ export async function loadMattersFromSupabase(firmId?: string) {
 }
 
 export async function listMatterWorkspaces() {
-  return (await loadMattersFromSupabase()) ?? seededMatterWorkspaceRecords;
+  return (await loadMattersFromSupabase()) ?? (isDemoModeEnabled() ? seededMatterWorkspaceRecords : []);
 }
 
 export async function getMatterWorkspaceById(matterId: string) {
   const liveMatters = await loadMattersFromSupabase();
   return (
     liveMatters?.find((matter) => matter.id === matterId) ??
-    seededMatterWorkspaceRecords.find((matter) => matter.id === matterId) ??
+    (isDemoModeEnabled() ? seededMatterWorkspaceRecords.find((matter) => matter.id === matterId) : null) ??
     null
   );
 }

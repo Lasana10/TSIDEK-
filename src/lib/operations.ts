@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { readPrototypeCollection, writePrototypeCollection } from "@/lib/prototype-state.server";
 import { deliverMatterUpdate } from "@/lib/communications";
+import { isDemoModeEnabled } from "@/lib/runtime-mode";
 
 export type NotificationItem = {
   id: string;
@@ -290,6 +291,18 @@ const seededMemorySnapshots: MatterMemorySnapshot[] = [
 ];
 
 const operationsCollectionKey = "operations-dashboard";
+
+function createEmptyOperationalDashboard(): OperationalDashboard {
+  return {
+    notifications: [],
+    chatThreads: [],
+    guidanceProfiles: [],
+    clientUpdates: [],
+    aiAccounts: [],
+    automations: [],
+    memorySnapshots: [],
+  };
+}
 
 function createOperationalClient() {
   return createServerSupabaseClient();
@@ -593,7 +606,16 @@ async function loadDashboardFromSupabase(firmId?: string | null) {
 }
 
 export async function listOperationalDashboard(firmId?: string | null): Promise<OperationalDashboard> {
-  return (await loadDashboardFromSupabase(firmId)) ?? (await readPrototypeCollection(operationsCollectionKey, {
+  const liveDashboard = await loadDashboardFromSupabase(firmId);
+  if (liveDashboard) {
+    return liveDashboard;
+  }
+
+  if (!isDemoModeEnabled()) {
+    return createEmptyOperationalDashboard();
+  }
+
+  return readPrototypeCollection(operationsCollectionKey, {
     notifications: pickRecent(seededNotifications, 5),
     chatThreads: seededChatThreads,
     guidanceProfiles: seededGuidanceProfiles,
@@ -601,12 +623,19 @@ export async function listOperationalDashboard(firmId?: string | null): Promise<
     aiAccounts: seededAiAccounts,
     automations: seededAutomations,
     memorySnapshots: seededMemorySnapshots,
-  }));
+  });
+}
+
+function assertPrototypeWritesEnabled() {
+  if (!isDemoModeEnabled()) {
+    throw new Error("Live Supabase persistence is required for this operation in production.");
+  }
 }
 
 async function mutatePrototypeDashboard<T>(
   mutate: (dashboard: OperationalDashboard) => { dashboard: OperationalDashboard; result: T }
 ) {
+  assertPrototypeWritesEnabled();
   const dashboard = await listOperationalDashboard();
   const payload = mutate(dashboard);
   await writePrototypeCollection(operationsCollectionKey, payload.dashboard);

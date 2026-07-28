@@ -11,6 +11,7 @@ import {
   getPrototypeMatterWorkspaceById,
   listPrototypeMatterWorkspaces,
 } from "@/lib/prototype-store.server";
+import { isDemoModeEnabled } from "@/lib/runtime-mode";
 
 async function resolveDefaultFirmId() {
   const supabase = createServerSupabaseClient();
@@ -56,6 +57,10 @@ export async function listMatterWorkspacesServer(scope?: RequestScope) {
     return liveMatters;
   }
 
+  if (!isDemoModeEnabled()) {
+    return [];
+  }
+
   const storedMatters = await listPrototypeMatterWorkspaces();
   return storedMatters.length ? storedMatters : seededMatterWorkspaceRecords;
 }
@@ -64,6 +69,10 @@ export async function getMatterWorkspaceByIdServer(matterId: string, scope?: Req
   const liveMatters = await loadMattersFromSupabase(scope?.firmId ?? undefined);
   if (liveMatters) {
     return liveMatters.find((matter) => matter.id === matterId) ?? null;
+  }
+
+  if (!isDemoModeEnabled()) {
+    return null;
   }
 
   return (
@@ -148,6 +157,10 @@ export async function createMatterWorkspaceServer(input: {
 
     const matters = await listMatterWorkspacesServer(scope);
     return matters.find((item) => item.id === result.data.id) ?? null;
+  }
+
+  if (!isDemoModeEnabled()) {
+    throw new Error("Supabase persistence is required to create matters in production.");
   }
 
   return createPrototypeMatterWorkspace(input);
