@@ -27,10 +27,11 @@ export default async function MatterDetailPage({
   params,
   searchParams,
 }: {
-  params: { matterId: string };
-  searchParams?: { tab?: string | string[] };
+  params: Promise<{ matterId: string }>;
+  searchParams?: Promise<{ tab?: string | string[] }>;
 }) {
-  const { matterId } = params;
+  const { matterId } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const headerStore = await headers();
   const scope = await resolveRequestScope(new Request("http://tsidek.local/internal", { headers: headerStore }));
   const matter = await getMatterWorkspaceByIdServer(matterId, scope);
@@ -71,7 +72,7 @@ export default async function MatterDetailPage({
           </div>
         </div>
 
-        <MatterWorkspace matter={matter} initialTab={resolveWorkspaceTab(searchParams?.tab)} />
+        <MatterWorkspace matter={matter} initialTab={resolveWorkspaceTab(resolvedSearchParams?.tab)} />
       </div>
     </div>
   );

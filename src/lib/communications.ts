@@ -65,10 +65,16 @@ async function sendSmtpCommand(
   return response;
 }
 
+function parseSmtpPort(value: string | undefined) {
+  const parsed = Number(value ?? "587");
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 587;
+}
+
 async function sendEmailViaSmtp(input: { to: string; subject: string; text: string }) {
   const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT ?? "587");
-  const secure = process.env.SMTP_SECURE === "true" || port === 465;
+  const port = parseSmtpPort(process.env.SMTP_PORT);
+  const implicitTls = process.env.SMTP_SECURE === "true" || port === 465;
+  const useStartTls = !implicitTls && process.env.SMTP_STARTTLS !== "false";
   const username = process.env.SMTP_USERNAME;
   const password = process.env.SMTP_PASSWORD;
   const from = process.env.SMTP_FROM;
@@ -81,7 +87,7 @@ async function sendEmailViaSmtp(input: { to: string; subject: string; text: stri
     };
   }
 
-  const socket = secure
+  let socket: net.Socket | tls.TLSSocket = implicitTls
     ? tls.connect({ host, port, servername: host })
     : net.connect({ host, port });
 
@@ -93,6 +99,17 @@ async function sendEmailViaSmtp(input: { to: string; subject: string; text: stri
   try {
     await readSmtpResponse(socket);
     await sendSmtpCommand(socket, `EHLO tsidek.local\r\n`, ["250"]);
+
+    if (useStartTls) {
+      await sendSmtpCommand(socket, "STARTTLS\r\n", ["220"]);
+      socket = tls.connect({ socket, servername: host });
+      await new Promise<void>((resolve, reject) => {
+        socket.once("secureConnect", () => resolve());
+        socket.once("error", reject);
+      });
+      await sendSmtpCommand(socket, `EHLO tsidek.local\r\n`, ["250"]);
+    }
+
     await sendSmtpCommand(socket, "AUTH LOGIN\r\n", ["334"]);
     await sendSmtpCommand(socket, `${Buffer.from(username).toString("base64")}\r\n`, ["334"]);
     await sendSmtpCommand(socket, `${Buffer.from(password).toString("base64")}\r\n`, ["235"]);
