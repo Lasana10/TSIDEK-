@@ -1,28 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BriefcaseBusiness, Building2, Database, FileStack, ShieldCheck, Sparkles, UserPlus, Workflow } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, Building2, Database, FileStack, Receipt, ShieldCheck, UserPlus, Workflow } from "lucide-react";
 import AuthSessionPill from "@/components/AuthSessionPill";
 import FirmCockpit from "@/components/FirmCockpit";
 
 const workingTracks = [
   {
-    title: "Matter rooms",
+    title: "Governed intake",
     status: "Live path",
     description:
-      "Create a matter, open the matter route, then work comments, tasks, documents, physical file tracking, compliance, jurisprudence, and collaboration from one place.",
-    cta: "Open a matter below",
-    href: "#new-matter",
-    icon: BriefcaseBusiness,
-  },
-  {
-    title: "Structured intake",
-    status: "Live path",
-    description:
-      "Capture a client issue, classify the first working track, and create a real matter record that opens directly into the matter room.",
+      "Capture the enquiry, register connected parties, run conflict review, approve engagement terms, complete the opening checklist, then open the matter.",
     cta: "Open intake route",
     href: "/intake",
     icon: UserPlus,
+  },
+  {
+    title: "Matter rooms",
+    status: "Live path",
+    description:
+      "Work documents, tasks, deadlines, comments, physical file custody, compliance, jurisprudence, finance, and institutional memory from one controlled matter route.",
+    cta: "Open a matter below",
+    href: "#matters",
+    icon: BriefcaseBusiness,
   },
   {
     title: "Controlled onboarding",
@@ -43,6 +43,15 @@ const workingTracks = [
     icon: FileStack,
   },
   {
+    title: "Matter finance",
+    status: "Live path",
+    description:
+      "Inside each matter, create invoices, track paid and outstanding amounts, and preserve finance changes in the matter audit trail.",
+    cta: "Use from a matter room",
+    href: "#matters",
+    icon: Receipt,
+  },
+  {
     title: "RAG source inbox",
     status: "Staging path",
     description:
@@ -54,9 +63,9 @@ const workingTracks = [
 ];
 
 const controlledModules = [
-  "Conflict checking",
-  "Standalone billing",
-  "Standalone file vault",
+  "AI prediction claims",
+  "Standalone billing outside matters",
+  "Uncontrolled document warehouse",
 ];
 
 export default function Home() {
@@ -68,17 +77,17 @@ export default function Home() {
             <div className="max-w-4xl space-y-4">
               <div className="inline-flex items-center gap-2 rounded-full border border-heritage-green/10 bg-heritage-green/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-heritage-green">
                 <ShieldCheck className="h-3.5 w-3.5" />
-                Presentation-safe prototype
+                Governed operating path
               </div>
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">TSIDEK OS</p>
                 <h1 className="mt-3 text-4xl heading-serif text-heritage-green md:text-5xl">
-                  A matter-first legal operating system, not a gallery of legal tech screens.
+                  A legal operating system where intake, matters, documents, finance, and memory stay connected.
                 </h1>
               </div>
               <p className="max-w-3xl text-sm leading-7 text-slate-600">
-                The strongest path in this build is now explicit: authenticate, create a matter, open the matter room, and
-                run documents, strategy, collaboration, compliance, and institutional memory from that route.
+                The strongest path is now explicit: authenticate, start with governed intake, clear conflict and engagement,
+                open the matter room, then run documents, collaboration, compliance, finance, and institutional memory from that route.
               </p>
             </div>
 
@@ -88,7 +97,7 @@ export default function Home() {
                 <p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/45">Readiness</p>
                 <p className="mt-2 text-lg font-semibold">Matter workflow is the real demo path.</p>
                 <p className="mt-2 text-sm leading-6 text-white/72">
-                  We intentionally hold weaker standalone modules back from the lead experience until their backend wiring is complete.
+                  The lead demo is the real legal chain: intake gate, matter room, document control, finance ledger, and audit trail.
                 </p>
               </div>
             </div>
@@ -123,15 +132,15 @@ export default function Home() {
             <div className="rounded-[1.6rem] border border-slate-200 bg-[#f8fbf9] p-5">
               <div className="flex items-center gap-3">
                 <div className="rounded-2xl bg-gold-accent/15 p-3 text-[#8f6b21]">
-                  <Sparkles className="h-5 w-5" />
+                  <ShieldCheck className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Controlled release</p>
-                  <h2 className="mt-1 text-lg font-semibold text-heritage-green">Modules held back from the core demo</h2>
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Product discipline</p>
+                  <h2 className="mt-1 text-lg font-semibold text-heritage-green">Things we should not oversell yet</h2>
                 </div>
               </div>
               <p className="mt-4 text-sm leading-6 text-slate-600">
-                These surfaces still need stronger end-to-end backend execution, so they are not presented as primary flows on this homepage.
+                TSIDEK should win by being reliable. These areas remain controlled until the supporting data, permissions, and evidence chain are strong enough.
               </p>
               <div className="mt-5 space-y-3">
                 {controlledModules.map((item) => (
@@ -150,13 +159,13 @@ export default function Home() {
 
       <section className="px-4 py-6 md:px-6 xl:px-8">
         <div className="mx-auto max-w-[1700px] space-y-4">
-          <div className="flex items-start justify-between gap-4 rounded-[1.7rem] border border-slate-200 bg-white p-5">
+          <div id="matters" className="flex items-start justify-between gap-4 rounded-[1.7rem] border border-slate-200 bg-white p-5">
             <div className="max-w-3xl">
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Working route</p>
-              <h2 className="mt-2 text-2xl heading-serif text-heritage-green">Open a matter and do the real work there</h2>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Operating cockpit</p>
+              <h2 className="mt-2 text-2xl heading-serif text-heritage-green">Run active legal work from the matter room</h2>
               <p className="mt-3 text-sm leading-7 text-slate-600">
-                Matter rooms remain the main operating surface for team collaboration, case file structure, live comments,
-                task orchestration, document registration, physical file linkage, compliance controls, and recall memory.
+                Matter rooms are the main operating surface for team collaboration, case file structure, live comments,
+                task orchestration, document registration, physical file linkage, finance, compliance controls, and recall memory.
               </p>
             </div>
             <div className="hidden rounded-[1.3rem] bg-[#082b22] px-4 py-3 text-white lg:block">

@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState, startTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, FileText, Search, Sparkles, Workflow } from "lucide-react";
+import { ArrowRight, FileText, Receipt, Search, ShieldCheck, Sparkles, UserPlus, Workflow } from "lucide-react";
 import type { MatterWorkspaceData } from "@/lib/matters";
 
 type MatterListPayload = {
@@ -159,24 +159,24 @@ export default function FirmCockpit() {
           <div className="space-y-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-white/70">
               <Sparkles className="h-3.5 w-3.5" />
-              Live case launchpad
+              Active legal operations
             </div>
             <h2 className="max-w-3xl text-3xl font-semibold heading-serif md:text-4xl">
-              Open a matter, work the file, and jump straight into a section that changes the case.
+              Start cleanly, continue matters, and keep every action tied to the file.
             </h2>
             <p className="max-w-2xl text-sm leading-7 text-white/72">
-              This is the real front door now. Open a matter room, go directly to documents, intelligence, or collaboration,
-              and use the prototype as a working legal system instead of a gallery of screens.
+              The strongest operating path is intake first, then conflict review and engagement approval, then the matter room.
+              Direct matter creation remains available for controlled internal work.
             </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:w-[420px]">
             <MetricPill label="Live matters" value={`${visibleMatters.length || 0}`} />
-            <MetricPill label="Direct routes" value="Documents / Intelligence / Collaboration" />
+            <MetricPill label="Matter routes" value="Documents / Finance / Governance" />
           </div>
         </div>
 
-        <div className="mt-6 grid gap-3 lg:grid-cols-[1fr_260px]">
+        <div className="mt-6 grid gap-3 lg:grid-cols-[1fr_260px_260px]">
           <label className="rounded-[1.4rem] border border-white/10 bg-white/10 px-4 py-3">
             <div className="flex items-center gap-2 text-white/50">
               <Search className="h-4 w-4" />
@@ -189,6 +189,17 @@ export default function FirmCockpit() {
               className="mt-2 w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
             />
           </label>
+
+          <Link
+            href="/intake"
+            className="inline-flex items-center justify-between rounded-[1.4rem] bg-ochre px-5 py-4 text-[#0c3229] transition hover:bg-amber-100"
+          >
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#0c3229]/60">Preferred start</p>
+              <p className="mt-1 text-sm font-semibold">Open intake gate</p>
+            </div>
+            <UserPlus className="h-5 w-5" />
+          </Link>
 
           <Link
             href={highlightedMatter ? `/matters/${highlightedMatter.id}` : "/"}
@@ -254,6 +265,9 @@ export default function FirmCockpit() {
                     <Link href={`/matters/${matter.id}?tab=collaboration`} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">
                       Collaboration
                     </Link>
+                    <Link href={`/matters/${matter.id}?tab=finance`} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">
+                      Finance
+                    </Link>
                   </div>
                 </div>
               </article>
@@ -267,8 +281,16 @@ export default function FirmCockpit() {
 
         <div className="space-y-4">
           <div id="new-matter" className="rounded-[1.7rem] border border-slate-200 bg-white p-5">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Open a new matter</p>
-            <h3 className="mt-2 text-lg font-semibold text-heritage-green">Matter intake that actually creates a case</h3>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Controlled shortcut</p>
+            <h3 className="mt-2 text-lg font-semibold text-heritage-green">Direct matter creation for internal files</h3>
+            <div className="mt-4 rounded-[1rem] border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>
+                  For normal client work, use the intake gate so conflict review, engagement approval, and opening decisions are preserved first.
+                </p>
+              </div>
+            </div>
             <div className="mt-4 grid gap-3">
               <input
                 value={createTitle}
@@ -357,17 +379,17 @@ export default function FirmCockpit() {
                 disabled={isCreating}
                 className="rounded-2xl bg-heritage-green px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-white transition disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isCreating ? "Creating..." : "Create and open matter"}
+                {isCreating ? "Creating..." : "Create internal matter"}
               </button>
             </div>
           </div>
 
           <div className="rounded-[1.7rem] border border-slate-200 bg-white p-5">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">What matters do here</p>
-            <div className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
-              <p>1. Open the matter room.</p>
-              <p>2. Jump directly to documents, intelligence, or collaboration.</p>
-              <p>3. Register files, notes, tasks, and follow-ups in one place.</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Operational coverage</p>
+            <div className="mt-4 grid gap-3">
+              <QuickFact icon={Workflow} label="Matter room" value="Tasks, comments, deadlines, team, and audit trail." />
+              <QuickFact icon={FileText} label="Documents" value="Metadata, version labels, access level, OneDrive ID, custody links." />
+              <QuickFact icon={Receipt} label="Finance" value="Matter invoice creation, paid and outstanding tracking." />
             </div>
           </div>
 
