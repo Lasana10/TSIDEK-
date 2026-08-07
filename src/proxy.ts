@@ -93,6 +93,7 @@ export const config = {
     "/auth/:path*",
     "/onboarding/:path*",
     "/api/matters/:path*",
+    "/api/intake/:path*",
     "/api/operations/:path*",
     "/api/onboarding/:path*",
     "/api/session",

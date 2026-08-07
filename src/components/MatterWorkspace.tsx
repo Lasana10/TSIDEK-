@@ -334,9 +334,14 @@ export default function MatterWorkspace({
   matter: MatterWorkspaceData;
   initialTab?: WorkspaceTab;
 }) {
+  // Production must never present seeded matter data as if it were a legal record.
+  const allowPrototypeWorkspace =
+    process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_TSIDEK_DEMO_MODE !== "false";
   const [activeTab, setActiveTab] = useState<WorkspaceTab>(initialTab);
   const [dashboard, setDashboard] = useState<OperationalDashboard | null>(null);
-  const [room, setRoom] = useState<MatterRoomData>(() => createFallbackMatterRoom(matter));
+  const [room, setRoom] = useState<MatterRoomData | null>(() =>
+    allowPrototypeWorkspace ? createFallbackMatterRoom(matter) : null
+  );
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [roomError, setRoomError] = useState<string | null>(null);
   const [roomNotice, setRoomNotice] = useState<string | null>(null);
@@ -426,7 +431,12 @@ export default function MatterWorkspace({
           fetch("/api/operations", { cache: "no-store" }),
         ]);
 
-        if (!cancelled && roomResponse.ok) {
+        if (!roomResponse.ok) {
+          const payload = (await roomResponse.json().catch(() => ({}))) as { error?: string };
+          throw new Error(payload.error ?? "The live matter room could not be loaded.");
+        }
+
+        if (!cancelled) {
           const roomPayload = (await roomResponse.json()) as { room?: MatterRoomData; security?: MatterSecurityProfile };
           if (roomPayload.room) {
             startTransition(() => {
@@ -461,13 +471,13 @@ export default function MatterWorkspace({
       }
     }
 
-    setRoom(createFallbackMatterRoom(matter));
+    setRoom(allowPrototypeWorkspace ? createFallbackMatterRoom(matter) : null);
     void loadWorkspaceData();
 
     return () => {
       cancelled = true;
     };
-  }, [matter]);
+  }, [allowPrototypeWorkspace, matter]);
 
   const matterRoom = room?.matter.id === matter.id ? room : createFallbackMatterRoom(matter);
   const canPersistMatterRoom = matterRoom.source !== "fallback";
@@ -1566,6 +1576,29 @@ export default function MatterWorkspace({
     } catch (error) {
       setRoomError(error instanceof Error ? error.message : "Unable to remove the team member.");
     }
+  }
+
+  if (!allowPrototypeWorkspace && !room) {
+    return (
+      <section className="rounded-[2rem] border border-amber-200 bg-amber-50 p-7 shadow-[0_20px_60px_rgba(0,0,0,0.04)]">
+        <p className="text-[10px] font-black uppercase tracking-[0.26em] text-amber-700">Matter workspace</p>
+        <h2 className="mt-3 text-2xl heading-serif text-heritage-green">
+          {isRefreshing ? "Loading the governed matter record..." : "This matter record is not available"}
+        </h2>
+        <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-700">
+          {roomError ?? "TSIDEK did not receive a persisted matter workspace. No seeded legal data is shown in production."}
+        </p>
+        {!isRefreshing ? (
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-5 rounded-xl bg-heritage-green px-4 py-2 text-sm font-bold text-white transition hover:bg-heritage-green/90"
+          >
+            Retry live workspace
+          </button>
+        ) : null}
+      </section>
+    );
   }
 
   return (
