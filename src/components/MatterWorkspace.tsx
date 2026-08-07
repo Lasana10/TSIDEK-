@@ -462,7 +462,11 @@ export default function MatterWorkspace({
         }
       } catch {
         if (!cancelled) {
-          setRoomError("The live matter room could not be refreshed. Showing the last available workspace state.");
+          setRoomError(
+            allowPrototypeWorkspace
+              ? "The live matter room could not be refreshed. Showing the local prototype workspace state."
+              : "The live matter room could not be refreshed. No seeded legal data is shown in production."
+          );
         }
       } finally {
         if (!cancelled) {
@@ -479,7 +483,9 @@ export default function MatterWorkspace({
     };
   }, [allowPrototypeWorkspace, matter]);
 
-  const matterRoom = room?.matter.id === matter.id ? room : createFallbackMatterRoom(matter);
+  const hasCurrentMatterRoom = room?.matter.id === matter.id;
+  const liveMatterRoomUnavailable = !allowPrototypeWorkspace && !hasCurrentMatterRoom;
+  const matterRoom = hasCurrentMatterRoom ? room : createFallbackMatterRoom(matter);
   const canPersistMatterRoom = matterRoom.source !== "fallback";
   const matterRoomSourceLabel =
     matterRoom.source === "live"
@@ -1578,7 +1584,7 @@ export default function MatterWorkspace({
     }
   }
 
-  if (!allowPrototypeWorkspace && !room) {
+  if (liveMatterRoomUnavailable) {
     return (
       <section className="rounded-[2rem] border border-amber-200 bg-amber-50 p-7 shadow-[0_20px_60px_rgba(0,0,0,0.04)]">
         <p className="text-[10px] font-black uppercase tracking-[0.26em] text-amber-700">Matter workspace</p>
