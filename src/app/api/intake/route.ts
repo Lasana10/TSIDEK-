@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { assertFirmPermission } from "@/lib/authorization";
 import { statusForApiError } from "@/lib/api-errors";
+import { recordMatterEvent } from "@/lib/matter-events.server";
 import { createMatterWorkspaceServer } from "@/lib/matters.server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
@@ -266,6 +267,19 @@ export async function POST(request: Request) {
       if (bootstrapError && "error" in bootstrapError && bootstrapError.error) {
         throw new Error(bootstrapError.error.message);
       }
+
+      await recordMatterEvent({
+        matterId: matter.id,
+        scope,
+        eventType: "MATTER_OPENED",
+        newState: "OPEN",
+        reason: "Converted from governed intake after conflict and engagement approval.",
+        metadata: {
+          prospectId,
+          conflictStatus: conflictResult.data?.status ?? null,
+          responsibleLawyerId: checklistResult.data.responsible_lawyer_id,
+        },
+      });
 
       return NextResponse.json({ success: true, matterId: matter.id, matter });
     }

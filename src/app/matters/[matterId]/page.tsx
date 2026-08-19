@@ -3,6 +3,11 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import MatterWorkspace from "@/components/MatterWorkspace";
+import MatterLifecycleBar from "@/components/MatterLifecycleBar";
+import MatterCommandCenter from "@/components/MatterCommandCenter";
+import MatterControlDesk from "@/components/MatterControlDesk";
+import WorldClassOperationsPanel from "@/components/WorldClassOperationsPanel";
+import ClientAccessPanel from "@/components/ClientAccessPanel";
 import { getMatterWorkspaceByIdServer } from "@/lib/matters.server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import type { WorkspaceTab } from "@/components/MatterWorkspace";
@@ -73,6 +78,11 @@ export default async function MatterDetailPage({
           </div>
         </div>
 
+        <MatterLifecycleBar matterId={matterId} />
+        <MatterCommandCenter matterId={matterId} />
+        <WorldClassOperationsPanel />
+        <MatterControlDesk matterId={matterId} />
+        <ClientAccessPanel matterId={matterId} />
         <MatterWorkspace matter={matter} initialTab={resolveWorkspaceTab(resolvedSearchParams?.tab)} />
       </div>
     </div>
