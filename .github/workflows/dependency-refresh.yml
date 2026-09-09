@@ -30,6 +30,7 @@ jobs:
           npm install next@16.3.4 axios@1.20.0 --save-exact
           npm install --save-dev eslint-config-next@16.3.4 --save-exact
           npm audit fix --omit=dev || true
+          npm install
 
       - name: Verify no critical production advisory
         run: npm audit --omit=dev --audit-level=critical
