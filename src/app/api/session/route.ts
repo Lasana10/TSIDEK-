@@ -14,6 +14,8 @@ export async function GET(request: Request) {
       actorName: scope.actorName,
       actorRole: scope.actorRole,
       firmId: scope.firmId,
+      activeFirmId: identity?.activeFirmId ?? scope.firmId,
+      memberships: identity?.memberships ?? [],
       userEmail: scope.userEmail ?? null,
     });
   } catch (error) {
@@ -24,6 +26,8 @@ export async function GET(request: Request) {
       actorName: null,
       actorRole: null,
       firmId: null,
+      activeFirmId: null,
+      memberships: [],
       userEmail: null,
       error: error instanceof Error ? error.message : "Unable to resolve session.",
     });
