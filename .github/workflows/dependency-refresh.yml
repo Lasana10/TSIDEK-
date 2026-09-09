@@ -1,0 +1,55 @@
+name: TSIDEK Dependency Refresh
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/dependency-refresh.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Refresh production dependencies
+        run: |
+          npm install next@16.3.4 axios@1.20.0 --save-exact
+          npm install --save-dev eslint-config-next@16.3.4 --save-exact
+          npm audit fix --omit=dev || true
+
+      - name: Verify no critical production advisory
+        run: npm audit --omit=dev --audit-level=critical
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        env:
+          NODE_ENV: production
+        run: npm run build
+
+      - name: Commit lockfile refresh
+        run: |
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "Dependency files already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "Upgrade production dependencies for security"
+          git push origin HEAD:main
