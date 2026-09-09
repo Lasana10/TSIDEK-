@@ -1,0 +1,38 @@
+drop policy if exists "authorized governors add firm members" on public.firm_memberships;
+drop policy if exists "authorized governors update firm members" on public.firm_memberships;
+drop policy if exists "authorized governors remove firm members" on public.firm_memberships;
+
+drop index if exists public.idx_jurisprudence_entries_matter_security;
+drop index if exists public.idx_knowledge_entries_matter_security;
+drop index if exists public.idx_matter_comments_matter_security;
+drop index if exists public.idx_tasks_matter_security;
+drop index if exists public.idx_template_generations_matter_security;
+
+create index if not exists idx_case_preparation_firm on public.case_preparation_items(firm_id);
+create index if not exists idx_compliance_checklists_firm on public.compliance_checklists(firm_id);
+create index if not exists idx_council_register_firm on public.council_register_entries(firm_id);
+create index if not exists idx_digital_case_files_firm on public.digital_case_files(firm_id);
+create index if not exists idx_documents_uploaded_by on public.documents(uploaded_by);
+create index if not exists idx_documents_reviewed_by on public.documents(reviewed_by);
+create index if not exists idx_documents_approved_by on public.documents(approved_by);
+create index if not exists idx_finance_ledger_reversed on public.finance_ledger_entries(reversed_entry_id);
+create index if not exists idx_firm_invitations_invited_by on public.firm_invitations(invited_by);
+create index if not exists idx_firm_invitations_accepted_by on public.firm_invitations(accepted_by);
+create index if not exists idx_intake_events_actor on public.intake_decision_events(actor_id);
+create index if not exists idx_intake_events_matter on public.intake_decision_events(matter_id);
+create index if not exists idx_jurisprudence_firm on public.jurisprudence_entries(firm_id);
+create index if not exists idx_knowledge_firm on public.knowledge_entries(firm_id);
+create index if not exists idx_knowledge_source_document on public.knowledge_entries(source_document_id);
+create index if not exists idx_legal_propositions_verified_by on public.legal_propositions(verified_by);
+create index if not exists idx_matter_access_overrides_created_by on public.matter_access_overrides(created_by);
+create index if not exists idx_matter_access_overrides_firm on public.matter_access_overrides(firm_id);
+create index if not exists idx_matter_authority_links_proposition on public.matter_authority_links(proposition_id);
+create index if not exists idx_matter_case_fields_firm on public.matter_case_fields(firm_id);
+create index if not exists idx_matter_client_updates_created_by on public.matter_client_updates(created_by);
+create index if not exists idx_matter_client_updates_approved_by on public.matter_client_updates(approved_by);
+create index if not exists idx_matter_context_snapshots_firm on public.matter_context_snapshots(firm_id);
+create index if not exists idx_matter_members_firm_role on public.matter_members(firm_role_id);
+create index if not exists idx_opening_checklists_firm on public.matter_opening_checklists(firm_id);
+create index if not exists idx_opening_checklists_responsible on public.matter_opening_checklists(responsible_lawyer_id);
+create index if not exists idx_template_generations_firm on public.template_generations(firm_id);
+create index if not exists idx_template_generations_template on public.template_generations(template_id);
