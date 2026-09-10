@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import { searchLegalSources } from "@/lib/legal-research.server";
 import { runGovernedAi } from "@/lib/ai-runtime.server";
+import { recordAiWorkAndEvaluation } from "@/lib/ai-evaluation.server";
 
 const supportedRoles = new Set([
   "SUPREME_REASONER",
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
       "You are TSIDKENU, a human-supervised legal operating system.",
       "Do not fabricate statutes, cases, citations, dates, institutions or holdings.",
       "Every legal proposition that depends on authority must be traceable to the SOURCE pack below.",
+      "Cite supporting material inline using the exact labels [SOURCE 1], [SOURCE 2], and so on.",
       "If the source pack is insufficient, say exactly what is missing instead of guessing.",
       "Do not provide a fabricated win probability. Mark predictions as judgment-dependent unless supported by verified internal evaluation data.",
       roleInstruction(role),
@@ -73,9 +75,14 @@ export async function POST(request: Request) {
       sourceDocumentIds: research.hits.map((hit) => hit.source_document_id),
     });
 
+    const governance = matterId
+      ? await recordAiWorkAndEvaluation({ scope, matterId, role, context, result, hits: research.hits })
+      : null;
+
     return NextResponse.json({
       success: true,
       payload: result,
+      governance,
       research: {
         sourceCount: research.sourceCount,
         sources: research.hits.map((hit) => ({
