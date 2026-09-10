@@ -10,7 +10,7 @@ export async function enqueueClientUpdateDelivery(input: {
   scope: RequestScope;
   matterId: string;
   communicationId?: string | null;
-  channel: "Email" | "WhatsApp" | "SMS" | "In-App";
+  channel: "Email" | "WhatsApp" | "SMS" | "In-app";
   title: string;
   message: string;
 }) {
