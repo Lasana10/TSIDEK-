@@ -125,12 +125,7 @@ export async function POST(
       };
       return NextResponse.json({
         success: true,
-        document: await transitionLegalDocument({
-          matterId,
-          scope,
-          documentId: String(body.documentId),
-          lifecycleState: map[action],
-        }),
+        document: await transitionLegalDocument({ matterId, scope, documentId: String(body.documentId), lifecycleState: map[action] }),
       });
     }
 
@@ -150,13 +145,7 @@ export async function POST(
     if (action === "decideApproval") {
       return NextResponse.json({
         success: true,
-        approval: await decideMatterApproval({
-          matterId,
-          scope,
-          approvalId: String(body.approvalId),
-          status: body.status,
-          reason: body.reason ? String(body.reason) : null,
-        }),
+        approval: await decideMatterApproval({ matterId, scope, approvalId: String(body.approvalId), status: body.status, reason: body.reason ? String(body.reason) : null }),
       });
     }
 
@@ -178,28 +167,22 @@ export async function POST(
     }
 
     if (action === "queueCommunicationDelivery") {
-      const channel = String(body.channel ?? "In-App");
-      if (!["Email", "WhatsApp", "SMS", "In-App"].includes(channel)) {
+      const channel = String(body.channel ?? "In-app");
+      if (!["Email", "WhatsApp", "SMS", "In-app"].includes(channel)) {
         return NextResponse.json({ success: false, error: "Unsupported delivery channel." }, { status: 400 });
       }
       const title = String(body.title ?? "Matter update").trim();
       const message = String(body.message ?? "").trim();
       if (!message) return NextResponse.json({ success: false, error: "A delivery message is required." }, { status: 400 });
-
       const communicationId = body.communicationId ? String(body.communicationId) : null;
       if (communicationId) {
-        await transitionMatterCommunication({
-          matterId,
-          scope,
-          communicationId,
-          lifecycleState: "APPROVED",
-        });
+        await transitionMatterCommunication({ matterId, scope, communicationId, lifecycleState: "APPROVED" });
       }
       const outbox = await enqueueClientUpdateDelivery({
         scope,
         matterId,
         communicationId,
-        channel: channel as "Email" | "WhatsApp" | "SMS" | "In-App",
+        channel: channel as "Email" | "WhatsApp" | "SMS" | "In-app",
         title,
         message,
       });
@@ -216,13 +199,7 @@ export async function POST(
       };
       return NextResponse.json({
         success: true,
-        communication: await transitionMatterCommunication({
-          matterId,
-          scope,
-          communicationId: String(body.communicationId),
-          lifecycleState: map[action],
-          externalMessageId: body.externalMessageId ? String(body.externalMessageId) : null,
-        }),
+        communication: await transitionMatterCommunication({ matterId, scope, communicationId: String(body.communicationId), lifecycleState: map[action], externalMessageId: body.externalMessageId ? String(body.externalMessageId) : null }),
       });
     }
 
