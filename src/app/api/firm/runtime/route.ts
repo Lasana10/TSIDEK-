@@ -27,7 +27,7 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const scope = await resolveRequestScope(request);
-    await assertFirmPermission({ scope, permission: "manageTeam" });
+    await assertFirmPermission({ scope, permission: "manageFirm" });
     if (!scope.firmId || !scope.actorLawyerId) throw new Error("Authenticated firm context is required.");
     const body = await request.json();
     const patch: Record<string, unknown> = { updated_by: scope.actorLawyerId, updated_at: new Date().toISOString() };
