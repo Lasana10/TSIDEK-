@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { statusForApiError } from "@/lib/api-errors";
 import { assertMatterPermission } from "@/lib/authorization";
 import { assertMatterScopeAccess } from "@/lib/request-scope";
+import { enqueueClientUpdateDelivery } from "@/lib/outbox.server";
 import {
   createMatterObligation,
   decideMatterApproval,
@@ -53,6 +54,7 @@ export async function POST(
       action === "fileDocument" ||
       action === "sendDocument" ||
       action === "approveCommunication" ||
+      action === "queueCommunicationDelivery" ||
       action === "markCommunicationSent"
     ) {
       await assertMatterPermission({ scope, matterId, permission: "approveFilings" });
@@ -113,7 +115,7 @@ export async function POST(
     }
 
     if (["reviewDocument","approveDocument","issueDocument","fileDocument","sendDocument","archiveDocument"].includes(action)) {
-      const map: Record<string, any> = {
+      const map: Record<string, "IN_REVIEW" | "APPROVED" | "ISSUED" | "FILED" | "SENT" | "ARCHIVED"> = {
         reviewDocument: "IN_REVIEW",
         approveDocument: "APPROVED",
         issueDocument: "ISSUED",
@@ -175,8 +177,37 @@ export async function POST(
       }, { status: 201 });
     }
 
+    if (action === "queueCommunicationDelivery") {
+      const channel = String(body.channel ?? "In-App");
+      if (!["Email", "WhatsApp", "SMS", "In-App"].includes(channel)) {
+        return NextResponse.json({ success: false, error: "Unsupported delivery channel." }, { status: 400 });
+      }
+      const title = String(body.title ?? "Matter update").trim();
+      const message = String(body.message ?? "").trim();
+      if (!message) return NextResponse.json({ success: false, error: "A delivery message is required." }, { status: 400 });
+
+      const communicationId = body.communicationId ? String(body.communicationId) : null;
+      if (communicationId) {
+        await transitionMatterCommunication({
+          matterId,
+          scope,
+          communicationId,
+          lifecycleState: "APPROVED",
+        });
+      }
+      const outbox = await enqueueClientUpdateDelivery({
+        scope,
+        matterId,
+        communicationId,
+        channel: channel as "Email" | "WhatsApp" | "SMS" | "In-App",
+        title,
+        message,
+      });
+      return NextResponse.json({ success: true, queued: true, outbox }, { status: 202 });
+    }
+
     if (["reviewCommunication","approveCommunication","markCommunicationSent","markCommunicationDelivered","markCommunicationFailed"].includes(action)) {
-      const map: Record<string, any> = {
+      const map: Record<string, "IN_REVIEW" | "APPROVED" | "SENT" | "DELIVERED" | "FAILED"> = {
         reviewCommunication: "IN_REVIEW",
         approveCommunication: "APPROVED",
         markCommunicationSent: "SENT",
