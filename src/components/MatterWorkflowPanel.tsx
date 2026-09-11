@@ -1,0 +1,23 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { ArrowRight, CheckCircle2, GitBranch, LoaderCircle, ShieldCheck } from "lucide-react";
+
+type Stage={id:string;stage_key:string;name:string;description?:string|null;sort_order:number;stage_type:string;is_terminal:boolean};
+type Transition={id:string;from_stage_key:string;to_stage_key:string;name:string;requires_reason:boolean;requires_approval:boolean};
+type Payload={success:boolean;error?:string;workflow?:{name:string};instance?:{current_stage_key:string};stages?:Stage[];transitions?:Transition[];events?:Array<Record<string,unknown>>};
+
+export default function MatterWorkflowPanel({matterId}:{matterId:string}){
+ const [data,setData]=useState<Payload|null>(null);const [busy,setBusy]=useState<string|null>(null);const [message,setMessage]=useState("");const [reason,setReason]=useState("");
+ const load=useCallback(async()=>{const r=await fetch(`/api/matters/${matterId}/workflow`,{cache:"no-store"});const d=await r.json();setData(d);if(!d.success)setMessage(d.error||"Unable to load workflow");},[matterId]);
+ useEffect(()=>{void load();},[load]);
+ async function move(t:Transition){setBusy(t.id);setMessage("");try{const r=await fetch(`/api/matters/${matterId}/workflow`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({transitionId:t.id,reason})});const d=await r.json();if(!r.ok||!d.success)throw new Error(d.guard?.failures?.join(" ")||d.error||"Transition failed");setReason("");setMessage(`Moved to ${t.to_stage_key.replaceAll("_"," ")}.`);await load();}catch(e){setMessage(e instanceof Error?e.message:"Transition failed");}finally{setBusy(null);}}
+ if(!data)return <section className="rounded-[1.7rem] border border-slate-200 bg-white p-5">Loading workflow…</section>;
+ const current=data.instance?.current_stage_key;const stages=data.stages||[];
+ return <section className="rounded-[1.7rem] border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><div className="flex items-center gap-2 text-[#0f5b49]"><GitBranch className="h-5 w-5"/><span className="text-[10px] font-black uppercase tracking-[0.2em]">Editable operating workflow</span></div><h2 className="mt-2 text-2xl font-semibold text-slate-950">{data.workflow?.name||"Matter workflow"}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Stages, gates and allowed transitions come from the firm's editable workflow structure. Moving a matter is role-checked, guard-checked and recorded.</p></div><a href="/studio/workflows" className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600">Edit workflow structure</a></div>
+  {message?<div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{message}</div>:null}
+  <div className="mt-6 overflow-x-auto"><div className="flex min-w-[760px] items-start">{stages.map((stage,index)=>{const active=stage.stage_key===current;const currentIndex=stages.findIndex(s=>s.stage_key===current);const complete=index<currentIndex;return <div key={stage.id} className="flex flex-1 items-center"><div className="min-w-[110px] text-center"><div className={`mx-auto grid h-9 w-9 place-items-center rounded-full border ${complete?"border-emerald-800 bg-emerald-800 text-white":active?"border-amber-500 bg-amber-50 text-emerald-950":"border-slate-200 text-slate-300"}`}>{complete?<CheckCircle2 className="h-4 w-4"/>:<ShieldCheck className="h-4 w-4"/>}</div><p className={`mt-2 text-[10px] font-black uppercase tracking-[0.12em] ${active?"text-emerald-950":"text-slate-400"}`}>{stage.name}</p><p className="mt-1 text-[10px] text-slate-400">{stage.stage_type}</p></div>{index<stages.length-1?<div className={`h-px flex-1 ${complete?"bg-emerald-800":"bg-slate-200"}`}/>:null}</div>})}</div></div>
+  <div className="mt-5 border-t border-slate-100 pt-5"><div className="grid gap-3 lg:grid-cols-[1fr_auto]"><input value={reason} onChange={e=>setReason(e.target.value)} placeholder="Transition reason when required / useful audit note" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm"/><div className="flex flex-wrap gap-2">{(data.transitions||[]).map(t=><button key={t.id} disabled={Boolean(busy)} onClick={()=>void move(t)} className="inline-flex items-center gap-2 rounded-xl bg-[#083126] px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50">{busy===t.id?<LoaderCircle className="h-3.5 w-3.5 animate-spin"/>:<ArrowRight className="h-3.5 w-3.5"/>}{t.name}{t.requires_approval?" · approval":""}</button>)}{!(data.transitions||[]).length?<span className="text-sm text-slate-500">No transitions available from this stage.</span>:null}</div></div></div>
+ </section>;
+}
