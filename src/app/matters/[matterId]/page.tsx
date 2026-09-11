@@ -8,6 +8,7 @@ import MatterCommandCenter from "@/components/MatterCommandCenter";
 import MatterControlDesk from "@/components/MatterControlDesk";
 import WorldClassOperationsPanel from "@/components/WorldClassOperationsPanel";
 import ClientAccessPanel from "@/components/ClientAccessPanel";
+import PracticeExecutionPanel from "@/components/PracticeExecutionPanel";
 import { getMatterWorkspaceByIdServer } from "@/lib/matters.server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import type { WorkspaceTab } from "@/components/MatterWorkspace";
@@ -52,17 +53,17 @@ export default async function MatterDetailPage({
         <div className="flex flex-col gap-4 rounded-[2rem] border border-white/70 bg-[linear-gradient(160deg,_#083126_0%,_#0f4938_58%,_#c5a059_170%)] p-6 text-white shadow-[0_20px_44px_rgba(0,54,41,0.18)] md:flex-row md:items-center md:justify-between">
           <div className="space-y-3">
             <Link
-              href="/"
+              href="/workspace"
               className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/80"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              Back to TSIDEK OS
+              Back to command workspace
             </Link>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-white/50">Route-backed matter room</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-white/50">Governed matter room</p>
               <h1 className="mt-2 text-3xl heading-serif text-white">{matter.title}</h1>
               <p className="mt-2 max-w-3xl text-sm leading-7 text-white/72">
-                Dedicated matter route for documents, strategy, governance, live collaboration, and paper-file linkage.
+                One controlled matter record for strategy, documents, evidence, deadlines, hearings, filing, client service, time, finance and institutional memory.
               </p>
             </div>
           </div>
@@ -80,6 +81,7 @@ export default async function MatterDetailPage({
 
         <MatterLifecycleBar matterId={matterId} />
         <MatterCommandCenter matterId={matterId} />
+        <PracticeExecutionPanel matterId={matterId} />
         <WorldClassOperationsPanel />
         <MatterControlDesk matterId={matterId} />
         <ClientAccessPanel matterId={matterId} />
