@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import ClientIntakeV2 from "@/components/ClientIntakeV2";
+import ClientIntakeCore from "@/components/ClientIntakeCore";
 
 export default function IntakePage() {
   return (
@@ -16,7 +16,7 @@ export default function IntakePage() {
           </Link>
         </div>
       </div>
-      <ClientIntakeV2 />
+      <ClientIntakeCore />
     </div>
   );
 }
