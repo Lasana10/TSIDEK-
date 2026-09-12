@@ -11,6 +11,7 @@ import WorldClassOperationsPanel from "@/components/WorldClassOperationsPanel";
 import ClientAccessPanel from "@/components/ClientAccessPanel";
 import PracticeExecutionPanel from "@/components/PracticeExecutionPanel";
 import FinanceTransparencyPanel from "@/components/FinanceTransparencyPanel";
+import MatterClosurePanel from "@/components/MatterClosurePanel";
 import { getMatterWorkspaceByIdServer } from "@/lib/matters.server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import type { WorkspaceTab } from "@/components/MatterWorkspace";
@@ -69,6 +70,7 @@ export default async function MatterDetailPage({
         <MatterCommandCenter matterId={matterId} />
         <PracticeExecutionPanel matterId={matterId} />
         <FinanceTransparencyPanel matterId={matterId} />
+        <MatterClosurePanel matterId={matterId} />
         <WorldClassOperationsPanel />
         <MatterControlDesk matterId={matterId} />
         <ClientAccessPanel matterId={matterId} />
