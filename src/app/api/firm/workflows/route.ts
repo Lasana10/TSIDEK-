@@ -21,12 +21,14 @@ export async function GET(request: Request) {
     const workflowIds = (workflows.data ?? []).map((item) => item.id);
     if (!workflowIds.length) return NextResponse.json({ success: true, workflows: [] });
 
-    const [stages, transitions] = await Promise.all([
+    const [stages, transitions, stageActions] = await Promise.all([
       supabase.from("firm_workflow_stages").select("*").in("workflow_id", workflowIds).order("sort_order"),
       supabase.from("firm_workflow_transitions").select("*").in("workflow_id", workflowIds).order("sort_order"),
+      supabase.from("firm_workflow_stage_actions").select("*").in("workflow_id", workflowIds).order("sort_order"),
     ]);
     if (stages.error) throw new Error(stages.error.message);
     if (transitions.error) throw new Error(transitions.error.message);
+    if (stageActions.error) throw new Error(stageActions.error.message);
 
     return NextResponse.json({
       success: true,
@@ -34,6 +36,7 @@ export async function GET(request: Request) {
         ...workflow,
         stages: (stages.data ?? []).filter((stage) => stage.workflow_id === workflow.id),
         transitions: (transitions.data ?? []).filter((transition) => transition.workflow_id === workflow.id),
+        stageActions: (stageActions.data ?? []).filter((stageAction) => stageAction.workflow_id === workflow.id),
       })),
     });
   } catch (error) {
