@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, BriefcaseBusiness, Building2, CheckCircle2, Clock3, FileCheck2, FileText, Landmark, Receipt, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { AlertTriangle, Archive, BriefcaseBusiness, Building2, CheckCircle2, Clock3, FileCheck2, FileText, Landmark, MessageSquareText, Receipt, ShieldCheck, Sparkles, Users } from "lucide-react";
 
 type WorkspacePayload = {
   success: boolean;
@@ -51,10 +51,12 @@ export default function WorkspacePage() {
             <div className="max-w-4xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-white/70"><Sparkles className="h-3.5 w-3.5"/>Role-native command workspace</div>
               <h1 className="mt-4 text-4xl font-semibold tracking-tight md:text-5xl">{data.identity?.title || role}</h1>
-              <p className="mt-3 max-w-3xl text-sm leading-7 text-white/70">A single operational surface for intake, matters, deadlines, evidence, review, client service, finance, closure and knowledge—scoped by the same firm and matter authorization model.</p>
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-white/70">What needs attention, who is waiting, what is due, and what changed—without forcing staff to understand the machinery underneath.</p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-3">
-              <Link href="/intake" className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-[#082b22]">New intake</Link>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              <Link href="/interactions" className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-[#082b22]">+ Visit / Contact</Link>
+              <Link href="/intake" className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white">Client cycle</Link>
+              <Link href="/digitisation" className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white">Digitisation</Link>
               <Link href="/studio" className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white">Firm Studio</Link>
               <Link href="/" className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white">Firm cockpit</Link>
             </div>
@@ -63,6 +65,12 @@ export default function WorkspacePage() {
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
           {cards.map(([label, value, Icon]) => <div key={label} className="rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-sm"><Icon className="h-5 w-5 text-[#0f5b49]"/><p className="mt-4 text-2xl font-bold text-slate-950">{value}</p><p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p></div>)}
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-3">
+          <Link href="/interactions" className="rounded-[1.4rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-300"><MessageSquareText className="h-5 w-5 text-[#0f5b49]"/><h2 className="mt-4 text-lg font-semibold text-slate-950">Interactions</h2><p className="mt-2 text-sm leading-6 text-slate-500">Walk-ins, calls, meetings, WhatsApp, email and referrals enter one governed activity stream.</p></Link>
+          <Link href="/intake" className="rounded-[1.4rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-300"><Users className="h-5 w-5 text-[#0f5b49]"/><h2 className="mt-4 text-lg font-semibold text-slate-950">Client cycle</h2><p className="mt-2 text-sm leading-6 text-slate-500">Search the person first, assess progressively, then open the matter only after professional gates.</p></Link>
+          <Link href="/digitisation" className="rounded-[1.4rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-300"><Archive className="h-5 w-5 text-[#0f5b49]"/><h2 className="mt-4 text-lg font-semibold text-slate-950">Digitisation Desk</h2><p className="mt-2 text-sm leading-6 text-slate-500">Import old files in batches, preserve originals, flag duplicates and approve records into matters.</p></Link>
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[1.3fr_0.7fr]">
@@ -84,7 +92,7 @@ export default function WorkspacePage() {
           <Capability enabled={Boolean(data.capabilities?.ethicalWalls)} title="Ethical walls" text="Governors can control screened access and restricted matters." />
           <Capability enabled={Boolean(data.capabilities?.approvals)} title="Partner approvals" text="Filing, AI-work and governance approval surfaces follow role authority." />
           <Capability enabled={Boolean(data.capabilities?.clientAccess)} title="Client access" text="Matter updates, instructions and portal grants follow matter authorization." />
-          <Capability enabled={Boolean(data.capabilities?.studio)} title="Firm Studio" text="Brand, letterhead, bilingual defaults and form definitions are firm-specific." />
+          <Capability enabled={Boolean(data.capabilities?.studio)} title="Firm Studio" text="Brand, legal parameters, workflows, privacy and forms are firm-specific." />
         </section>
       </div>
     </main>
