@@ -21,7 +21,7 @@ create table if not exists public.firm_interaction_policies (
 create table if not exists public.firm_legal_parameters (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references public.firms(id) on delete cascade,
-  parameter_type text not null check (parameter_type in ('matter_type','jurisdiction','court_authority','practice_area','procedure_track','document_type','hearing_type','filing_type','fee_model','risk_level','confidentiality_level','closure_outcome','interaction_type')),
+  parameter_type text not null,
   parameter_key text not null,
   label_en text not null,
   label_fr text,
@@ -33,7 +33,7 @@ create table if not exists public.firm_legal_parameters (
   updated_by uuid references public.lawyers(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (firm_id, parameter_type, parameter_key)
+  unique(firm_id, parameter_type, parameter_key)
 );
 
 create table if not exists public.parties (
@@ -56,10 +56,8 @@ create table if not exists public.parties (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-
 create unique index if not exists parties_firm_phone_unique on public.parties(firm_id, phone) where phone is not null and phone <> '';
 create index if not exists parties_firm_name_idx on public.parties(firm_id, display_name);
-create index if not exists parties_firm_email_idx on public.parties(firm_id, email);
 
 create table if not exists public.matter_parties (
   id uuid primary key default gen_random_uuid(),
@@ -71,7 +69,7 @@ create table if not exists public.matter_parties (
   is_primary boolean not null default false,
   confidentiality_notes text,
   created_at timestamptz not null default now(),
-  unique (matter_id, party_id, relationship_type)
+  unique(matter_id, party_id, relationship_type)
 );
 
 create table if not exists public.legal_interactions (
@@ -81,19 +79,19 @@ create table if not exists public.legal_interactions (
   prospect_id uuid references public.prospects(id) on delete set null,
   primary_party_id uuid references public.parties(id) on delete set null,
   interaction_type text not null check (interaction_type in ('walk_in','office_meeting','phone_call','whatsapp','email','portal','referral','court_encounter','other')),
-  direction text not null default 'inbound' check (direction in ('inbound','outbound','internal')),
+  direction text not null default 'inbound' check(direction in ('inbound','outbound','internal')),
   occurred_at timestamptz not null default now(),
   subject text,
   raw_note text,
   source_reference text,
-  confidentiality_level text not null default 'firm' check (confidentiality_level in ('firm','restricted','highly_confidential')),
+  confidentiality_level text not null default 'firm' check(confidentiality_level in ('firm','restricted','highly_confidential')),
   consent_recording boolean,
   recording_storage_ref text,
   transcript_text text,
-  transcript_status text not null default 'not_requested' check (transcript_status in ('not_requested','queued','processing','completed','failed','redacted')),
-  ai_analysis_status text not null default 'not_requested' check (ai_analysis_status in ('not_requested','queued','processing','completed','failed','review_required')),
+  transcript_status text not null default 'not_requested' check(transcript_status in ('not_requested','queued','processing','completed','failed','redacted')),
+  ai_analysis_status text not null default 'not_requested' check(ai_analysis_status in ('not_requested','queued','processing','completed','failed','review_required')),
   ai_suggestions jsonb not null default '{}'::jsonb,
-  verification_status text not null default 'unreviewed' check (verification_status in ('unreviewed','reviewed','partially_confirmed','confirmed','rejected')),
+  verification_status text not null default 'unreviewed' check(verification_status in ('unreviewed','reviewed','partially_confirmed','confirmed','rejected')),
   assigned_to uuid references public.lawyers(id),
   created_by uuid references public.lawyers(id),
   reviewed_by uuid references public.lawyers(id),
@@ -102,27 +100,24 @@ create table if not exists public.legal_interactions (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-
 create index if not exists legal_interactions_firm_occurred_idx on public.legal_interactions(firm_id, occurred_at desc);
 create index if not exists legal_interactions_matter_idx on public.legal_interactions(matter_id, occurred_at desc);
-create index if not exists legal_interactions_party_idx on public.legal_interactions(primary_party_id, occurred_at desc);
 
 create table if not exists public.interaction_extractions (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references public.firms(id) on delete cascade,
   interaction_id uuid not null references public.legal_interactions(id) on delete cascade,
-  extraction_type text not null check (extraction_type in ('fact','changed_fact','contradiction','instruction','commitment','deadline','document','person','organisation','risk','research_question','task','payment','conflict_name','client_update')),
+  extraction_type text not null check(extraction_type in ('fact','changed_fact','contradiction','instruction','commitment','deadline','document','person','organisation','risk','research_question','task','payment','conflict_name','client_update')),
   summary text not null,
   detail jsonb not null default '{}'::jsonb,
   source_start_ms integer,
   source_end_ms integer,
   confidence numeric(5,4),
-  status text not null default 'suggested' check (status in ('suggested','confirmed','edited','rejected','superseded')),
+  status text not null default 'suggested' check(status in ('suggested','confirmed','edited','rejected','superseded')),
   confirmed_by uuid references public.lawyers(id),
   confirmed_at timestamptz,
   created_at timestamptz not null default now()
 );
-
 create index if not exists interaction_extractions_interaction_idx on public.interaction_extractions(interaction_id, created_at);
 
 create table if not exists public.matter_commitments (
@@ -136,24 +131,22 @@ create table if not exists public.matter_commitments (
   commitment_to text,
   description text not null,
   due_at timestamptz,
-  status text not null default 'open' check (status in ('open','completed','overdue','cancelled','disputed')),
+  status text not null default 'open' check(status in ('open','completed','overdue','cancelled','disputed')),
   completed_at timestamptz,
-  source text not null default 'manual' check (source in ('manual','interaction','ai_confirmed','workflow')),
+  source text not null default 'manual' check(source in ('manual','interaction','ai_confirmed','workflow')),
   created_by uuid references public.lawyers(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
-create index if not exists matter_commitments_due_idx on public.matter_commitments(firm_id, status, due_at);
-
 create table if not exists public.digitisation_batches (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references public.firms(id) on delete cascade,
   title text not null,
-  source_type text not null check (source_type in ('scanner','folder_import','phone_scan','storage_connector','manual_upload','legacy_archive')),
+  source_type text not null check(source_type in ('scanner','folder_import','phone_scan','storage_connector','manual_upload','legacy_archive')),
   source_location text,
   matter_id uuid references public.matters(id) on delete set null,
-  status text not null default 'created' check (status in ('created','ingesting','review_required','approved','completed','failed')),
+  status text not null default 'created' check(status in ('created','ingesting','review_required','approved','completed','failed')),
   total_files integer not null default 0,
   classified_files integer not null default 0,
   review_required_files integer not null default 0,
@@ -182,27 +175,26 @@ create table if not exists public.digitisation_items (
   proposed_title text,
   classification_confidence numeric(5,4),
   duplicate_of_document_id uuid references public.documents(id) on delete set null,
-  review_status text not null default 'pending' check (review_status in ('pending','accepted','corrected','rejected','duplicate')),
+  review_status text not null default 'pending' check(review_status in ('pending','accepted','corrected','rejected','duplicate')),
   reviewed_by uuid references public.lawyers(id),
   reviewed_at timestamptz,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
-
 create index if not exists digitisation_items_batch_idx on public.digitisation_items(batch_id, review_status);
 create index if not exists digitisation_items_checksum_idx on public.digitisation_items(firm_id, checksum_sha256) where checksum_sha256 is not null;
 
 create table if not exists public.firm_ai_policies (
   firm_id uuid primary key references public.firms(id) on delete cascade,
-  user_facing_mode text not null default 'standard' check (user_facing_mode in ('standard','high_accuracy','private','local')),
+  user_facing_mode text not null default 'standard' check(user_facing_mode in ('standard','high_accuracy','private','local')),
   standard_route jsonb not null default '{}'::jsonb,
   high_accuracy_route jsonb not null default '{}'::jsonb,
   private_route jsonb not null default '{}'::jsonb,
   local_route jsonb not null default '{}'::jsonb,
-  highly_confidential_mode text not null default 'local' check (highly_confidential_mode in ('disabled','private','local')),
+  highly_confidential_mode text not null default 'local' check(highly_confidential_mode in ('disabled','private','local')),
   allow_personal_provider_keys boolean not null default false,
   store_prompt_text boolean not null default false,
-  prompt_retention_days integer not null default 0 check (prompt_retention_days between 0 and 3650),
+  prompt_retention_days integer not null default 0 check(prompt_retention_days between 0 and 3650),
   configuration jsonb not null default '{}'::jsonb,
   updated_by uuid references public.lawyers(id),
   updated_at timestamptz not null default now()
@@ -222,12 +214,11 @@ create table if not exists public.ai_activity_ledger (
   input_hash text,
   output_hash text,
   citation_count integer not null default 0,
-  outcome_status text not null default 'generated' check (outcome_status in ('generated','accepted','edited','rejected','failed')),
+  outcome_status text not null default 'generated' check(outcome_status in ('generated','accepted','edited','rejected','failed')),
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
 
--- RLS
 alter table public.firm_interaction_policies enable row level security;
 alter table public.firm_legal_parameters enable row level security;
 alter table public.parties enable row level security;
@@ -244,30 +235,22 @@ revoke all on table public.firm_interaction_policies, public.firm_legal_paramete
 grant select, insert, update on table public.parties, public.matter_parties, public.legal_interactions, public.interaction_extractions, public.matter_commitments, public.digitisation_batches, public.digitisation_items to authenticated;
 grant select on table public.firm_legal_parameters, public.firm_interaction_policies, public.firm_ai_policies, public.ai_activity_ledger to authenticated;
 
--- Firm/member read policies
-create policy if not exists firm_interaction_policies_member_select on public.firm_interaction_policies for select to authenticated using (firm_id = public.current_firm_id());
-create policy if not exists firm_legal_parameters_member_select on public.firm_legal_parameters for select to authenticated using (firm_id = public.current_firm_id());
-create policy if not exists parties_member_access on public.parties for all to authenticated using (firm_id = public.current_firm_id()) with check (firm_id = public.current_firm_id());
-create policy if not exists matter_parties_member_access on public.matter_parties for all to authenticated using (firm_id = public.current_firm_id() and public.can_access_matter(matter_id)) with check (firm_id = public.current_firm_id() and public.can_access_matter(matter_id));
-create policy if not exists legal_interactions_member_access on public.legal_interactions for all to authenticated using (firm_id = public.current_firm_id() and (matter_id is null or public.can_access_matter(matter_id))) with check (firm_id = public.current_firm_id() and (matter_id is null or public.can_access_matter(matter_id)));
-create policy if not exists interaction_extractions_member_access on public.interaction_extractions for all to authenticated using (firm_id = public.current_firm_id()) with check (firm_id = public.current_firm_id());
-create policy if not exists matter_commitments_member_access on public.matter_commitments for all to authenticated using (firm_id = public.current_firm_id() and (matter_id is null or public.can_access_matter(matter_id))) with check (firm_id = public.current_firm_id() and (matter_id is null or public.can_access_matter(matter_id)));
-create policy if not exists digitisation_batches_member_access on public.digitisation_batches for all to authenticated using (firm_id = public.current_firm_id() and (matter_id is null or public.can_access_matter(matter_id))) with check (firm_id = public.current_firm_id() and (matter_id is null or public.can_access_matter(matter_id)));
-create policy if not exists digitisation_items_member_access on public.digitisation_items for all to authenticated using (firm_id = public.current_firm_id() and (matter_id is null or public.can_access_matter(matter_id))) with check (firm_id = public.current_firm_id() and (matter_id is null or public.can_access_matter(matter_id)));
-create policy if not exists firm_ai_policies_member_select on public.firm_ai_policies for select to authenticated using (firm_id = public.current_firm_id());
-create policy if not exists ai_activity_member_select on public.ai_activity_ledger for select to authenticated using (firm_id = public.current_firm_id() and (matter_id is null or public.can_access_matter(matter_id)));
+create policy firm_interaction_policies_member_select on public.firm_interaction_policies for select to authenticated using (firm_id = public.current_firm_id());
+create policy firm_legal_parameters_member_select on public.firm_legal_parameters for select to authenticated using (firm_id = public.current_firm_id());
+create policy parties_member_access on public.parties for all to authenticated using (firm_id = public.current_firm_id()) with check (firm_id = public.current_firm_id());
+create policy matter_parties_member_access on public.matter_parties for all to authenticated using (firm_id = public.current_firm_id() and public.can_access_matter(matter_id)) with check (firm_id = public.current_firm_id() and public.can_access_matter(matter_id));
+create policy legal_interactions_member_access on public.legal_interactions for all to authenticated using (firm_id = public.current_firm_id() and (matter_id is null or public.can_access_matter(matter_id))) with check (firm_id = public.current_firm_id() and (matter_id is null or public.can_access_matter(matter_id)));
+create policy interaction_extractions_member_access on public.interaction_extractions for all to authenticated using (firm_id = public.current_firm_id()) with check (firm_id = public.current_firm_id());
+create policy matter_commitments_member_access on public.matter_commitments for all to authenticated using (firm_id = public.current_firm_id() and (matter_id is null or public.can_access_matter(matter_id))) with check (firm_id = public.current_firm_id() and (matter_id is null or public.can_access_matter(matter_id)));
+create policy digitisation_batches_member_access on public.digitisation_batches for all to authenticated using (firm_id = public.current_firm_id() and (matter_id is null or public.can_access_matter(matter_id))) with check (firm_id = public.current_firm_id() and (matter_id is null or public.can_access_matter(matter_id)));
+create policy digitisation_items_member_access on public.digitisation_items for all to authenticated using (firm_id = public.current_firm_id() and (matter_id is null or public.can_access_matter(matter_id))) with check (firm_id = public.current_firm_id() and (matter_id is null or public.can_access_matter(matter_id)));
+create policy firm_ai_policies_member_select on public.firm_ai_policies for select to authenticated using (firm_id = public.current_firm_id());
+create policy ai_activity_member_select on public.ai_activity_ledger for select to authenticated using (firm_id = public.current_firm_id() and (matter_id is null or public.can_access_matter(matter_id)));
 
--- Seed simple world-class defaults without exposing complexity in daily UI.
-insert into public.firm_interaction_policies (firm_id)
-select id from public.firms
-on conflict (firm_id) do nothing;
-
-insert into public.firm_ai_policies (firm_id)
-select id from public.firms
-on conflict (firm_id) do nothing;
-
-insert into public.firm_legal_parameters (firm_id, parameter_type, parameter_key, label_en, label_fr, sort_order)
-select f.id, v.parameter_type, v.parameter_key, v.label_en, v.label_fr, v.sort_order
+insert into public.firm_interaction_policies(firm_id) select id from public.firms on conflict(firm_id) do nothing;
+insert into public.firm_ai_policies(firm_id) select id from public.firms on conflict(firm_id) do nothing;
+insert into public.firm_legal_parameters(firm_id, parameter_type, parameter_key, label_en, label_fr, sort_order)
+select f.id, v.t, v.k, v.en, v.fr, v.s
 from public.firms f
 cross join (values
   ('confidentiality_level','firm','Firm','Cabinet',10),
@@ -280,5 +263,5 @@ cross join (values
   ('interaction_type','email','Email','E-mail',50),
   ('interaction_type','portal','Client portal','Portail client',60),
   ('interaction_type','referral','Referral','Référence',70)
-) as v(parameter_type, parameter_key, label_en, label_fr, sort_order)
-on conflict (firm_id, parameter_type, parameter_key) do nothing;
+) as v(t,k,en,fr,s)
+on conflict(firm_id, parameter_type, parameter_key) do nothing;
