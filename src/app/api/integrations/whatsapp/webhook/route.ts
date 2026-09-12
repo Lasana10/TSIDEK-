@@ -1,7 +1,132 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { createHmac,timingSafeEqual } from "node:crypto";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
-function validSignature(raw:string,signature:string|null){const secret=process.env.WHATSAPP_APP_SECRET;if(!secret||!signature?.startsWith('sha256='))return false;const expected='sha256='+createHmac('sha256',secret).update(raw).digest('hex');const a=Buffer.from(expected),b=Buffer.from(signature);return a.length===b.length&&timingSafeEqual(a,b)}
-export async function GET(request:Request){const url=new URL(request.url);const mode=url.searchParams.get('hub.mode');const token=url.searchParams.get('hub.verify_token');const challenge=url.searchParams.get('hub.challenge');if(mode==='subscribe'&&token&&token===process.env.WHATSAPP_VERIFY_TOKEN&&challenge)return new Response(challenge,{status:200});return new Response('Forbidden',{status:403});}
-export async function POST(request:Request){try{const raw=await request.text();if(!validSignature(raw,request.headers.get('x-hub-signature-256')))return NextResponse.json({success:false,error:'Invalid webhook signature.'},{status:401});const payload=JSON.parse(raw);const supabase=createServerSupabaseClient();if(!supabase)throw new Error('Supabase server configuration is required.');let created=0;for(const entry of payload.entry??[]){for(const change of entry.changes??[]){const value=change.value??{};for(const message of value.messages??[]){const phone=String(message.from??'').trim();if(!phone)continue;const party=await supabase.from('parties').select('id,firm_id,display_name').or(`phone.eq.${phone},phone.eq.+${phone}`).limit(1).maybeSingle();if(party.error)throw new Error(party.error.message);if(!party.data)continue;const policy=await supabase.from('firm_interaction_policies').select('whatsapp_enabled,ai_extraction_enabled,automatic_matter_matching').eq('firm_id',party.data.firm_id).maybeSingle();if(policy.error)throw new Error(policy.error.message);if(!policy.data?.whatsapp_enabled)continue;const body=message.text?.body??message.button?.text??message.interactive?.button_reply?.title??message.interactive?.list_reply?.title??`WhatsApp ${message.type||'message'} received`;const existingMatter=await supabase.from('matter_parties').select('matter_id').eq('firm_id',party.data.firm_id).eq('party_id',party.data.id).eq('is_primary',true).limit(2);if(existingMatter.error)throw new Error(existingMatter.error.message);const matterId=policy.data.automatic_matter_matching&&(existingMatter.data??[]).length===1?existingMatter.data![0].matter_id:null;const insert=await supabase.from('legal_interactions').insert({firm_id:party.data.firm_id,matter_id:matterId,primary_party_id:party.data.id,interaction_type:'whatsapp',direction:'inbound',occurred_at:message.timestamp?new Date(Number(message.timestamp)*1000).toISOString():new Date().toISOString(),subject:'WhatsApp message',raw_note:String(body),source_reference:String(message.id||''),confidentiality_level:'firm',transcript_status:'not_requested',ai_analysis_status:policy.data.ai_extraction_enabled?'queued':'not_requested',verification_status:'unreviewed',client_cycle_stage:matterId?'matter':'enquiry',metadata:{whatsapp_message_type:message.type,phone_number_id:value.metadata?.phone_number_id,display_phone_number:value.metadata?.display_phone_number}});if(insert.error)throw new Error(insert.error.message);created++;}}}}return NextResponse.json({success:true,created});}catch(error){return NextResponse.json({success:false,error:error instanceof Error?error.message:'Unable to process WhatsApp webhook.'},{status:400});}}
+function validSignature(raw: string, signature: string | null) {
+  const secret = process.env.WHATSAPP_APP_SECRET;
+  if (!secret || !signature?.startsWith("sha256=")) return false;
+  const expected = `sha256=${createHmac("sha256", secret).update(raw).digest("hex")}`;
+  const expectedBuffer = Buffer.from(expected);
+  const suppliedBuffer = Buffer.from(signature);
+  return expectedBuffer.length === suppliedBuffer.length && timingSafeEqual(expectedBuffer, suppliedBuffer);
+}
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const mode = url.searchParams.get("hub.mode");
+  const token = url.searchParams.get("hub.verify_token");
+  const challenge = url.searchParams.get("hub.challenge");
+  if (mode === "subscribe" && token && token === process.env.WHATSAPP_VERIFY_TOKEN && challenge) {
+    return new Response(challenge, { status: 200 });
+  }
+  return new Response("Forbidden", { status: 403 });
+}
+
+export async function POST(request: Request) {
+  try {
+    const raw = await request.text();
+    if (!validSignature(raw, request.headers.get("x-hub-signature-256"))) {
+      return NextResponse.json({ success: false, error: "Invalid webhook signature." }, { status: 401 });
+    }
+
+    const payload = JSON.parse(raw) as {
+      entry?: Array<{
+        changes?: Array<{
+          value?: {
+            metadata?: { phone_number_id?: string; display_phone_number?: string };
+            messages?: Array<{
+              id?: string;
+              from?: string;
+              timestamp?: string;
+              type?: string;
+              text?: { body?: string };
+              button?: { text?: string };
+              interactive?: { button_reply?: { title?: string }; list_reply?: { title?: string } };
+            }>;
+          };
+        }>;
+      }>;
+    };
+    const supabase = createServerSupabaseClient();
+    if (!supabase) throw new Error("Supabase server configuration is required.");
+    let created = 0;
+
+    for (const entry of payload.entry ?? []) {
+      for (const change of entry.changes ?? []) {
+        const value = change.value ?? {};
+        for (const message of value.messages ?? []) {
+          const phone = String(message.from ?? "").trim();
+          if (!phone) continue;
+
+          const party = await supabase
+            .from("parties")
+            .select("id,firm_id,display_name")
+            .or(`phone.eq.${phone},phone.eq.+${phone}`)
+            .limit(1)
+            .maybeSingle();
+          if (party.error) throw new Error(party.error.message);
+          if (!party.data) continue;
+
+          const policy = await supabase
+            .from("firm_interaction_policies")
+            .select("whatsapp_enabled,ai_extraction_enabled,automatic_matter_matching")
+            .eq("firm_id", party.data.firm_id)
+            .maybeSingle();
+          if (policy.error) throw new Error(policy.error.message);
+          if (!policy.data?.whatsapp_enabled) continue;
+
+          const messageBody =
+            message.text?.body ??
+            message.button?.text ??
+            message.interactive?.button_reply?.title ??
+            message.interactive?.list_reply?.title ??
+            `WhatsApp ${message.type || "message"} received`;
+
+          const existingMatter = await supabase
+            .from("matter_parties")
+            .select("matter_id")
+            .eq("firm_id", party.data.firm_id)
+            .eq("party_id", party.data.id)
+            .eq("is_primary", true)
+            .limit(2);
+          if (existingMatter.error) throw new Error(existingMatter.error.message);
+
+          const matches = existingMatter.data ?? [];
+          const matterId = policy.data.automatic_matter_matching && matches.length === 1 ? matches[0].matter_id : null;
+          const insert = await supabase.from("legal_interactions").insert({
+            firm_id: party.data.firm_id,
+            matter_id: matterId,
+            primary_party_id: party.data.id,
+            interaction_type: "whatsapp",
+            direction: "inbound",
+            occurred_at: message.timestamp
+              ? new Date(Number(message.timestamp) * 1000).toISOString()
+              : new Date().toISOString(),
+            subject: "WhatsApp message",
+            raw_note: String(messageBody),
+            source_reference: String(message.id || ""),
+            confidentiality_level: "firm",
+            transcript_status: "not_requested",
+            ai_analysis_status: policy.data.ai_extraction_enabled ? "queued" : "not_requested",
+            verification_status: "unreviewed",
+            client_cycle_stage: matterId ? "matter" : "enquiry",
+            metadata: {
+              whatsapp_message_type: message.type,
+              phone_number_id: value.metadata?.phone_number_id,
+              display_phone_number: value.metadata?.display_phone_number,
+            },
+          });
+          if (insert.error) throw new Error(insert.error.message);
+          created += 1;
+        }
+      }
+    }
+
+    return NextResponse.json({ success: true, created });
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : "Unable to process WhatsApp webhook." },
+      { status: 400 },
+    );
+  }
+}
