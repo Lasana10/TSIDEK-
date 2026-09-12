@@ -6,6 +6,8 @@ import { recordMatterEvent } from "@/lib/matter-events.server";
 
 type Context={params:Promise<{interactionId:string}>};
 const extractionTypes=new Set(["fact","changed_fact","contradiction","instruction","commitment","deadline","document","person","organisation","risk","research_question","task","payment","conflict_name","client_update"]);
+const cycleStages=new Set(["enquiry","intake","preliminary_discussion","consultation","engagement","matter"]);
+const consultationStatuses=new Set(["not_required","suggested","scheduled","paid","waived","credited","completed"]);
 
 async function loadContext(request:Request,interactionId:string){
  const scope=await resolveRequestScope(request);if(!scope.firmId||!scope.actorLawyerId)throw new Error("Authenticated firm context is required.");
@@ -26,12 +28,18 @@ export async function GET(request:Request,context:Context){
 
 export async function PATCH(request:Request,context:Context){
  try{const {interactionId}=await context.params;const {scope,supabase,interaction}=await loadContext(request,interactionId);const body=await request.json();let matterId=interaction.matter_id as string|null;if(body.matterId!==undefined){matterId=body.matterId?String(body.matterId):null;if(matterId)await assertMatterPermission({scope,matterId,allowAnyMember:true});}
-  const update:Record<string,unknown>={updated_at:new Date().toISOString()};if(body.note!==undefined)update.raw_note=String(body.note).trim()||null;if(body.subject!==undefined)update.subject=String(body.subject).trim()||null;if(body.matterId!==undefined)update.matter_id=matterId;if(body.assignedTo!==undefined)update.assigned_to=body.assignedTo?String(body.assignedTo):null;if(body.verificationStatus!==undefined&&["unreviewed","reviewed","partially_confirmed","confirmed","rejected"].includes(String(body.verificationStatus))){update.verification_status=String(body.verificationStatus);update.reviewed_by=scope.actorLawyerId;update.reviewed_at=new Date().toISOString();}
+  const update:Record<string,unknown>={updated_at:new Date().toISOString()};if(body.note!==undefined)update.raw_note=String(body.note).trim()||null;if(body.subject!==undefined)update.subject=String(body.subject).trim()||null;if(body.matterId!==undefined)update.matter_id=matterId;if(body.assignedTo!==undefined)update.assigned_to=body.assignedTo?String(body.assignedTo):null;if(body.verificationStatus!==undefined&&["unreviewed","reviewed","partially_confirmed","confirmed","rejected"].includes(String(body.verificationStatus))){update.verification_status=String(body.verificationStatus);update.reviewed_by=scope.actorLawyerId;update.reviewed_at=new Date().toISOString();}if(body.clientCycleStage!==undefined&&cycleStages.has(String(body.clientCycleStage)))update.client_cycle_stage=String(body.clientCycleStage);if(body.consultationStatus!==undefined&&consultationStatuses.has(String(body.consultationStatus)))update.consultation_status=String(body.consultationStatus);if(body.substantiveAdviceDetected!==undefined)update.substantive_advice_detected=Boolean(body.substantiveAdviceDetected);if(body.consultationFeeXaf!==undefined)update.consultation_fee_xaf=body.consultationFeeXaf===null?null:Math.max(0,Math.round(Number(body.consultationFeeXaf)||0));
   const result=await supabase.from("legal_interactions").update(update).eq("id",interactionId).eq("firm_id",scope.firmId).select("*").single();if(result.error)throw new Error(result.error.message);return NextResponse.json({success:true,interaction:result.data});}catch(error){return NextResponse.json({success:false,error:error instanceof Error?error.message:"Unable to update interaction."},{status:403})}
 }
 
 export async function POST(request:Request,context:Context){
  try{const {interactionId}=await context.params;const {scope,supabase,interaction}=await loadContext(request,interactionId);const body=await request.json();const action=String(body.action??"add_extraction");
+  if(action==="convert_consultation"){
+   const status=consultationStatuses.has(String(body.consultationStatus))?String(body.consultationStatus):"scheduled";const fee=body.consultationFeeXaf===undefined||body.consultationFeeXaf===null?null:Math.max(0,Math.round(Number(body.consultationFeeXaf)||0));const reason=String(body.reason??"Substantive legal discussion requires controlled consultation handling.").trim();
+   const updated=await supabase.from("legal_interactions").update({client_cycle_stage:"consultation",substantive_advice_detected:true,consultation_status:status,consultation_fee_xaf:fee,consultation_conversion_reason:reason,updated_at:new Date().toISOString()}).eq("id",interactionId).eq("firm_id",scope.firmId).select("*").single();if(updated.error)throw new Error(updated.error.message);
+   if(interaction.matter_id)await recordMatterEvent({matterId:interaction.matter_id,scope,eventType:"CONSULTATION_CONTROL_ACTIVATED",reason,metadata:{interaction_id:interactionId,consultation_status:status,fee_xaf:fee}});
+   return NextResponse.json({success:true,interaction:updated.data});
+  }
   if(action==="add_extraction"){
    const type=String(body.extractionType??"");const summary=String(body.summary??"").trim();if(!extractionTypes.has(type)||!summary)return NextResponse.json({success:false,error:"Extraction type and summary are required."},{status:400});
    const result=await supabase.from("interaction_extractions").insert({firm_id:scope.firmId,interaction_id:interactionId,extraction_type:type,summary,detail:body.detail&&typeof body.detail==="object"?body.detail:{},status:"suggested",confidence:null}).select("*").single();if(result.error)throw new Error(result.error.message);return NextResponse.json({success:true,extraction:result.data},{status:201});
