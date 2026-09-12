@@ -5,8 +5,9 @@ import Link from "next/link";
 import { ArrowLeft, MessageSquareText, Phone, Search, ShieldCheck, UserPlus, UsersRound } from "lucide-react";
 
 type Party = { id:string; display_name:string; phone?:string|null; email?:string|null; client_status:string; preferred_language:string };
-type Interaction = { id:string; interaction_type:string; occurred_at:string; subject?:string|null; raw_note?:string|null; confidentiality_level:string; verification_status:string; primary_party_id?:string|null; matter_id?:string|null };
-type Payload = { success:boolean; error?:string; parties?:Party[]; interactions?:Interaction[]; policy?:Record<string,unknown>|null };
+type Interaction = { id:string; interaction_type:string; occurred_at:string; subject?:string|null; raw_note?:string|null; confidentiality_level:string; verification_status:string; primary_party_id?:string|null; matter_id?:string|null; client_cycle_stage?:string; consultation_status?:string };
+type Policy={call_recording_enabled?:boolean;transcription_enabled?:boolean;ai_extraction_enabled?:boolean;whatsapp_enabled?:boolean};
+type Payload = { success:boolean; error?:string; parties?:Party[]; interactions?:Interaction[]; policy?:Policy|null };
 
 const input = "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-700/40 focus:ring-4 focus:ring-emerald-900/5";
 const types = [
@@ -22,6 +23,7 @@ export default function InteractionsPage(){
   const [subject,setSubject]=useState("");
   const [note,setNote]=useState("");
   const [confidentiality,setConfidentiality]=useState("firm");
+  const [recordingConsent,setRecordingConsent]=useState(false);
   const [message,setMessage]=useState("");
   const [saving,setSaving]=useState(false);
   const [newName,setNewName]=useState("");
@@ -37,6 +39,7 @@ export default function InteractionsPage(){
   const parties=data.parties??[];
   const interactions=data.interactions??[];
   const selected=useMemo(()=>parties.find(p=>p.id===partyId),[parties,partyId]);
+  const canRecord=Boolean(data.policy?.call_recording_enabled)&&["phone_call","office_meeting","walk_in"].includes(type);
 
   async function createParty(){
     if(!newName.trim()) return; setSaving(true); setMessage("");
@@ -46,7 +49,7 @@ export default function InteractionsPage(){
   async function createInteraction(){
     if(!partyId && !note.trim() && !subject.trim()){setMessage("Select a person or add a short note.");return;}
     setSaving(true);setMessage("");
-    try{const r=await fetch("/api/interactions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({interactionType:type,partyId:partyId||null,subject,note,confidentialityLevel:confidentiality,requestAnalysis:false,requestTranscription:false})});const p=await r.json();if(!p.success)throw new Error(p.error);setSubject("");setNote("");setMessage("Interaction recorded.");await load(search);}catch(e){setMessage(e instanceof Error?e.message:"Unable to record interaction.");}finally{setSaving(false)}
+    try{const r=await fetch("/api/interactions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({interactionType:type,partyId:partyId||null,subject,note,confidentialityLevel:confidentiality,consentRecording:canRecord?recordingConsent:null,requestAnalysis:false,requestTranscription:false,clientCycleStage:"enquiry"})});const p=await r.json();if(!p.success)throw new Error(p.error);setSubject("");setNote("");setRecordingConsent(false);setMessage("Interaction recorded. Open it below to review, analyse, convert to consultation, or attach an authorized recording.");await load(search);}catch(e){setMessage(e instanceof Error?e.message:"Unable to record interaction.");}finally{setSaving(false)}
   }
 
   if(loading) return <main className="min-h-screen bg-slate-50 p-6">Loading interaction desk…</main>;
@@ -56,7 +59,7 @@ export default function InteractionsPage(){
     <div className="mx-auto max-w-[1600px] space-y-5">
       <section className="rounded-[2rem] bg-[#082b22] p-6 text-white shadow-xl md:p-8">
         <Link href="/workspace" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-white/60"><ArrowLeft className="h-4 w-4"/>Workspace</Link>
-        <div className="mt-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/50">Interaction desk</p><h1 className="mt-2 text-4xl font-semibold">Record what actually happened.</h1><p className="mt-3 max-w-3xl text-sm leading-7 text-white/70">Walk-ins, meetings, calls, WhatsApp, email and referrals enter one governed stream. Known people are reused; new people need only the minimum.</p></div><div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-xs text-white/70"><ShieldCheck className="mr-2 inline h-4 w-4"/>AI/transcription stay optional and policy-controlled.</div></div>
+        <div className="mt-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/50">Interaction desk</p><h1 className="mt-2 text-4xl font-semibold">Record what actually happened.</h1><p className="mt-3 max-w-3xl text-sm leading-7 text-white/70">Walk-ins, meetings, calls, WhatsApp, email and referrals enter one governed stream. Known people are reused; new people need only the minimum.</p></div><div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-xs text-white/70"><ShieldCheck className="mr-2 inline h-4 w-4"/>AI, recording and transcription stay optional and policy-controlled.</div></div>
       </section>
 
       {message&&<div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">{message}</div>}
@@ -79,15 +82,16 @@ export default function InteractionsPage(){
         <section className="space-y-5">
           <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3"><MessageSquareText className="h-5 w-5 text-emerald-800"/><div><p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">One capture surface</p><h2 className="text-xl font-semibold text-slate-950">{selected?`Record interaction — ${selected.display_name}`:"Record interaction"}</h2></div></div>
-            <div className="mt-5 grid gap-3 md:grid-cols-2"><select className={input} value={type} onChange={e=>setType(e.target.value)}>{types.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select><select className={input} value={confidentiality} onChange={e=>setConfidentiality(e.target.value)}><option value="firm">Firm</option><option value="restricted">Restricted</option><option value="highly_confidential">Highly confidential</option></select></div>
+            <div className="mt-5 grid gap-3 md:grid-cols-2"><select className={input} value={type} onChange={e=>{setType(e.target.value);setRecordingConsent(false)}}>{types.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select><select className={input} value={confidentiality} onChange={e=>setConfidentiality(e.target.value)}><option value="firm">Firm</option><option value="restricted">Restricted</option><option value="highly_confidential">Highly confidential</option></select></div>
             <input className={`${input} mt-3`} value={subject} onChange={e=>setSubject(e.target.value)} placeholder="Short reason / subject (optional)"/>
             <textarea className={`${input} mt-3 min-h-36`} value={note} onChange={e=>setNote(e.target.value)} placeholder="Short note, dictated summary or what changed…"/>
-            <div className="mt-4 flex flex-wrap gap-2"><button onClick={createInteraction} disabled={saving} className="rounded-2xl bg-emerald-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{saving?"Saving…":"Record interaction"}</button><span className="rounded-2xl bg-slate-50 px-4 py-3 text-xs text-slate-500"><Phone className="mr-2 inline h-4 w-4"/>Recording/transcription appear only when enabled by firm policy.</span></div>
+            {canRecord&&<label className="mt-3 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><input type="checkbox" checked={recordingConsent} onChange={e=>setRecordingConsent(e.target.checked)} className="mt-1"/><span><strong>Recording consent recorded</strong><span className="mt-1 block text-xs leading-5 text-amber-800">Check only when the participant has actually consented under the firm&apos;s policy. This does not start recording; it only authorizes a later controlled upload/capture.</span></span></label>}
+            <div className="mt-4 flex flex-wrap gap-2"><button onClick={createInteraction} disabled={saving} className="rounded-2xl bg-emerald-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{saving?"Saving…":"Record interaction"}</button><span className="rounded-2xl bg-slate-50 px-4 py-3 text-xs text-slate-500"><Phone className="mr-2 inline h-4 w-4"/>Recording only appears when enabled by firm policy and consent is recorded.</span></div>
           </div>
 
           <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3"><UsersRound className="h-5 w-5 text-emerald-800"/><h2 className="text-lg font-semibold text-slate-950">Recent interactions</h2></div>
-            <div className="mt-4 space-y-2">{interactions.length===0?<p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No interaction records yet.</p>:interactions.slice(0,12).map(i=><div key={i.id} className="rounded-2xl border border-slate-100 p-4"><div className="flex items-start justify-between gap-4"><div><p className="text-sm font-semibold text-slate-900">{i.subject||i.interaction_type.replaceAll("_"," ")}</p><p className="mt-1 text-xs text-slate-500">{new Date(i.occurred_at).toLocaleString()} · {i.confidentiality_level.replaceAll("_"," ")}</p>{i.raw_note&&<p className="mt-2 line-clamp-2 text-sm text-slate-600">{i.raw_note}</p>}</div><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase text-slate-500">{i.verification_status}</span></div></div>)}</div>
+            <div className="mt-4 space-y-2">{interactions.length===0?<p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No interaction records yet.</p>:interactions.slice(0,12).map(i=><Link href={`/interactions/${i.id}`} key={i.id} className="block rounded-2xl border border-slate-100 p-4 transition hover:border-emerald-300"><div className="flex items-start justify-between gap-4"><div><p className="text-sm font-semibold text-slate-900">{i.subject||i.interaction_type.replaceAll("_"," ")}</p><p className="mt-1 text-xs text-slate-500">{new Date(i.occurred_at).toLocaleString()} · {i.confidentiality_level.replaceAll("_"," ")}{i.client_cycle_stage?` · ${i.client_cycle_stage.replaceAll("_"," ")}`:""}</p>{i.raw_note&&<p className="mt-2 line-clamp-2 text-sm text-slate-600">{i.raw_note}</p>}</div><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase text-slate-500">{i.verification_status}</span></div></Link>)}</div>
           </div>
         </section>
       </div>
