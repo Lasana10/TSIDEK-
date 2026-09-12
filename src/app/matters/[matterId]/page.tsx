@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import MatterWorkspace from "@/components/MatterWorkspace";
 import MatterWorkflowPanel from "@/components/MatterWorkflowPanel";
+import MatterActivityPanel from "@/components/MatterActivityPanel";
 import MatterCommandCenter from "@/components/MatterCommandCenter";
 import MatterControlDesk from "@/components/MatterControlDesk";
 import WorldClassOperationsPanel from "@/components/WorldClassOperationsPanel";
@@ -63,6 +64,7 @@ export default async function MatterDetailPage({
         </div>
 
         <MatterWorkflowPanel matterId={matterId} />
+        <MatterActivityPanel matterId={matterId} />
         <MatterCommandCenter matterId={matterId} />
         <PracticeExecutionPanel matterId={matterId} />
         <WorldClassOperationsPanel />
