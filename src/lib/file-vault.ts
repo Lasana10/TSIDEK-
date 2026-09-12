@@ -1,8 +1,10 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ragInboxRelativePath } from "@/lib/rag-inbox";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 export const localVaultRootRelativePath = "storage";
+export const defaultVaultBucket = process.env.TSIDEK_STORAGE_BUCKET || "tsidek-vault";
 
 function sanitizeSegment(value: string) {
   return value
@@ -19,6 +21,12 @@ function buildUniqueFileName(originalName: string) {
   return `${sanitizeSegment(baseName)}-${timestamp}${sanitizeSegment(extension) || extension}`;
 }
 
+export function getVaultStorageProvider() {
+  const configured = String(process.env.TSIDEK_STORAGE_PROVIDER || "").trim().toLowerCase();
+  if (configured === "local" || configured === "supabase") return configured;
+  return process.env.NODE_ENV === "production" ? "supabase" : "local";
+}
+
 export function getMatterDocumentRelativeDirectory(matterId: string) {
   return `${localVaultRootRelativePath}/matters/${matterId}/documents`;
 }
@@ -29,24 +37,68 @@ export async function persistUploadedFile(input: {
   fileName?: string;
 }) {
   const relativeDirectory = input.relativeDirectory.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
-  const absoluteDirectory = path.join(process.cwd(), relativeDirectory);
-  await mkdir(absoluteDirectory, { recursive: true });
-
   const storedFileName = buildUniqueFileName(input.fileName ?? input.file.name);
-  const absolutePath = path.join(absoluteDirectory, storedFileName);
   const relativePath = `${relativeDirectory}/${storedFileName}`;
   const buffer = Buffer.from(await input.file.arrayBuffer());
+  const mimeType = input.file.type || "application/octet-stream";
+  const provider = getVaultStorageProvider();
 
+  if (provider === "supabase") {
+    const supabase = createServerSupabaseClient();
+    if (!supabase) throw new Error("Durable TSIDKENU vault requires the server-side Supabase service credential.");
+    const upload = await supabase.storage.from(defaultVaultBucket).upload(relativePath, buffer, {
+      contentType: mimeType,
+      cacheControl: "3600",
+      upsert: false,
+    });
+    if (upload.error) throw new Error(upload.error.message);
+    return {
+      provider: "supabase" as const,
+      bucket: defaultVaultBucket,
+      fileName: storedFileName,
+      originalName: input.file.name,
+      relativePath,
+      absolutePath: null,
+      sizeBytes: buffer.byteLength,
+      mimeType,
+    };
+  }
+
+  const absoluteDirectory = path.join(process.cwd(), relativeDirectory);
+  await mkdir(absoluteDirectory, { recursive: true });
+  const absolutePath = path.join(absoluteDirectory, storedFileName);
   await writeFile(absolutePath, buffer);
-
   return {
+    provider: "local" as const,
+    bucket: null,
     fileName: storedFileName,
     originalName: input.file.name,
     relativePath,
     absolutePath,
     sizeBytes: buffer.byteLength,
-    mimeType: input.file.type || "application/octet-stream",
+    mimeType,
   };
+}
+
+export async function readVaultFile(relativePath: string) {
+  const normalized = relativePath.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (normalized.includes("..")) throw new Error("Invalid vault path.");
+  if (getVaultStorageProvider() === "supabase") {
+    const supabase = createServerSupabaseClient();
+    if (!supabase) throw new Error("Supabase server configuration is required for private vault access.");
+    const result = await supabase.storage.from(defaultVaultBucket).download(normalized);
+    if (result.error) throw new Error(result.error.message);
+    return Buffer.from(await result.data.arrayBuffer());
+  }
+  return readFile(path.join(process.cwd(), normalized));
+}
+
+export async function createVaultSignedReadUrl(relativePath: string, expiresInSeconds = 300) {
+  const supabase = createServerSupabaseClient();
+  if (!supabase) throw new Error("Supabase server configuration is required for private vault access.");
+  const result = await supabase.storage.from(defaultVaultBucket).createSignedUrl(relativePath, expiresInSeconds);
+  if (result.error) throw new Error(result.error.message);
+  return result.data.signedUrl;
 }
 
 export function getRagInboxUploadDirectory() {
