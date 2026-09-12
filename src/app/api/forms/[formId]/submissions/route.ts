@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
+import { assertMatterPermission } from "@/lib/authorization";
 import { resolveRequestScope } from "@/lib/request-scope";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 type Context = { params: Promise<{ formId:string }> };
-
 type Field = { key?:string; required?:boolean; type?:string };
 
 async function loadForm(formId:string, firmId:string) {
@@ -32,7 +32,7 @@ export async function GET(request:Request, context:Context){
     const scope=await resolveRequestScope(request);
     if(!scope.authenticated||!scope.firmId) throw new Error("Authenticated firm context is required.");
     const {formId}=await context.params;
-    const {supabase,form}=await loadForm(formId,scope.firmId);
+    const {form}=await loadForm(formId,scope.firmId);
     const roles=Array.isArray(form.access_roles)?form.access_roles:[];
     const actorRole=String(scope.actorRole??"").toLowerCase();
     if(roles.length&&actorRole&&!roles.map((role:string)=>role.toLowerCase()).includes(actorRole)) throw new Error("This role cannot use the selected form.");
@@ -57,10 +57,11 @@ export async function POST(request:Request, context:Context){
     if(errors.length) return NextResponse.json({success:false,error:"Form validation failed.",validationErrors:errors},{status:400});
     const matterId=body.matterId?String(body.matterId):null;
     const prospectId=body.prospectId?String(body.prospectId):null;
-    if(matterId){
-      const {data:allowed,error:accessError}=await supabase.rpc("can_access_matter",{target_matter_id:matterId});
-      if(accessError) throw new Error(accessError.message);
-      if(!allowed) throw new Error("Matter access denied.");
+    if(matterId) await assertMatterPermission({scope,matterId,allowAnyMember:true});
+    if(prospectId){
+      const prospect=await supabase.from("prospects").select("id").eq("id",prospectId).eq("firm_id",scope.firmId).maybeSingle();
+      if(prospect.error) throw new Error(prospect.error.message);
+      if(!prospect.data) throw new Error("Assessment access denied.");
     }
     const {data,error}=await supabase.from("firm_form_submissions").insert({firm_id:scope.firmId,form_definition_id:formId,matter_id:matterId,prospect_id:prospectId,submitted_by:scope.actorLawyerId,status:"submitted",data:values}).select("*").single();
     if(error) throw new Error(error.message);
