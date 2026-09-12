@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ragInboxRelativePath } from "@/lib/rag-inbox";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
@@ -21,7 +21,7 @@ function buildUniqueFileName(originalName: string) {
   return `${sanitizeSegment(baseName)}-${timestamp}${sanitizeSegment(extension) || extension}`;
 }
 
-function storageProvider() {
+export function getVaultStorageProvider() {
   const configured = String(process.env.TSIDEK_STORAGE_PROVIDER || "").trim().toLowerCase();
   if (configured === "local" || configured === "supabase") return configured;
   return process.env.NODE_ENV === "production" ? "supabase" : "local";
@@ -41,13 +41,11 @@ export async function persistUploadedFile(input: {
   const relativePath = `${relativeDirectory}/${storedFileName}`;
   const buffer = Buffer.from(await input.file.arrayBuffer());
   const mimeType = input.file.type || "application/octet-stream";
-  const provider = storageProvider();
+  const provider = getVaultStorageProvider();
 
   if (provider === "supabase") {
     const supabase = createServerSupabaseClient();
-    if (!supabase) {
-      throw new Error("Durable TSIDKENU vault requires the server-side Supabase service credential.");
-    }
+    if (!supabase) throw new Error("Durable TSIDKENU vault requires the server-side Supabase service credential.");
     const upload = await supabase.storage.from(defaultVaultBucket).upload(relativePath, buffer, {
       contentType: mimeType,
       cacheControl: "3600",
@@ -80,6 +78,19 @@ export async function persistUploadedFile(input: {
     sizeBytes: buffer.byteLength,
     mimeType,
   };
+}
+
+export async function readVaultFile(relativePath: string) {
+  const normalized = relativePath.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (normalized.includes("..")) throw new Error("Invalid vault path.");
+  if (getVaultStorageProvider() === "supabase") {
+    const supabase = createServerSupabaseClient();
+    if (!supabase) throw new Error("Supabase server configuration is required for private vault access.");
+    const result = await supabase.storage.from(defaultVaultBucket).download(normalized);
+    if (result.error) throw new Error(result.error.message);
+    return Buffer.from(await result.data.arrayBuffer());
+  }
+  return readFile(path.join(process.cwd(), normalized));
 }
 
 export async function createVaultSignedReadUrl(relativePath: string, expiresInSeconds = 300) {
