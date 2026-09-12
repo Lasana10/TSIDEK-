@@ -37,9 +37,11 @@ function safeMetadata(body: Record<string, unknown>) {
     "securityClassification", "ethicalWallEnabled", "accessStatus",
     "provider", "paymentKind", "accountType",
   ];
-  return Object.fromEntries(
-    allowed.filter((key) => body[key] !== undefined).map((key) => [key, body[key]])
-  );
+  return Object.fromEntries(allowed.filter((key) => body[key] !== undefined).map((key) => [key, body[key]]));
+}
+
+function eventTitle(eventType: string) {
+  return eventType.toLowerCase().split("_").filter(Boolean).map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ") || "Matter event";
 }
 
 export async function recordMatterEvent(input: {
@@ -53,46 +55,32 @@ export async function recordMatterEvent(input: {
 }) {
   const supabase = createServerSupabaseClient();
   if (!supabase) throw new Error("Supabase persistence is required for matter audit events.");
-
-  const matter = await supabase
-    .from("matters")
-    .select("id,firm_id")
-    .eq("id", input.matterId)
-    .maybeSingle();
-
+  const matter = await supabase.from("matters").select("id,firm_id").eq("id", input.matterId).maybeSingle();
   if (matter.error) throw new Error(matter.error.message);
   if (!matter.data) throw new Error("Matter not found.");
-  if (input.scope.firmId && matter.data.firm_id !== input.scope.firmId) {
-    throw new Error("Matter access denied for the current firm scope.");
-  }
+  if (input.scope.firmId && matter.data.firm_id !== input.scope.firmId) throw new Error("Matter access denied for the current firm scope.");
 
+  const details = {
+    previous_state: input.previousState ?? null,
+    new_state: input.newState ?? null,
+    reason: input.reason ?? null,
+    metadata: input.metadata ?? {},
+  };
   const result = await supabase.from("matter_events").insert({
     matter_id: input.matterId,
     firm_id: matter.data.firm_id,
     event_type: input.eventType,
-    previous_state: input.previousState ?? null,
-    new_state: input.newState ?? null,
-    actor_lawyer_id: input.scope.actorLawyerId,
-    actor_name: input.scope.actorName,
-    reason: input.reason ?? null,
-    metadata: input.metadata ?? {},
+    title: eventTitle(input.eventType),
+    details: JSON.stringify(details),
+    actor_name: input.scope.actorName || "System",
+    actor_role: input.scope.actorRole || "system",
   });
-
   if (result.error) throw new Error(result.error.message);
 }
 
-export async function recordSuccessfulMatterAction(input: {
-  matterId: string;
-  scope: RequestScope;
-  body: Record<string, unknown>;
-}) {
+export async function recordSuccessfulMatterAction(input: { matterId:string; scope:RequestScope; body:Record<string,unknown>; }) {
   const action = String(input.body.action ?? "");
   const eventType = EVENT_BY_ACTION[action];
   if (!eventType) return;
-  await recordMatterEvent({
-    matterId: input.matterId,
-    scope: input.scope,
-    eventType,
-    metadata: safeMetadata(input.body),
-  });
+  await recordMatterEvent({ matterId:input.matterId, scope:input.scope, eventType, metadata:safeMetadata(input.body) });
 }
