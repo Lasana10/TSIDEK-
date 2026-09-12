@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import { assertMatterPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { executeWorkflowStageActions } from "@/lib/workflow-actions.server";
 
 type Context = { params: Promise<{ matterId: string }> };
 
@@ -32,15 +33,16 @@ async function loadRuntime(request: Request, matterId: string) {
     if (event.error) throw new Error(event.error.message);
   }
 
-  const [workflow, stages, transitions, events] = await Promise.all([
+  const [workflow, stages, transitions, events, requests] = await Promise.all([
     supabase.from("firm_workflow_definitions").select("*").eq("id", instance.data.workflow_id).single(),
     supabase.from("firm_workflow_stages").select("*").eq("workflow_id", instance.data.workflow_id).order("sort_order"),
     supabase.from("firm_workflow_transitions").select("*").eq("workflow_id", instance.data.workflow_id).eq("active", true).order("sort_order"),
     supabase.from("matter_workflow_events").select("*").eq("matter_id", matterId).order("created_at", { ascending: false }).limit(50),
+    supabase.from("workflow_transition_requests").select("*").eq("matter_id", matterId).order("created_at", { ascending: false }).limit(20),
   ]);
-  for (const result of [workflow, stages, transitions, events]) if (result.error) throw new Error(result.error.message);
+  for (const result of [workflow, stages, transitions, events, requests]) if (result.error) throw new Error(result.error.message);
 
-  return { scope, supabase, matter: matter.data, instance: instance.data, workflow: workflow.data, stages: stages.data ?? [], transitions: transitions.data ?? [], events: events.data ?? [] };
+  return { scope, supabase, matter: matter.data, instance: instance.data, workflow: workflow.data, stages: stages.data ?? [], transitions: transitions.data ?? [], events: events.data ?? [], requests: requests.data ?? [] };
 }
 
 async function evaluateGuards(runtime: Awaited<ReturnType<typeof loadRuntime>>, transition: Record<string, unknown>) {
@@ -60,7 +62,7 @@ async function evaluateGuards(runtime: Awaited<ReturnType<typeof loadRuntime>>, 
     if ((result.count ?? 0) > 0) failures.push("Overdue work must be resolved before this transition.");
   }
   if (rules.require_client_update) {
-    const result = await supabase.from("matter_client_updates").select("id").eq("matter_id", matter.id).in("status", ["approved","sent","delivered"]).order("created_at", { ascending: false }).limit(1);
+    const result = await supabase.from("matter_client_updates").select("id").eq("matter_id", matter.id).in("status", ["Approved","Sent","Delivered","approved","sent","delivered"]).order("created_at", { ascending: false }).limit(1);
     if (result.error) throw new Error(result.error.message);
     if (!(result.data ?? []).length) failures.push("A governed client update is required.");
   }
@@ -84,7 +86,7 @@ export async function GET(request: Request, context: Context) {
     const { matterId } = await context.params;
     const runtime = await loadRuntime(request, matterId);
     const available = runtime.transitions.filter((item) => item.from_stage_key === runtime.instance.current_stage_key);
-    return NextResponse.json({ success: true, workflow: runtime.workflow, instance: runtime.instance, stages: runtime.stages, transitions: available, events: runtime.events });
+    return NextResponse.json({ success: true, workflow: runtime.workflow, instance: runtime.instance, stages: runtime.stages, transitions: available, events: runtime.events, approvalRequests: runtime.requests });
   } catch (error) {
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Unable to load matter workflow." }, { status: 403 });
   }
@@ -96,6 +98,51 @@ export async function POST(request: Request, context: Context) {
     const runtime = await loadRuntime(request, matterId);
     await assertMatterPermission({ scope: runtime.scope, matterId, permission: "assignWork" });
     const body = await request.json();
+    const action = String(body.action ?? "transition");
+
+    if (action === "reviewApproval") {
+      const requestId = String(body.requestId ?? "");
+      const decision = String(body.decision ?? "");
+      if (!requestId || !["approved","rejected"].includes(decision)) return NextResponse.json({ success: false, error: "Valid request and decision are required." }, { status: 400 });
+      const pending = runtime.requests.find((item) => item.id === requestId && item.status === "pending");
+      if (!pending) return NextResponse.json({ success: false, error: "Pending approval request not found." }, { status: 404 });
+      const transition = runtime.transitions.find((item) => item.id === pending.transition_id);
+      if (!transition) return NextResponse.json({ success: false, error: "Workflow transition no longer exists." }, { status: 409 });
+      const role = String(runtime.scope.actorRole ?? "").toLowerCase();
+      const approvalRoles = (transition.approval_roles ?? []).map((item: unknown) => String(item).toLowerCase());
+      if (approvalRoles.length && !approvalRoles.includes(role)) return NextResponse.json({ success: false, error: "Your role cannot approve this transition." }, { status: 403 });
+
+      if (decision === "rejected") {
+        const rejected = await runtime.supabase.from("workflow_transition_requests").update({ status: "rejected", reviewer_lawyer_id: runtime.scope.actorLawyerId, reviewer_role: runtime.scope.actorRole ?? null, review_reason: String(body.reviewReason ?? "").trim() || null, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", requestId).eq("status", "pending");
+        if (rejected.error) throw new Error(rejected.error.message);
+        return NextResponse.json({ success: true, approvalStatus: "rejected" });
+      }
+
+      if (pending.from_stage_key !== runtime.instance.current_stage_key) {
+        await runtime.supabase.from("workflow_transition_requests").update({ status: "stale", reviewer_lawyer_id: runtime.scope.actorLawyerId, reviewer_role: runtime.scope.actorRole ?? null, review_reason: "Matter stage changed before approval.", reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", requestId);
+        return NextResponse.json({ success: false, error: "Approval request is stale because the matter stage changed." }, { status: 409 });
+      }
+
+      const guard = await evaluateGuards(runtime, transition);
+      if (!guard.ok) return NextResponse.json({ success: false, error: "Workflow gate failed at approval time.", guard }, { status: 409 });
+      const atomic = await runtime.supabase.rpc("transition_matter_workflow_atomic", {
+        p_instance_id: runtime.instance.id,
+        p_transition_id: transition.id,
+        p_expected_stage: runtime.instance.current_stage_key,
+        p_reason: pending.reason ?? "Approved workflow transition",
+        p_guard_snapshot: guard,
+        p_actor_lawyer_id: runtime.scope.actorLawyerId,
+        p_actor_role: runtime.scope.actorRole ?? null,
+      });
+      if (atomic.error) throw new Error(atomic.error.message);
+      const result = atomic.data as { instance?: any; event?: unknown; target_stage?: string } | null;
+      const approved = await runtime.supabase.from("workflow_transition_requests").update({ status: "approved", reviewer_lawyer_id: runtime.scope.actorLawyerId, reviewer_role: runtime.scope.actorRole ?? null, review_reason: String(body.reviewReason ?? "").trim() || null, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", requestId).eq("status", "pending");
+      if (approved.error) throw new Error(approved.error.message);
+      const targetStage = String(result?.target_stage ?? transition.to_stage_key);
+      const actions = await executeWorkflowStageActions({ supabase: runtime.supabase, firmId: runtime.scope.firmId!, matterId, instanceId: runtime.instance.id, workflowId: runtime.instance.workflow_id, stageKey: targetStage, actorLawyerId: runtime.scope.actorLawyerId, leadLawyerId: runtime.matter.lead_lawyer_id });
+      return NextResponse.json({ success: true, approvalStatus: "approved", instance: result?.instance ?? null, event: result?.event ?? null, stage: targetStage, actions });
+    }
+
     const transitionId = String(body.transitionId ?? "");
     const transition = runtime.transitions.find((item) => item.id === transitionId && item.from_stage_key === runtime.instance.current_stage_key);
     if (!transition) return NextResponse.json({ success: false, error: "This transition is not available from the current stage." }, { status: 400 });
@@ -105,11 +152,29 @@ export async function POST(request: Request, context: Context) {
     if (allowedRoles.length && !allowedRoles.includes(role)) return NextResponse.json({ success: false, error: "Your role cannot perform this transition." }, { status: 403 });
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";
     if (transition.requires_reason && !reason) return NextResponse.json({ success: false, error: "A reason is required for this transition." }, { status: 400 });
-    const approvalRoles = (transition.approval_roles ?? []).map((item: unknown) => String(item).toLowerCase());
-    if (transition.requires_approval && approvalRoles.length && !approvalRoles.includes(role)) return NextResponse.json({ success: false, error: "This transition requires approval by an authorized role." }, { status: 403 });
 
     const guard = await evaluateGuards(runtime, transition);
     if (!guard.ok) return NextResponse.json({ success: false, error: "Workflow gate failed.", guard }, { status: 409 });
+
+    const approvalRoles = (transition.approval_roles ?? []).map((item: unknown) => String(item).toLowerCase());
+    if (transition.requires_approval && approvalRoles.length && !approvalRoles.includes(role)) {
+      const requestResult = await runtime.supabase.from("workflow_transition_requests").upsert({
+        firm_id: runtime.scope.firmId,
+        matter_id: matterId,
+        instance_id: runtime.instance.id,
+        transition_id: transition.id,
+        from_stage_key: runtime.instance.current_stage_key,
+        to_stage_key: transition.to_stage_key,
+        requester_lawyer_id: runtime.scope.actorLawyerId,
+        requester_role: runtime.scope.actorRole ?? null,
+        reason: reason || null,
+        guard_snapshot: guard,
+        status: "pending",
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "instance_id,transition_id" }).select("*").single();
+      if (requestResult.error) throw new Error(requestResult.error.message);
+      return NextResponse.json({ success: true, approvalRequired: true, approvalRequest: requestResult.data }, { status: 202 });
+    }
 
     const atomic = await runtime.supabase.rpc("transition_matter_workflow_atomic", {
       p_instance_id: runtime.instance.id,
@@ -121,8 +186,10 @@ export async function POST(request: Request, context: Context) {
       p_actor_role: runtime.scope.actorRole ?? null,
     });
     if (atomic.error) throw new Error(atomic.error.message);
-    const result = atomic.data as { instance?: unknown; event?: unknown; target_stage?: unknown } | null;
-    return NextResponse.json({ success: true, instance: result?.instance ?? null, event: result?.event ?? null, stage: result?.target_stage ?? null });
+    const result = atomic.data as { instance?: any; event?: unknown; target_stage?: string } | null;
+    const targetStage = String(result?.target_stage ?? transition.to_stage_key);
+    const actions = await executeWorkflowStageActions({ supabase: runtime.supabase, firmId: runtime.scope.firmId!, matterId, instanceId: runtime.instance.id, workflowId: runtime.instance.workflow_id, stageKey: targetStage, actorLawyerId: runtime.scope.actorLawyerId, leadLawyerId: runtime.matter.lead_lawyer_id });
+    return NextResponse.json({ success: true, instance: result?.instance ?? null, event: result?.event ?? null, stage: targetStage, actions });
   } catch (error) {
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Unable to transition workflow." }, { status: 403 });
   }
