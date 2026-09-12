@@ -26,9 +26,10 @@ async function loadRuntime(request: Request, matterId: string) {
     }).select("*").single();
     if (created.error) throw new Error(created.error.message);
     instance = created;
-    await supabase.from("matter_workflow_events").insert({
+    const event = await supabase.from("matter_workflow_events").insert({
       firm_id: scope.firmId, matter_id: matterId, instance_id: created.data.id, from_stage_key: null, to_stage_key: "opened", action: "initialized", actor_lawyer_id: scope.actorLawyerId, actor_role: scope.actorRole ?? null,
     });
+    if (event.error) throw new Error(event.error.message);
   }
 
   const [workflow, stages, transitions, events] = await Promise.all([
@@ -110,36 +111,18 @@ export async function POST(request: Request, context: Context) {
     const guard = await evaluateGuards(runtime, transition);
     if (!guard.ok) return NextResponse.json({ success: false, error: "Workflow gate failed.", guard }, { status: 409 });
 
-    const nextStage = runtime.stages.find((stage) => stage.stage_key === transition.to_stage_key);
-    const now = new Date().toISOString();
-    const updated = await runtime.supabase.from("matter_workflow_instances").update({
-      current_stage_key: transition.to_stage_key,
-      stage_entered_at: now,
-      status: nextStage?.is_terminal ? "completed" : "active",
-      completed_at: nextStage?.is_terminal ? now : null,
-      updated_at: now,
-    }).eq("id", runtime.instance.id).select("*").single();
-    if (updated.error) throw new Error(updated.error.message);
-
-    const event = await runtime.supabase.from("matter_workflow_events").insert({
-      firm_id: runtime.scope.firmId,
-      matter_id: matterId,
-      instance_id: runtime.instance.id,
-      transition_id: transition.id,
-      from_stage_key: runtime.instance.current_stage_key,
-      to_stage_key: transition.to_stage_key,
-      action: "transition",
-      reason: reason || null,
-      guard_snapshot: guard,
-      actor_lawyer_id: runtime.scope.actorLawyerId,
-      actor_role: runtime.scope.actorRole ?? null,
-    }).select("*").single();
-    if (event.error) throw new Error(event.error.message);
-
-    if (nextStage?.is_terminal) await runtime.supabase.from("matters").update({ status: "Closed", closed_at: now, updated_at: now }).eq("id", matterId);
-    else await runtime.supabase.from("matters").update({ procedural_stage: nextStage?.name ?? transition.to_stage_key, updated_at: now }).eq("id", matterId);
-
-    return NextResponse.json({ success: true, instance: updated.data, event: event.data });
+    const atomic = await runtime.supabase.rpc("transition_matter_workflow_atomic", {
+      p_instance_id: runtime.instance.id,
+      p_transition_id: transition.id,
+      p_expected_stage: runtime.instance.current_stage_key,
+      p_reason: reason,
+      p_guard_snapshot: guard,
+      p_actor_lawyer_id: runtime.scope.actorLawyerId,
+      p_actor_role: runtime.scope.actorRole ?? null,
+    });
+    if (atomic.error) throw new Error(atomic.error.message);
+    const result = atomic.data as { instance?: unknown; event?: unknown; target_stage?: unknown } | null;
+    return NextResponse.json({ success: true, instance: result?.instance ?? null, event: result?.event ?? null, stage: result?.target_stage ?? null });
   } catch (error) {
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Unable to transition workflow." }, { status: 403 });
   }
