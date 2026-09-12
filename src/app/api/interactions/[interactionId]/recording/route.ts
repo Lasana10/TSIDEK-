@@ -3,6 +3,45 @@ import { resolveRequestScope } from "@/lib/request-scope";
 import { assertMatterPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { persistUploadedFile } from "@/lib/file-vault";
+import { getTranscriptionStatus, transcribeVaultRecording } from "@/lib/transcription.server";
 
 type Context={params:Promise<{interactionId:string}>};
-export async function POST(request:Request,context:Context){try{const{interactionId}=await context.params;const scope=await resolveRequestScope(request);if(!scope.firmId||!scope.actorLawyerId)throw new Error('Authenticated firm context is required.');const supabase=createServerSupabaseClient();if(!supabase)throw new Error('Supabase server configuration is required.');const interaction=await supabase.from('legal_interactions').select('id,firm_id,matter_id,consent_recording,confidentiality_level').eq('id',interactionId).eq('firm_id',scope.firmId).single();if(interaction.error)throw new Error(interaction.error.message);if(interaction.data.matter_id)await assertMatterPermission({scope,matterId:interaction.data.matter_id,allowAnyMember:true});const policy=await supabase.from('firm_interaction_policies').select('call_recording_enabled,transcription_enabled').eq('firm_id',scope.firmId).single();if(policy.error)throw new Error(policy.error.message);if(!policy.data.call_recording_enabled)return NextResponse.json({success:false,error:'Recording is disabled by firm policy.'},{status:409});if(interaction.data.consent_recording!==true)return NextResponse.json({success:false,error:'Recording consent must be positively recorded before audio is stored.'},{status:409});if(interaction.data.confidentiality_level==='highly_confidential')return NextResponse.json({success:false,error:'Highly confidential interaction recordings require a matter-specific private-storage policy.'},{status:409});const form=await request.formData();const file=form.get('file');if(!(file instanceof File)||!file.size)return NextResponse.json({success:false,error:'Audio or video file is required.'},{status:400});const stored=await persistUploadedFile({file,relativeDirectory:`storage/interactions/${interactionId}/recordings`});const requestTranscript=form.get('transcribe')==='true'&&policy.data.transcription_enabled;const update=await supabase.from('legal_interactions').update({recording_storage_ref:stored.relativePath,transcript_status:requestTranscript?'queued':'not_requested',updated_at:new Date().toISOString()}).eq('id',interactionId).select('*').single();if(update.error)throw new Error(update.error.message);return NextResponse.json({success:true,recording:{relativePath:stored.relativePath,sizeBytes:stored.sizeBytes,mimeType:stored.mimeType},interaction:update.data});}catch(error){return NextResponse.json({success:false,error:error instanceof Error?error.message:'Unable to store recording.'},{status:403});}}
+
+export async function POST(request:Request,context:Context){
+ try{
+  const{interactionId}=await context.params;
+  const scope=await resolveRequestScope(request);
+  if(!scope.firmId||!scope.actorLawyerId)throw new Error("Authenticated firm context is required.");
+  const supabase=createServerSupabaseClient();
+  if(!supabase)throw new Error("Supabase server configuration is required.");
+  const interaction=await supabase.from("legal_interactions").select("id,firm_id,matter_id,consent_recording,confidentiality_level,metadata").eq("id",interactionId).eq("firm_id",scope.firmId).single();
+  if(interaction.error)throw new Error(interaction.error.message);
+  if(interaction.data.matter_id)await assertMatterPermission({scope,matterId:interaction.data.matter_id,allowAnyMember:true});
+  const policy=await supabase.from("firm_interaction_policies").select("call_recording_enabled,transcription_enabled,ai_extraction_enabled").eq("firm_id",scope.firmId).single();
+  if(policy.error)throw new Error(policy.error.message);
+  if(!policy.data.call_recording_enabled)return NextResponse.json({success:false,error:"Recording is disabled by firm policy."},{status:409});
+  if(interaction.data.consent_recording!==true)return NextResponse.json({success:false,error:"Recording consent must be positively recorded before audio is stored."},{status:409});
+  if(interaction.data.confidentiality_level==="highly_confidential")return NextResponse.json({success:false,error:"Highly confidential interaction recordings require a matter-specific private-storage policy."},{status:409});
+  const form=await request.formData();
+  const file=form.get("file");
+  if(!(file instanceof File)||!file.size)return NextResponse.json({success:false,error:"Audio or video file is required."},{status:400});
+  const stored=await persistUploadedFile({file,relativeDirectory:`storage/interactions/${interactionId}/recordings`});
+  const requestTranscript=form.get("transcribe")==="true"&&policy.data.transcription_enabled;
+  const runtime=getTranscriptionStatus();
+  let transcriptText:string|null=null;
+  let transcriptError:string|null=null;
+  let transcriptStatus=requestTranscript?"queued":"not_requested";
+  if(requestTranscript&&runtime.configured){
+   transcriptStatus="processing";
+   try{
+    const language=typeof interaction.data.metadata?.language==="string"?interaction.data.metadata.language:null;
+    const transcription=await transcribeVaultRecording({storagePath:stored.relativePath,mimeType:stored.mimeType,language});
+    transcriptText=transcription.text;
+    transcriptStatus="completed";
+   }catch(error){transcriptStatus="failed";transcriptError=error instanceof Error?error.message:"Transcription failed.";}
+  }
+  const update=await supabase.from("legal_interactions").update({recording_storage_ref:stored.relativePath,transcript_text:transcriptText,transcript_status:transcriptStatus,ai_analysis_status:transcriptText&&policy.data.ai_extraction_enabled?"queued":"not_requested",updated_at:new Date().toISOString()}).eq("id",interactionId).select("*").single();
+  if(update.error)throw new Error(update.error.message);
+  return NextResponse.json({success:true,recording:{provider:stored.provider,bucket:stored.bucket,relativePath:stored.relativePath,sizeBytes:stored.sizeBytes,mimeType:stored.mimeType},interaction:update.data,transcription:{requested:requestTranscript,configured:runtime.configured,status:transcriptStatus,error:transcriptError}});
+ }catch(error){return NextResponse.json({success:false,error:error instanceof Error?error.message:"Unable to store recording."},{status:403});}
+}
