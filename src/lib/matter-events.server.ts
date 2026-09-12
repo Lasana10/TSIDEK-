@@ -46,21 +46,27 @@ function eventTitle(eventType: string) {
 
 export async function recordMatterEvent(input: {
   matterId: string;
-  scope: RequestScope;
+  scope?: RequestScope;
   eventType: string;
   previousState?: string | null;
   newState?: string | null;
   reason?: string | null;
   metadata?: Record<string, unknown>;
+  firmId?: string;
+  title?: string;
+  details?: string;
+  actorName?: string;
+  actorRole?: string;
 }) {
   const supabase = createServerSupabaseClient();
   if (!supabase) throw new Error("Supabase persistence is required for matter audit events.");
   const matter = await supabase.from("matters").select("id,firm_id").eq("id", input.matterId).maybeSingle();
   if (matter.error) throw new Error(matter.error.message);
   if (!matter.data) throw new Error("Matter not found.");
-  if (input.scope.firmId && matter.data.firm_id !== input.scope.firmId) throw new Error("Matter access denied for the current firm scope.");
+  if (input.scope?.firmId && matter.data.firm_id !== input.scope.firmId) throw new Error("Matter access denied for the current firm scope.");
+  if (input.firmId && matter.data.firm_id !== input.firmId) throw new Error("Matter access denied for the supplied firm scope.");
 
-  const details = {
+  const structuredDetails = {
     previous_state: input.previousState ?? null,
     new_state: input.newState ?? null,
     reason: input.reason ?? null,
@@ -70,10 +76,10 @@ export async function recordMatterEvent(input: {
     matter_id: input.matterId,
     firm_id: matter.data.firm_id,
     event_type: input.eventType,
-    title: eventTitle(input.eventType),
-    details: JSON.stringify(details),
-    actor_name: input.scope.actorName || "System",
-    actor_role: input.scope.actorRole || "system",
+    title: input.title || eventTitle(input.eventType),
+    details: input.details || JSON.stringify(structuredDetails),
+    actor_name: input.actorName || input.scope?.actorName || "System",
+    actor_role: input.actorRole || input.scope?.actorRole || "system",
   });
   if (result.error) throw new Error(result.error.message);
 }
