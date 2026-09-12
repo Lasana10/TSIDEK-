@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { createKnowledgeEntry } from "@/lib/matter-room";
 import { ragInboxRelativePath, type RagInboxSource } from "@/lib/rag-inbox";
 import { readPrototypeCollection, writePrototypeCollection } from "@/lib/prototype-state.server";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 export type SourceIngestionStatus = "Extracted" | "Needs OCR" | "Unsupported" | "Failed";
 
@@ -11,7 +12,7 @@ export type SourceIngestionRecord = {
   id: string;
   sourceRelativePath: string;
   sourceName: string;
-  sourceProvider: "local" | "onedrive";
+  sourceProvider: "local" | "supabase" | "onedrive";
   extension: string;
   status: SourceIngestionStatus;
   extractedCharacters: number;
@@ -42,25 +43,37 @@ function getExtension(relativePath: string) {
   return path.extname(relativePath).replace(".", "").toLowerCase();
 }
 
-async function readUtf8File(absolutePath: string) {
-  return readFile(absolutePath, "utf8");
+async function readTextSource(source: RagInboxSource) {
+  if (source.provider === "local") {
+    return readFile(path.join(process.cwd(), source.relativePath), "utf8");
+  }
+
+  if (source.provider === "supabase") {
+    const supabase = createServerSupabaseClient();
+    if (!supabase) throw new Error("Supabase server configuration is required to read the private TSIDKENU vault.");
+    const bucket = process.env.TSIDEK_STORAGE_BUCKET || "tsidek-vault";
+    const download = await supabase.storage.from(bucket).download(source.relativePath);
+    if (download.error) throw new Error(download.error.message);
+    return await download.data.text();
+  }
+
+  throw new Error("Direct extraction of OneDrive sources is not enabled in this ingestion path.");
 }
 
-async function extractFromLocalFile(source: RagInboxSource): Promise<ExtractedPayload> {
-  if (source.provider !== "local") {
+async function extractSource(source: RagInboxSource): Promise<ExtractedPayload> {
+  const extension = getExtension(source.relativePath);
+
+  if (source.provider === "onedrive") {
     return {
       status: "Unsupported",
       text: "",
-      failureReason: "Direct ingestion is currently supported for local staged files only.",
+      failureReason: "OneDrive source extraction requires the configured OneDrive download connector.",
     };
   }
 
-  const extension = getExtension(source.relativePath);
-  const absolutePath = path.join(process.cwd(), source.relativePath);
-
   try {
     if (["txt", "md", "csv", "json", "xml", "html", "htm"].includes(extension)) {
-      const text = await readUtf8File(absolutePath);
+      const text = await readTextSource(source);
       return {
         status: text.trim() ? "Extracted" : "Failed",
         text,
@@ -113,7 +126,7 @@ export async function ingestSource(input: {
   matterId?: string | null;
   createKnowledgeEntryInMatter?: boolean;
 }) {
-  const extraction = await extractFromLocalFile(input.source);
+  const extraction = await extractSource(input.source);
   const ingestedAt = new Date().toISOString();
   const recordId = randomUUID();
   const excerpt = normalizeExcerpt(extraction.text);
