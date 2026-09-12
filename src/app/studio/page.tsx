@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Building2, FileText, Palette, Plus, Save, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, BrainCircuit, Building2, FileText, GitBranch, Palette, Plus, Save, Scale, ShieldCheck, Sparkles } from "lucide-react";
 
 type Brand = {
   display_name?: string;
@@ -94,7 +94,7 @@ export default function FirmStudioPage() {
       if (!data.success) throw new Error(data.error || "Unable to create form");
       setForms((current) => [...current, data.form]);
       setNewFormName("");
-      setMessage("Custom form created.");
+      setMessage("Custom form created. Open it below to design its fields and workflow.");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Unable to create form");
     } finally { setSaving(false); }
@@ -107,14 +107,20 @@ export default function FirmStudioPage() {
       <div className="mx-auto max-w-[1600px] space-y-5">
         <div className="flex flex-col gap-4 rounded-[2rem] border border-white bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <Link href="/" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-400"><ArrowLeft className="h-4 w-4" /> Back to cockpit</Link>
-            <div className="mt-4 flex items-center gap-3"><div className="rounded-2xl bg-emerald-950 p-3 text-white"><Building2 className="h-5 w-5" /></div><div><p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">Firm Studio</p><h1 className="text-3xl font-semibold text-emerald-950">Brand, forms, language and document identity</h1></div></div>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">Change the firm logo, colors, letterhead, bilingual defaults, email signature and reusable intake/KYC/conflict/engagement forms without changing the legal authorization model.</p>
+            <Link href="/workspace" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-400"><ArrowLeft className="h-4 w-4" /> Back to workspace</Link>
+            <div className="mt-4 flex items-center gap-3"><div className="rounded-2xl bg-emerald-950 p-3 text-white"><Building2 className="h-5 w-5" /></div><div><p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">Firm Studio</p><h1 className="text-3xl font-semibold text-emerald-950">Govern how the firm works</h1></div></div>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">Brand, forms, legal classifications, workflows, interaction privacy and AI policy stay configurable here so everyday work remains simple.</p>
           </div>
-          <button onClick={saveBrand} disabled={saving} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50"><Save className="h-4 w-4" /> {saving ? "Saving…" : "Save Studio"}</button>
+          <button onClick={saveBrand} disabled={saving} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50"><Save className="h-4 w-4" /> {saving ? "Saving…" : "Save identity"}</button>
         </div>
 
         {message && <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">{message}</div>}
+
+        <section className="grid gap-4 md:grid-cols-3">
+          <Link href="/studio/legal-parameters" className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-300"><Scale className="h-5 w-5 text-emerald-900"/><h2 className="mt-4 text-lg font-semibold text-emerald-950">Legal parameters</h2><p className="mt-2 text-sm leading-6 text-slate-500">Matter types, jurisdictions, courts, procedure tracks, document types, fees, risk and confidentiality.</p></Link>
+          <Link href="/studio/workflows" className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-300"><GitBranch className="h-5 w-5 text-emerald-900"/><h2 className="mt-4 text-lg font-semibold text-emerald-950">Workflow Studio</h2><p className="mt-2 text-sm leading-6 text-slate-500">Edit the legal operating stages, guards, approvals and transition structure used by matters.</p></Link>
+          <Link href="/studio/operations" className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-300"><BrainCircuit className="h-5 w-5 text-emerald-900"/><h2 className="mt-4 text-lg font-semibold text-emerald-950">Privacy, interaction & AI</h2><p className="mt-2 text-sm leading-6 text-slate-500">Switch channels, recording, transcription and AI modes without exposing provider complexity to normal staff.</p></Link>
+        </section>
 
         <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
           <section className="space-y-5">
@@ -155,7 +161,7 @@ export default function FirmStudioPage() {
             <div className="rounded-[1.8rem] border border-slate-200 bg-white p-5">
               <div className="flex items-center gap-3"><Sparkles className="h-5 w-5 text-emerald-900" /><div><p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Form Studio</p><h2 className="text-xl font-semibold text-emerald-950">Firm-controlled forms</h2></div></div>
               <div className="mt-5 grid gap-3 md:grid-cols-[1fr_180px_auto]"><input className={inputClass} value={newFormName} onChange={(e) => setNewFormName(e.target.value)} placeholder="e.g. Client KYC Review" /><select className={inputClass} value={newFormModule} onChange={(e) => setNewFormModule(e.target.value)}><option value="intake">Intake</option><option value="kyc">KYC</option><option value="conflict">Conflict</option><option value="engagement">Engagement</option><option value="matter">Matter</option><option value="finance">Finance</option><option value="closure">Closure</option></select><button onClick={createForm} disabled={!newFormName.trim() || saving} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-950 px-4 py-3 text-sm font-bold text-emerald-950"><Plus className="h-4 w-4" /> Add</button></div>
-              <div className="mt-5 space-y-3">{forms.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">No custom forms yet. Create the firm's first controlled form above.</div> : forms.map((form) => <div key={form.id} className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 p-4"><div><p className="text-sm font-bold text-slate-800">{form.name}</p><p className="mt-1 text-xs text-slate-500">{form.module} · v{form.version} · {form.form_key}</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">{form.status}</span></div>)}</div>
+              <div className="mt-5 space-y-3">{forms.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">No custom forms yet. Create the firm&apos;s first controlled form above.</div> : forms.map((form) => <Link key={form.id} href={`/studio/forms/${form.id}`} className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 p-4 transition hover:border-emerald-300"><div><p className="text-sm font-bold text-slate-800">{form.name}</p><p className="mt-1 text-xs text-slate-500">{form.module} · v{form.version} · {form.form_key}</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">{form.status}</span></Link>)}</div>
             </div>
           </section>
         </div>
