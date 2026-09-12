@@ -4,6 +4,7 @@ import { assertFirmPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 type Context = { params: Promise<{ workflowId: string }> };
+const actionTypes = new Set(["create_task","require_document","require_client_update","notify_role","require_finance_reconciliation","create_review","create_closure_checklist"]);
 
 async function requireWorkflow(scope: Awaited<ReturnType<typeof resolveRequestScope>>, workflowId: string) {
   if (!scope.firmId) throw new Error("Authenticated firm context is required.");
@@ -80,6 +81,33 @@ export async function PATCH(request: Request, context: Context) {
       return NextResponse.json({ success: true, transition: result.data });
     }
 
+    if (action === "stage_action") {
+      const stageKey = String(body.stageKey ?? "").trim();
+      const actionKey = String(body.actionKey ?? "").trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_");
+      const actionType = String(body.actionType ?? "");
+      const name = String(body.name ?? "").trim();
+      if (!stageKey || !actionKey || !name || !actionTypes.has(actionType)) {
+        return NextResponse.json({ success: false, error: "Stage, action key, supported action type and name are required." }, { status: 400 });
+      }
+      const stage = await supabase.from("firm_workflow_stages").select("id").eq("workflow_id", workflowId).eq("stage_key", stageKey).maybeSingle();
+      if (stage.error) throw new Error(stage.error.message);
+      if (!stage.data) return NextResponse.json({ success: false, error: "Workflow stage not found." }, { status: 404 });
+      const payload = {
+        workflow_id: workflowId,
+        stage_key: stageKey,
+        action_key: actionKey,
+        action_type: actionType,
+        name,
+        configuration: body.configuration && typeof body.configuration === "object" ? body.configuration : {},
+        sort_order: Number(body.sortOrder ?? 0),
+        active: body.active !== false,
+        updated_at: new Date().toISOString(),
+      };
+      const result = await supabase.from("firm_workflow_stage_actions").upsert(payload, { onConflict: "workflow_id,stage_key,action_key" }).select("*").single();
+      if (result.error) throw new Error(result.error.message);
+      return NextResponse.json({ success: true, stageAction: result.data });
+    }
+
     return NextResponse.json({ success: false, error: "Unsupported workflow edit action." }, { status: 400 });
   } catch (error) {
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Unable to edit workflow." }, { status: 403 });
@@ -95,8 +123,10 @@ export async function DELETE(request: Request, context: Context) {
     const url = new URL(request.url);
     const kind = url.searchParams.get("kind");
     const id = url.searchParams.get("id");
-    if (!id || !["stage","transition"].includes(String(kind))) return NextResponse.json({ success: false, error: "Valid kind and id are required." }, { status: 400 });
-    const table = kind === "stage" ? "firm_workflow_stages" : "firm_workflow_transitions";
+    if (!id || !["stage","transition","stage_action"].includes(String(kind))) {
+      return NextResponse.json({ success: false, error: "Valid kind and id are required." }, { status: 400 });
+    }
+    const table = kind === "stage" ? "firm_workflow_stages" : kind === "transition" ? "firm_workflow_transitions" : "firm_workflow_stage_actions";
     const result = await supabase.from(table).delete().eq("id", id).eq("workflow_id", workflowId);
     if (result.error) throw new Error(result.error.message);
     return NextResponse.json({ success: true });
