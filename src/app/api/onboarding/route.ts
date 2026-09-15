@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { completeUserOnboarding, getAuthenticatedUser } from "@/lib/supabase-auth";
+import {
+  completeUserOnboarding,
+  getAuthenticatedUser,
+  getFirmContextByUserId,
+  getLawyerProfileByUserId,
+} from "@/lib/supabase-auth";
 import { firmRoleOptions, type FirmRole } from "@/lib/firm-identity";
 
 function isFirmRole(value: string): value is FirmRole {
@@ -19,8 +24,6 @@ export async function POST(request: Request) {
     const country = String(body.country ?? "").trim();
     const roleValue = String(body.role ?? "").trim();
 
-    // Existing profiles still pass through completeUserOnboarding so any missing
-    // membership or active-firm context is repaired in the same server request.
     if (!identity.lawyer && (!fullName || !firmName || !isFirmRole(roleValue))) {
       return NextResponse.json(
         { success: false, error: "Full name, firm name, and a valid role are required." },
@@ -41,17 +44,30 @@ export async function POST(request: Request) {
       role: effectiveRole,
     });
 
-    const resolved = await getAuthenticatedUser();
-    const membership = resolved?.membership as { firm_id?: string | null; role_key?: string | null; title?: string | null } | null;
-    const firmId = membership?.firm_id ?? resolved?.lawyer?.firm_id ?? null;
-    const actorRole = membership?.role_key ?? membership?.title ?? resolved?.lawyer?.role ?? null;
+    // Do not re-run cookie/session authentication in the same activation request.
+    // The user is already authenticated above; readiness is determined from the
+    // persisted records that completeUserOnboarding just created or repaired.
+    const [lawyer, firmContext] = await Promise.all([
+      getLawyerProfileByUserId(identity.user.id),
+      getFirmContextByUserId(identity.user.id),
+    ]);
+
+    const membership = firmContext.membership as {
+      firm_id?: string | null;
+      role_key?: string | null;
+      title?: string | null;
+      status?: string | null;
+    } | null;
+    const firmId = membership?.firm_id ?? lawyer?.firm_id ?? null;
+    const actorRole = membership?.role_key ?? membership?.title ?? lawyer?.role ?? null;
     const workspaceReady = Boolean(
-      resolved?.user &&
-      resolved?.lawyer &&
+      lawyer &&
+      membership &&
+      membership.status === "active" &&
       firmId &&
-      resolved.activeFirmId &&
+      firmContext.activeFirmId === firmId &&
       actorRole &&
-      resolved.memberships.length > 0,
+      firmContext.memberships.length > 0,
     );
 
     return NextResponse.json({
@@ -59,7 +75,7 @@ export async function POST(request: Request) {
       workspaceReady,
       alreadyOnboarded: Boolean(identity.lawyer),
       firmId,
-      activeFirmId: resolved?.activeFirmId ?? null,
+      activeFirmId: firmContext.activeFirmId,
       actorRole,
     });
   } catch (error) {
