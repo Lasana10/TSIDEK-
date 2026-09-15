@@ -5,8 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
-    "start": "next start",
+    "start": "node scripts/provider-smoke.mjs && next start",
     "lint": "eslint",
+    "providers:smoke": "node scripts/provider-smoke.mjs",
     "launch:local": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\launch-tsidkenu-local.ps1",
     "stop:local": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\stop-tsidkenu.ps1"
   },
