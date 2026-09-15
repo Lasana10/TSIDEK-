@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { ArrowLeft, BriefcaseBusiness, ChevronRight, Landmark, ShieldCheck } from "lucide-react";
 import MatterWorkspace from "@/components/MatterWorkspace";
 import MatterWorkflowPanel from "@/components/MatterWorkflowPanel";
 import MatterActivityPanel from "@/components/MatterActivityPanel";
@@ -17,67 +17,22 @@ import { getMatterWorkspaceByIdServer } from "@/lib/matters.server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import type { WorkspaceTab } from "@/components/MatterWorkspace";
 
-function resolveWorkspaceTab(value: string | string[] | undefined): WorkspaceTab {
-  const tab = Array.isArray(value) ? value[0] : value;
-  switch (tab) {
-    case "documents":
-    case "strategy":
-    case "studio":
-    case "intelligence":
-    case "collaboration":
-    case "governance":
-    case "finance":
-    case "overview":
-      return tab;
-    default:
-      return "overview";
-  }
+function resolveWorkspaceTab(value:string|string[]|undefined):WorkspaceTab{const tab=Array.isArray(value)?value[0]:value;switch(tab){case"documents":case"strategy":case"studio":case"intelligence":case"collaboration":case"governance":case"finance":case"overview":return tab;default:return"overview"}}
+
+const matterTabs:[WorkspaceTab,string][]=[["overview","Overview"],["documents","Documents"],["strategy","Strategy"],["intelligence","Intelligence"],["collaboration","Team"],["finance","Finance"],["governance","Governance"]];
+
+export default async function MatterDetailPage({params,searchParams}:{params:Promise<{matterId:string}>;searchParams?:Promise<{tab?:string|string[]}>}){
+ const{matterId}=await params;const resolvedSearchParams=searchParams?await searchParams:undefined;const activeTab=resolveWorkspaceTab(resolvedSearchParams?.tab);const headerStore=await headers();const scope=await resolveRequestScope(new Request("http://tsidek.local/internal",{headers:headerStore}));const matter=await getMatterWorkspaceByIdServer(matterId,scope);if(!matter)notFound();
+ return <main className="min-h-screen bg-[#f3f5f2] px-4 py-5 text-slate-900 md:px-7 md:py-8 xl:px-10"><div className="mx-auto max-w-[1680px] space-y-5">
+  <div className="flex flex-wrap items-center justify-between gap-3"><Link href="/matters" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-600 shadow-sm"><ArrowLeft className="h-4 w-4"/>Matter portfolio</Link><Link href="/workspace" className="inline-flex items-center gap-2 text-xs font-bold text-[#0b493b]">Command workspace<ChevronRight className="h-4 w-4"/></Link></div>
+  <section className="overflow-hidden rounded-[2rem] border border-[#17483c]/20 bg-[#082b22] text-white shadow-[0_28px_80px_rgba(8,43,34,.16)]"><div className="grid xl:grid-cols-[minmax(0,1fr)_360px]"><div className="relative p-7 md:p-9"><div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[.06] px-3 py-1.5 text-[10px] font-black uppercase tracking-[.22em] text-white/60"><BriefcaseBusiness className="h-3.5 w-3.5 text-[#dfc47f]"/>Governed matter room</div><p className="mt-6 text-[10px] font-black uppercase tracking-[.18em] text-white/40">{matter.clientName} · {matter.matterType}</p><h1 className="mt-2 max-w-4xl text-4xl font-semibold tracking-[-.04em] md:text-5xl">{matter.title}</h1><p className="mt-4 max-w-3xl text-sm leading-7 text-white/65">One controlled record for facts, parties, procedure, evidence, deadlines, documents, communications, money, legal intelligence and institutional memory.</p><div className="mt-6 flex flex-wrap gap-2"><Pill>{matter.status}</Pill><Pill>{matter.riskLevel} risk</Pill><Pill>{matter.jurisdiction}</Pill>{matter.ethicalWallEnabled?<Pill>Ethical wall</Pill>:null}</div></div><aside className="border-t border-white/10 bg-white/[.045] p-6 xl:border-l xl:border-t-0"><ShieldCheck className="h-5 w-5 text-[#dfc47f]"/><p className="mt-5 text-[9px] font-black uppercase tracking-[.18em] text-white/35">Controlled file</p><p className="mt-1 text-sm font-bold">{matter.physicalFileId}</p><div className="mt-5 space-y-3 border-t border-white/10 pt-5"><Meta label="Lead lawyer" value={matter.leadLawyer}/><Meta label="Project manager" value={matter.projectManager}/><Meta label="Classification" value={matter.securityClassification}/></div></aside></div></section>
+  <nav className="sticky top-3 z-20 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-[0_12px_35px_rgba(15,23,42,.06)] backdrop-blur"><div className="flex min-w-max gap-1">{matterTabs.map(([tab,label])=><Link key={tab} href={`/matters/${matterId}?tab=${tab}`} className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${activeTab===tab?"bg-[#082b22] text-white":"text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}>{label}</Link>)}<a href="#execution" className="rounded-xl px-3.5 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50">Execution</a><a href="#client" className="rounded-xl px-3.5 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50">Client</a><a href="#closure" className="rounded-xl px-3.5 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50">Closure</a></div></nav>
+  <section aria-label="Matter record"><MatterWorkspace matter={matter} initialTab={activeTab}/></section>
+  <section id="execution" className="space-y-5 scroll-mt-24"><SectionTitle eyebrow="Execution layer" title="Move the matter forward" text="Workflow, deadlines, activity, procedure and practice controls remain connected to this matter record."/><MatterWorkflowPanel matterId={matterId}/><MatterCommandCenter matterId={matterId}/><MatterActivityPanel matterId={matterId}/><ProcedureGuidancePanel matterId={matterId}/><PracticeExecutionPanel matterId={matterId}/></section>
+  <section id="client" className="space-y-5 scroll-mt-24"><SectionTitle eyebrow="Client & commercial layer" title="Service and economics" text="Client access, instructions, billing and operational controls stay permissioned and matter-specific."/><ClientAccessPanel matterId={matterId}/><FinanceTransparencyPanel matterId={matterId}/><MatterControlDesk matterId={matterId}/></section>
+  <section id="closure" className="space-y-5 scroll-mt-24"><SectionTitle eyebrow="Institutional memory" title="Close without losing knowledge" text="Closure captures final controls, learning and reusable firm knowledge after professional review."/><MatterClosurePanel matterId={matterId}/><WorldClassOperationsPanel/></section>
+ </div></main>
 }
-
-export default async function MatterDetailPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ matterId: string }>;
-  searchParams?: Promise<{ tab?: string | string[] }>;
-}) {
-  const { matterId } = await params;
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const headerStore = await headers();
-  const scope = await resolveRequestScope(new Request("http://tsidek.local/internal", { headers: headerStore }));
-  const matter = await getMatterWorkspaceByIdServer(matterId, scope);
-
-  if (!matter) notFound();
-
-  return (
-    <div className="min-h-screen bg-paper-white px-6 py-8 md:px-8">
-      <div className="mx-auto max-w-7xl space-y-8">
-        <div className="flex flex-col gap-4 rounded-[2rem] border border-white/70 bg-[linear-gradient(160deg,_#083126_0%,_#0f4938_58%,_#c5a059_170%)] p-6 text-white shadow-[0_20px_44px_rgba(0,54,41,0.18)] md:flex-row md:items-center md:justify-between">
-          <div className="space-y-3">
-            <Link href="/workspace" className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/80">
-              <ArrowLeft className="h-3.5 w-3.5" /> Back to command workspace
-            </Link>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-white/50">Governed matter room</p>
-              <h1 className="mt-2 text-3xl heading-serif text-white">{matter.title}</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-7 text-white/72">One controlled matter record for strategy, delegation, documents, evidence, deadlines, hearings, filing, client service, time, finance, closure and institutional memory.</p>
-            </div>
-          </div>
-          <div className="rounded-[1.5rem] border border-white/10 bg-white/10 px-5 py-4"><div className="flex items-center gap-3"><ShieldCheck className="h-5 w-5 text-gold-accent" /><div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/45">Controlled access</p><p className="text-sm font-semibold">{matter.physicalFileId}</p></div></div></div>
-        </div>
-
-        <MatterWorkflowPanel matterId={matterId} />
-        <MatterActivityPanel matterId={matterId} />
-        <MatterCommandCenter matterId={matterId} />
-        <ProcedureGuidancePanel matterId={matterId} />
-        <PracticeExecutionPanel matterId={matterId} />
-        <FinanceTransparencyPanel matterId={matterId} />
-        <MatterClosurePanel matterId={matterId} />
-        <WorldClassOperationsPanel />
-        <MatterControlDesk matterId={matterId} />
-        <ClientAccessPanel matterId={matterId} />
-        <MatterWorkspace matter={matter} initialTab={resolveWorkspaceTab(resolvedSearchParams?.tab)} />
-      </div>
-    </div>
-  );
-}
+function Pill({children}:{children:React.ReactNode}){return <span className="rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-xs font-semibold text-white/75">{children}</span>}
+function Meta({label,value}:{label:string;value:string}){return <div><p className="text-[9px] font-black uppercase tracking-[.13em] text-white/30">{label}</p><p className="mt-1 text-xs font-semibold text-white/75">{value||"Not assigned"}</p></div>}
+function SectionTitle({eyebrow,title,text}:{eyebrow:string;title:string;text:string}){return <div className="flex items-start gap-3 rounded-[1.4rem] border border-slate-200 bg-white p-5"><div className="rounded-xl bg-[#edf4f0] p-2.5 text-[#0b493b]"><Landmark className="h-4 w-4"/></div><div><p className="text-[9px] font-black uppercase tracking-[.2em] text-[#0f5b49]">{eyebrow}</p><h2 className="mt-1 text-xl font-semibold tracking-tight">{title}</h2><p className="mt-1 text-sm leading-6 text-slate-500">{text}</p></div></div>}
