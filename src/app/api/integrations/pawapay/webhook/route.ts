@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { resolveFirmProviderCredentials } from "@/lib/tenant-integrations.server";
 import { PaymentService } from "@/lib/payment-service/pawapay";
 
 function eventKey(raw: string, depositId: string) {
@@ -55,7 +56,13 @@ export async function POST(request: Request) {
   if (eventInsert.error) return NextResponse.json({ success:false, error:eventInsert.error.message }, { status:500 });
 
   try {
-    const providerState = await PaymentService.checkDepositStatus(depositId) as Record<string, unknown>;
+    const tenantCredentials = await resolveFirmProviderCredentials(payment.firm_id, "pawapay");
+    const providerState = await PaymentService.checkDepositStatus(depositId, tenantCredentials ? {
+      apiToken: tenantCredentials.apiToken,
+      apiKey: tenantCredentials.apiKey,
+      environment: tenantCredentials.environment,
+      apiUrl: tenantCredentials.apiUrl,
+    } : undefined) as Record<string, unknown>;
     const status = normalizeProviderStatus(providerState.status ?? providerState.depositStatus ?? providerState.state);
     const mergedPayload = { ...(payment.provider_payload ?? {}), webhook: payload, provider_state: providerState };
 

@@ -1,18 +1,9 @@
 import { NextResponse } from "next/server";
 import { statusForApiError } from "@/lib/api-errors";
 import { assertFirmPermission, assertMatterPermission } from "@/lib/authorization";
-import {
-  getMatterDocumentRelativeDirectory,
-  getRagInboxUploadDirectory,
-  persistUploadedFile,
-} from "@/lib/file-vault";
-import {
-  createDigitalCaseFile,
-  createKnowledgeEntry,
-  createMatterDocument,
-  getMatterRoomById,
-} from "@/lib/matter-room";
-import { uploadFileToOneDrivePath } from "@/lib/onedrive";
+import { getMatterDocumentRelativeDirectory, getRagInboxUploadDirectory, persistUploadedFile } from "@/lib/file-vault";
+import { persistFirmExternalMirror } from "@/lib/firm-storage.server";
+import { createDigitalCaseFile, createKnowledgeEntry, createMatterDocument, getMatterRoomById } from "@/lib/matter-room";
 import { assertMatterScopeAccess, resolveRequestScope } from "@/lib/request-scope";
 import { listUnifiedRagInboxSources } from "@/lib/rag-inbox";
 
@@ -28,6 +19,12 @@ function filterRoomDocumentsForScope(scope: Awaited<ReturnType<typeof resolveReq
 
 function parseBoolean(value: FormDataEntryValue | null) {
   return typeof value === "string" && (value === "true" || value === "1");
+}
+
+async function mirrorForFirm(firmId: string | null | undefined, file: File, relativePath: string) {
+  if (!firmId) return null;
+  const buffer = Buffer.from(await file.arrayBuffer());
+  return persistFirmExternalMirror({ firmId, relativePath, data: buffer, contentType: file.type || "application/octet-stream" });
 }
 
 export async function GET(request: Request) {
@@ -57,15 +54,12 @@ export async function POST(request: Request) {
       const scope = await resolveRequestScope(request);
       await assertFirmPermission({ scope, permission: "openMatters" });
       const stored = await persistUploadedFile({ file, relativeDirectory: getRagInboxUploadDirectory() });
-      let oneDriveMirror: { id:string|null; webUrl:string|null; name:string; relativePath:string } | null = null;
-      let oneDriveError: string | null = null;
-      try {
-        oneDriveMirror = await uploadFileToOneDrivePath({ fileName: stored.fileName, content: await file.arrayBuffer(), mimeType: file.type });
-      } catch (error) {
-        oneDriveError = error instanceof Error ? error.message : "Unable to mirror to OneDrive.";
-      }
+      let externalMirror: unknown = null;
+      let externalMirrorError: string | null = null;
+      try { externalMirror = await mirrorForFirm(scope.firmId, file, stored.relativePath); }
+      catch (error) { externalMirrorError = error instanceof Error ? error.message : "External storage mirror failed."; }
       const result = await listUnifiedRagInboxSources();
-      return NextResponse.json({ success: true, ...result, upload: { provider: stored.provider, bucket: stored.bucket, fileName: stored.fileName, relativePath: stored.relativePath, sizeBytes: stored.sizeBytes, mimeType: stored.mimeType }, oneDriveMirror, oneDriveError: oneDriveError ?? result.oneDriveError });
+      return NextResponse.json({ success: true, ...result, upload: { provider: stored.provider, bucket: stored.bucket, fileName: stored.fileName, relativePath: stored.relativePath, sizeBytes: stored.sizeBytes, mimeType: stored.mimeType }, externalMirror, externalMirrorError });
     }
 
     if (target === "matter-document") {
@@ -74,6 +68,10 @@ export async function POST(request: Request) {
       const scope = await assertMatterScopeAccess(request, matterId);
       await assertMatterPermission({ scope, matterId, permission: "manageEvidence" });
       const stored = await persistUploadedFile({ file, relativeDirectory: getMatterDocumentRelativeDirectory(matterId) });
+      let externalMirror: unknown = null;
+      let externalMirrorError: string | null = null;
+      try { externalMirror = await mirrorForFirm(scope.firmId, file, stored.relativePath); }
+      catch (error) { externalMirrorError = error instanceof Error ? error.message : "External storage mirror failed."; }
       await createMatterDocument({
         matterId,
         title: String(formData.get("title") ?? file.name).trim() || file.name,
@@ -88,12 +86,12 @@ export async function POST(request: Request) {
         requiresComplianceAudit: parseBoolean(formData.get("requiresComplianceAudit")),
         reviewNote: String(formData.get("reviewNote") ?? "").trim() || null,
       });
-      await createDigitalCaseFile({ matterId, fileLabel: String(formData.get("title") ?? file.name).trim() || file.name, fileCategory: String(formData.get("documentType") ?? "Uploaded evidence").trim() || "Uploaded evidence", storagePath: stored.relativePath, storageProvider: stored.provider === "supabase" ? "TSIDKENU Private Vault" : "TSIDKENU Local Vault", referenceCode: null, versionLabel: String(formData.get("versionLabel") ?? "v1").trim() || "v1", status: String(formData.get("documentStatus") ?? "Draft") === "Archived" ? "Archived" : "Active" });
+      await createDigitalCaseFile({ matterId, fileLabel: String(formData.get("title") ?? file.name).trim() || file.name, fileCategory: String(formData.get("documentType") ?? "Uploaded evidence").trim() || "Uploaded evidence", storagePath: stored.relativePath, storageProvider: externalMirror && !externalMirrorError ? "TSIDKENU Secure Vault + Firm Mirror" : stored.provider === "supabase" ? "TSIDKENU Private Vault" : "TSIDKENU Local Vault", referenceCode: null, versionLabel: String(formData.get("versionLabel") ?? "v1").trim() || "v1", status: String(formData.get("documentStatus") ?? "Draft") === "Archived" ? "Archived" : "Active" });
       if (parseBoolean(formData.get("registerKnowledge"))) {
         await createKnowledgeEntry({ matterId, title: String(formData.get("knowledgeTitle") ?? file.name).trim() || file.name, entryType: "Book scan", tags: ["Upload", String(formData.get("documentType") ?? "Uploaded evidence").trim() || "Document"], summary: String(formData.get("knowledgeSummary") ?? "").trim() || `${file.name} was uploaded to the governed vault and staged for OCR / legal intelligence processing.`, storagePath: stored.relativePath, sensitivity: "Restricted" });
       }
       const room = filterRoomDocumentsForScope(scope, await getMatterRoomById(matterId));
-      return NextResponse.json({ success: true, upload: { provider: stored.provider, bucket: stored.bucket, fileName: stored.fileName, relativePath: stored.relativePath, sizeBytes: stored.sizeBytes, mimeType: stored.mimeType }, room });
+      return NextResponse.json({ success: true, upload: { provider: stored.provider, bucket: stored.bucket, fileName: stored.fileName, relativePath: stored.relativePath, sizeBytes: stored.sizeBytes, mimeType: stored.mimeType }, externalMirror, externalMirrorError, room });
     }
 
     return NextResponse.json({ success: false, error: "Unsupported vault target." }, { status: 400 });
