@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import { assertMatterPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { resolveFirmProviderCredentials } from "@/lib/tenant-integrations.server";
 import { PaymentService, type MobileMoneyProvider } from "@/lib/payment-service/pawapay";
 
 type Context = { params: Promise<{ matterId: string }> };
@@ -53,7 +54,8 @@ export async function POST(request:Request,context:Context){
     const amount=Math.round(Number(body.amountXaf||0)); if(amount<=0)return NextResponse.json({success:false,error:"Payment amount must be positive."},{status:400});
     const phoneNumber=String(body.phoneNumber||"").replace(/\D/g,""); if(phoneNumber.length<9)return NextResponse.json({success:false,error:"A valid client phone number is required."},{status:400});
     const provider=String(body.provider||"").toUpperCase() as MobileMoneyProvider; if(!["MTN","ORANGE"].includes(provider))return NextResponse.json({success:false,error:"Provider must be MTN or ORANGE."},{status:400});
-    const result=await PaymentService.initiateMobilePayment({amount,currency:"XAF",phoneNumber,provider,matterId,description:String(body.description||"Legal fee payment"),clientReferenceId:body.invoiceId?`INV-${String(body.invoiceId).slice(0,36)}`:`MATTER-${matterId}`});
+    const tenantCredentials=await resolveFirmProviderCredentials(scope.firmId,"pawapay");
+    const result=await PaymentService.initiateMobilePayment({amount,currency:"XAF",phoneNumber,provider,matterId,description:String(body.description||"Legal fee payment"),clientReferenceId:body.invoiceId?`INV-${String(body.invoiceId).slice(0,36)}`:`MATTER-${matterId}`},tenantCredentials?{apiToken:tenantCredentials.apiToken,apiKey:tenantCredentials.apiKey,environment:tenantCredentials.environment,apiUrl:tenantCredentials.apiUrl}:undefined);
     if(!result.configured)return NextResponse.json({success:false,error:result.providerMessage},{status:503});
     const payment=await supabase.from("matter_payments").insert({firm_id:scope.firmId,matter_id:matterId,invoice_id:body.invoiceId||null,amount_xaf:amount,currency:"XAF",provider:"PAWAPAY",phone_number:phoneNumber,payment_kind:String(body.paymentKind||"Invoice payment"),account_type:String(body.accountType||"Firm operating"),status:"Pending",provider_reference:result.transactionId,provider_status:result.status,provider_payload:{initiation_status:result.status,message:result.providerMessage,mobile_provider:provider},requested_at:new Date().toISOString(),note:body.note||null,created_by:scope.actorLawyerId}).select("*").single(); if(payment.error)throw new Error(payment.error.message);
   } else if(action==="recordPayment"){
