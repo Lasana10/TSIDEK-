@@ -49,6 +49,11 @@ async function googleAccessToken() {
   return data.access_token;
 }
 
+export async function verifyFirebaseCredentials() {
+  await googleAccessToken();
+  return { ok: true, projectId: process.env.FIREBASE_PROJECT_ID || null };
+}
+
 export async function sendPush(input: {
   token: string;
   title: string;

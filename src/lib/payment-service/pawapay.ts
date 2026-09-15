@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 export type MobileMoneyProvider = "MTN" | "ORANGE";
 
 export type PaymentPayload = {
@@ -7,6 +9,7 @@ export type PaymentPayload = {
   provider: MobileMoneyProvider;
   matterId: string;
   description: string;
+  clientReferenceId?: string;
 };
 
 export type PawaPayInitiationResult =
@@ -14,7 +17,7 @@ export type PawaPayInitiationResult =
       configured: true;
       success: true;
       transactionId: string;
-      status: "PENDING_USER_CONFIRMATION";
+      status: "ACCEPTED" | "REJECTED" | "DUPLICATE_IGNORED";
       providerMessage: string;
     }
   | {
@@ -25,69 +28,97 @@ export type PawaPayInitiationResult =
     };
 
 function getPawaPayConfig() {
-  const apiKey = process.env.PAWAPAY_API_KEY;
-  const callbackUrl = process.env.PAWAPAY_CALLBACK_URL;
-  const baseUrl = process.env.PAWAPAY_API_URL ?? "https://api.pawapay.io/v1";
-  const requestPath = process.env.PAWAPAY_PAYMENT_REQUEST_PATH;
+  const apiKey = process.env.PAWAPAY_API_TOKEN || process.env.PAWAPAY_API_KEY;
+  const environment = (process.env.PAWAPAY_ENV || "sandbox").toLowerCase();
+  const baseUrl = process.env.PAWAPAY_API_URL ||
+    (environment === "production" ? "https://api.pawapay.io" : "https://api.sandbox.pawapay.io");
 
-  if (!apiKey || !callbackUrl || !requestPath) {
-    return null;
-  }
+  if (!apiKey) return null;
+  return { apiKey, baseUrl: baseUrl.replace(/\/$/, "") };
+}
 
-  return { apiKey, callbackUrl, baseUrl, requestPath };
+function providerCode(provider: MobileMoneyProvider, currency: PaymentPayload["currency"]) {
+  if (currency === "XAF") return provider === "MTN" ? "MTN_MOMO_CMR" : "ORANGE_CMR";
+  throw new Error("Automatic pawaPay provider mapping is currently enabled for Cameroon XAF only.");
+}
+
+function customerMessage(description: string) {
+  const clean = description.replace(/\s+/g, " ").trim();
+  if (clean.length >= 4 && clean.length <= 22) return clean;
+  if (clean.length > 22) return clean.slice(0, 22);
+  return "TSIDKENU legal fee";
 }
 
 export class PaymentService {
   static async initiateMobilePayment(payload: PaymentPayload): Promise<PawaPayInitiationResult> {
     const config = getPawaPayConfig();
-
     if (!config) {
       return {
         configured: false,
         success: false,
         status: "NOT_CONFIGURED",
-        providerMessage:
-          "PawaPay is not configured. Add PAWAPAY_API_KEY, PAWAPAY_CALLBACK_URL, and PAWAPAY_PAYMENT_REQUEST_PATH before sending real mobile-money prompts.",
+        providerMessage: "pawaPay is not configured. Add PAWAPAY_API_TOKEN (or legacy PAWAPAY_API_KEY) before sending real payment requests.",
       };
     }
+    if (!Number.isFinite(payload.amount) || payload.amount <= 0) throw new Error("Payment amount must be greater than zero.");
 
-    const transactionId = `TSIDEK-${payload.matterId}-${Date.now()}`.slice(0, 80);
-    const response = await fetch(`${config.baseUrl}${config.requestPath}`, {
+    const transactionId = randomUUID();
+    const phoneNumber = payload.phoneNumber.replace(/\D/g, "");
+    const response = await fetch(`${config.baseUrl}/v2/deposits`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${config.apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        payoutId: transactionId,
-        amount: String(payload.amount),
+        depositId: transactionId,
+        amount: String(Math.trunc(payload.amount)),
         currency: payload.currency,
-        correspondent: payload.provider,
-        recipient: {
-          type: "MSISDN",
-          address: { value: payload.phoneNumber },
+        payer: {
+          type: "MMO",
+          accountDetails: {
+            phoneNumber,
+            provider: providerCode(payload.provider, payload.currency),
+          },
         },
-        customerTimestamp: new Date().toISOString(),
-        statementDescription: payload.description,
+        clientReferenceId: payload.clientReferenceId || `MATTER-${payload.matterId}`.slice(0, 50),
+        customerMessage: customerMessage(payload.description),
         metadata: [
-          { fieldName: "matterId", fieldValue: payload.matterId },
-          { fieldName: "system", fieldValue: "TSIDEK" },
+          { matterId: payload.matterId },
+          { system: "TSIDKENU" },
         ],
-        callbackUrl: config.callbackUrl,
       }),
+      cache: "no-store",
     });
 
-    if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(detail || "PawaPay rejected the payment initiation request.");
+    const data = await response.json().catch(() => ({})) as {
+      status?: "ACCEPTED" | "REJECTED" | "DUPLICATE_IGNORED";
+      failureReason?: { failureCode?: string; failureMessage?: string };
+    };
+    if (!response.ok) throw new Error(`pawaPay deposit initiation failed (${response.status}).`);
+    const status = data.status || "REJECTED";
+    if (status === "REJECTED") {
+      const reason = data.failureReason?.failureMessage || data.failureReason?.failureCode || "pawaPay rejected the deposit request.";
+      throw new Error(reason);
     }
 
     return {
       configured: true,
       success: true,
       transactionId,
-      status: "PENDING_USER_CONFIRMATION",
-      providerMessage: "Mobile-money prompt submitted to the provider.",
+      status,
+      providerMessage: status === "ACCEPTED" ? "Mobile-money payment request accepted for processing." : "Duplicate payment request ignored safely.",
     };
+  }
+
+  static async checkDepositStatus(depositId: string) {
+    const config = getPawaPayConfig();
+    if (!config) throw new Error("pawaPay is not configured.");
+    const response = await fetch(`${config.baseUrl}/v2/deposits/${encodeURIComponent(depositId)}`, {
+      headers: { Authorization: `Bearer ${config.apiKey}` },
+      cache: "no-store",
+    });
+    if (!response.ok) throw new Error(`pawaPay status check failed (${response.status}).`);
+    return response.json();
   }
 }
