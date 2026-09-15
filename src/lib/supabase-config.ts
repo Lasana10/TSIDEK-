@@ -3,7 +3,10 @@ export function getSupabaseBrowserUrl() {
 }
 
 export function getSupabaseUrl() {
-  return process.env.SUPABASE_URL ?? getSupabaseBrowserUrl();
+  // NEXT_PUBLIC_SUPABASE_URL is the canonical project identity for the app.
+  // Server/service clients must use the same project as browser authentication;
+  // otherwise an authenticated user can be looked up in a different database.
+  return getSupabaseBrowserUrl() ?? process.env.SUPABASE_URL ?? null;
 }
 
 export function getSupabasePublishableKey() {
