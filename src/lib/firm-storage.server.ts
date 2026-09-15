@@ -24,9 +24,10 @@ export async function persistFirmExternalMirror(input: {
   if (profile.provider === "secure_vault") return { provider: "secure_vault" as const, mirrored: false };
   if (profile.provider === "nextcloud") {
     const credentials = await loadTenantCredentials(input.firmId, "nextcloud");
+    const uploadBody = input.data.buffer.slice(input.data.byteOffset, input.data.byteOffset + input.data.byteLength) as ArrayBuffer;
     const result = await nextcloudPut(
       `/TSIDKENU/${input.relativePath.replace(/^\/+/, "")}`,
-      input.data,
+      uploadBody,
       input.contentType,
       credentials ? { baseUrl: credentials.baseUrl, username: credentials.username, appPassword: credentials.appPassword } : undefined,
     );
