@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import { assertMatterPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { PaymentService, type MobileMoneyProvider } from "@/lib/payment-service/pawapay";
 
 type Context = { params: Promise<{ matterId: string }> };
 
@@ -48,6 +49,13 @@ export async function POST(request:Request,context:Context){
     const numberResult=await supabase.rpc("next_firm_document_number",{p_firm_id:scope.firmId,p_prefix:"INV",p_table:"invoice"}); if(numberResult.error)throw new Error(numberResult.error.message);
     const invoice=await supabase.from("invoices").insert({firm_id:scope.firmId,matter_id:matterId,invoice_number:numberResult.data,amount_xaf:amount,status:"Sent",due_date:body.dueDate||null,description:String(body.description||"Legal fees"),issued_at:new Date().toISOString(),created_by:scope.actorLawyerId}).select("*").single(); if(invoice.error)throw new Error(invoice.error.message);
     const ledger=await supabase.from("finance_ledger_entries").upsert({firm_id:scope.firmId,matter_id:matterId,entry_type:"INVOICE",source_table:"invoices",source_id:invoice.data.id,amount_xaf:amount,direction:"DEBIT",account_bucket:"RECEIVABLE",status:"POSTED",description:`Invoice ${invoice.data.invoice_number}`,created_by:scope.actorLawyerId},{onConflict:"firm_id,source_table,source_id,entry_type"}); if(ledger.error)throw new Error(ledger.error.message);
+  } else if(action==="requestMobilePayment"){
+    const amount=Math.round(Number(body.amountXaf||0)); if(amount<=0)return NextResponse.json({success:false,error:"Payment amount must be positive."},{status:400});
+    const phoneNumber=String(body.phoneNumber||"").replace(/\D/g,""); if(phoneNumber.length<9)return NextResponse.json({success:false,error:"A valid client phone number is required."},{status:400});
+    const provider=String(body.provider||"").toUpperCase() as MobileMoneyProvider; if(!["MTN","ORANGE"].includes(provider))return NextResponse.json({success:false,error:"Provider must be MTN or ORANGE."},{status:400});
+    const result=await PaymentService.initiateMobilePayment({amount,currency:"XAF",phoneNumber,provider,matterId,description:String(body.description||"Legal fee payment"),clientReferenceId:body.invoiceId?`INV-${String(body.invoiceId).slice(0,36)}`:`MATTER-${matterId}`});
+    if(!result.configured)return NextResponse.json({success:false,error:result.providerMessage},{status:503});
+    const payment=await supabase.from("matter_payments").insert({firm_id:scope.firmId,matter_id:matterId,invoice_id:body.invoiceId||null,amount_xaf:amount,currency:"XAF",provider:"PAWAPAY",phone_number:phoneNumber,payment_kind:String(body.paymentKind||"Invoice payment"),account_type:String(body.accountType||"Firm operating"),status:"Pending",provider_reference:result.transactionId,provider_status:result.status,provider_payload:{initiation_status:result.status,message:result.providerMessage,mobile_provider:provider},requested_at:new Date().toISOString(),note:body.note||null,created_by:scope.actorLawyerId}).select("*").single(); if(payment.error)throw new Error(payment.error.message);
   } else if(action==="recordPayment"){
     const amount=Math.round(Number(body.amountXaf||0)); if(amount<=0)return NextResponse.json({success:false,error:"Payment amount must be positive."},{status:400});
     const payment=await supabase.from("matter_payments").insert({firm_id:scope.firmId,matter_id:matterId,invoice_id:body.invoiceId||null,amount_xaf:amount,provider:String(body.provider||"CASH"),payment_kind:String(body.paymentKind||"Invoice payment"),account_type:String(body.accountType||"Firm operating"),status:"Confirmed",provider_reference:body.providerReference||null,note:body.note||null,received_at:new Date().toISOString(),confirmed_by:scope.actorLawyerId,created_by:scope.actorLawyerId}).select("*").single(); if(payment.error)throw new Error(payment.error.message);
