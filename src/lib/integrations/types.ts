@@ -3,14 +3,18 @@ export type IntegrationKind =
   | "messaging"
   | "push"
   | "email"
-  | "identity";
+  | "identity"
+  | "ai"
+  | "payments";
 
 export type IntegrationProvider =
   | "nextcloud"
   | "onedrive"
   | "meta_whatsapp"
   | "firebase"
-  | "resend";
+  | "resend"
+  | "openrouter"
+  | "pawapay";
 
 export type IntegrationHealth = {
   provider: IntegrationProvider;
