@@ -1,5 +1,9 @@
+export function getSupabaseBrowserUrl() {
+  return process.env.NEXT_PUBLIC_SUPABASE_URL ?? null;
+}
+
 export function getSupabaseUrl() {
-  return process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? null;
+  return process.env.SUPABASE_URL ?? getSupabaseBrowserUrl();
 }
 
 export function getSupabasePublishableKey() {
@@ -16,5 +20,5 @@ export function getSupabaseServiceKey() {
 }
 
 export function isSupabaseBrowserConfigReady() {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && getSupabasePublishableKey());
+  return Boolean(getSupabaseBrowserUrl() && getSupabasePublishableKey());
 }
