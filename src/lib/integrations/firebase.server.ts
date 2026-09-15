@@ -6,11 +6,43 @@ export type FirebaseCredentials = { projectId?: string; clientEmail?: string; pr
 export const firebaseHealth = () =>
   envHealth("firebase", "push", ["FIREBASE_PROJECT_ID", "FIREBASE_CLIENT_EMAIL", "FIREBASE_PRIVATE_KEY"], "cloud");
 
+function normalizePrivateKey(raw: string) {
+  let value = raw.trim();
+
+  // Render and other secret stores may preserve surrounding quotes or JSON-string escaping.
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    value = value.slice(1, -1);
+  }
+
+  // Accept a pasted service-account JSON object as well as the raw PEM value.
+  if (value.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(value) as { private_key?: unknown };
+      if (typeof parsed.private_key === "string") value = parsed.private_key;
+    } catch {
+      // Keep the original value so validation below produces a useful error.
+    }
+  }
+
+  value = value
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .trim();
+
+  if (!value.includes("-----BEGIN PRIVATE KEY-----") || !value.includes("-----END PRIVATE KEY-----")) {
+    throw new Error("Firebase private key is not a valid PKCS#8 PEM. Paste the service account private_key exactly, including BEGIN/END lines.");
+  }
+
+  return value.endsWith("\n") ? value : `${value}\n`;
+}
+
 function resolved(credentials?: FirebaseCredentials) {
+  const rawPrivateKey = credentials?.privateKey || process.env.FIREBASE_PRIVATE_KEY || "";
   return {
-    projectId: credentials?.projectId || process.env.FIREBASE_PROJECT_ID || "",
-    clientEmail: credentials?.clientEmail || process.env.FIREBASE_CLIENT_EMAIL || "",
-    privateKey: (credentials?.privateKey || process.env.FIREBASE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+    projectId: (credentials?.projectId || process.env.FIREBASE_PROJECT_ID || "").trim(),
+    clientEmail: (credentials?.clientEmail || process.env.FIREBASE_CLIENT_EMAIL || "").trim(),
+    privateKey: rawPrivateKey ? normalizePrivateKey(rawPrivateKey) : "",
   };
 }
 
