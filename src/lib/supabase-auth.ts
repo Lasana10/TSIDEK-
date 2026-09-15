@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
-import { getSupabasePublishableKey, getSupabaseUrl, isSupabaseBrowserConfigReady } from "@/lib/supabase-config";
+import { getSupabaseBrowserUrl, getSupabasePublishableKey, isSupabaseBrowserConfigReady } from "@/lib/supabase-config";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { defaultFirmCountry, firmRoleOptions, type FirmRole } from "@/lib/firm-identity";
 
@@ -11,7 +11,7 @@ export function isSupabaseAuthConfigured() {
 export async function createServerAuthClient() {
   if (!isSupabaseAuthConfigured()) return null;
   const cookieStore = await cookies();
-  const url = getSupabaseUrl();
+  const url = getSupabaseBrowserUrl();
   const key = getSupabasePublishableKey();
   if (!url || !key) return null;
 
@@ -65,8 +65,6 @@ export async function getFirmContextByUserId(userId: string) {
   const membership = memberships.find((item) => item.firm_id === requestedActive) ?? memberships[0] ?? null;
   const activeFirmId = membership?.firm_id ?? null;
 
-  // If the stored firm context is absent or points to a membership that is no longer active,
-  // persist the first valid active membership so the next request restores the same workspace.
   if (activeFirmId && requestedActive !== activeFirmId) {
     const repaired = await supabase
       .from("user_firm_context")
@@ -74,11 +72,7 @@ export async function getFirmContextByUserId(userId: string) {
     if (repaired.error) throw new Error(repaired.error.message);
   }
 
-  return {
-    membership,
-    memberships,
-    activeFirmId,
-  };
+  return { membership, memberships, activeFirmId };
 }
 
 export async function setActiveFirmForUser(userId: string, firmId: string) {
