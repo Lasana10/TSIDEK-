@@ -63,11 +63,21 @@ export async function getFirmContextByUserId(userId: string) {
   const memberships = membershipsResult.data ?? [];
   const requestedActive = contextResult.data?.active_firm_id ?? null;
   const membership = memberships.find((item) => item.firm_id === requestedActive) ?? memberships[0] ?? null;
+  const activeFirmId = membership?.firm_id ?? null;
+
+  // If the stored firm context is absent or points to a membership that is no longer active,
+  // persist the first valid active membership so the next request restores the same workspace.
+  if (activeFirmId && requestedActive !== activeFirmId) {
+    const repaired = await supabase
+      .from("user_firm_context")
+      .upsert({ user_id: userId, active_firm_id: activeFirmId, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    if (repaired.error) throw new Error(repaired.error.message);
+  }
 
   return {
     membership,
     memberships,
-    activeFirmId: membership?.firm_id ?? null,
+    activeFirmId,
   };
 }
 
