@@ -1,16 +1,30 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import { getSupabaseUrl, getSupabasePublishableKey, getSupabaseServiceKey } from "@/lib/supabase-config";
+import { getSupabaseBrowserUrl, getSupabaseUrl, getSupabasePublishableKey, getSupabaseServiceKey } from "@/lib/supabase-config";
 import { getTranscriptionStatus } from "@/lib/transcription.server";
 import { defaultVaultBucket, getVaultStorageProvider } from "@/lib/file-vault";
 
 export const dynamic = "force-dynamic";
 
+function projectRef(url: string | null) {
+  if (!url) return null;
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname.endsWith(".supabase.co") ? hostname.split(".")[0] : hostname;
+  } catch {
+    return "invalid-url";
+  }
+}
+
 export async function GET() {
   const transcription = getTranscriptionStatus();
   const storageProvider = getVaultStorageProvider();
+  const browserUrl = getSupabaseBrowserUrl();
+  const canonicalUrl = getSupabaseUrl();
+  const browserProjectRef = projectRef(browserUrl);
+  const serverProjectRef = projectRef(canonicalUrl);
   const configured = {
-    supabaseUrl: Boolean(getSupabaseUrl()),
+    supabaseUrl: Boolean(canonicalUrl),
     publishableKey: Boolean(getSupabasePublishableKey()),
     serviceKey: Boolean(getSupabaseServiceKey()),
     durableStorage: storageProvider === "supabase",
@@ -40,7 +54,8 @@ export async function GET() {
     }
   }
 
-  const coreReady = configured.supabaseUrl && configured.publishableKey && configured.serviceKey && database === "ready";
+  const projectAligned = Boolean(browserProjectRef && serverProjectRef && browserProjectRef === serverProjectRef);
+  const coreReady = configured.supabaseUrl && configured.publishableKey && configured.serviceKey && database === "ready" && projectAligned;
   const storageReady = storageProvider === "local" ? process.env.NODE_ENV !== "production" : vault === "ready-private";
   return NextResponse.json({
     status: coreReady && storageReady ? "ready" : "degraded",
@@ -48,6 +63,11 @@ export async function GET() {
     storageReady,
     database,
     vault,
+    supabase: {
+      browserProjectRef,
+      serverProjectRef,
+      projectAligned,
+    },
     configured,
     timestamp: new Date().toISOString(),
   }, { status: 200 });
