@@ -40,7 +40,6 @@ export async function proxy(request: NextRequest) {
   if (!isSupabaseAuthConfigured()) return NextResponse.next();
 
   const pathname = request.nextUrl.pathname;
-  const isAuthRoute = pathname.startsWith("/auth");
   const isOnboardingRoute = pathname.startsWith("/onboarding");
   const isProtectedPage =
     pathname === "/" ||
