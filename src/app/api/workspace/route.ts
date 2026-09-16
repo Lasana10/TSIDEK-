@@ -13,44 +13,29 @@ function jsonNoStore(body: Record<string, unknown>, init?: { status?: number }) 
 export async function GET(request: Request) {
   try {
     const scope = await resolveRequestScope(request);
-    if (!scope.authenticated) {
-      return jsonNoStore({ success: false, error: "Authentication required." }, { status: 401 });
-    }
-    if (!scope.firmId || !scope.actorLawyerId) {
-      return jsonNoStore({ success: false, error: "Firm setup is required." }, { status: 409 });
-    }
+    if (!scope.authenticated) return jsonNoStore({ success: false, error: "Authentication required." }, { status: 401 });
+    if (!scope.firmId || !scope.actorLawyerId) return jsonNoStore({ success: false, error: "Firm setup is required." }, { status: 409 });
 
     const supabase = await createServerAuthClient();
     if (!supabase) throw new Error("Supabase authentication is unavailable.");
 
-    const membershipResult = await supabase
-      .from("firm_memberships")
-      .select("role_key,title,status")
-      .eq("firm_id", scope.firmId)
-      .eq("user_id", scope.actorLawyerId)
-      .eq("status", "active")
-      .maybeSingle();
+    const [membershipResult, firmResult, brandResult] = await Promise.all([
+      supabase.from("firm_memberships").select("role_key,title,status").eq("firm_id", scope.firmId).eq("user_id", scope.actorLawyerId).eq("status", "active").maybeSingle(),
+      supabase.from("firms").select("id,name,country").eq("id", scope.firmId).maybeSingle(),
+      supabase.from("firm_brand_profiles").select("display_name,short_name,default_language").eq("firm_id", scope.firmId).maybeSingle(),
+    ]);
     if (membershipResult.error) throw new Error(membershipResult.error.message);
+    if (firmResult.error) throw new Error(firmResult.error.message);
+    if (brandResult.error) throw new Error(brandResult.error.message);
 
     const role = membershipResult.data?.role_key ?? String(scope.actorRole ?? "lawyer").toLowerCase();
     const isGovernor = GOVERNOR_ROLES.has(role);
     const canSeeFinance = FINANCE_ROLES.has(role);
 
-    const matterQuery = supabase
-      .from("matters")
-      .select("id,title,client_name,status,risk_level,matter_type,jurisdiction,procedural_stage,confidentiality_level,lead_lawyer_id,opened_at,updated_at")
-      .eq("firm_id", scope.firmId)
-      .order("updated_at", { ascending: false })
-      .limit(40);
-
+    const matterQuery = supabase.from("matters").select("id,title,client_name,status,risk_level,matter_type,jurisdiction,procedural_stage,confidentiality_level,lead_lawyer_id,opened_at,updated_at").eq("firm_id", scope.firmId).order("updated_at", { ascending: false }).limit(40);
     const [matterResult, prospectResult] = await Promise.all([
       matterQuery,
-      supabase
-        .from("prospects")
-        .select("id,prospect_name,status,risk_level,conflict_status,engagement_status,responsible_lawyer_id,created_at")
-        .eq("firm_id", scope.firmId)
-        .order("created_at", { ascending: false })
-        .limit(20),
+      supabase.from("prospects").select("id,prospect_name,status,risk_level,conflict_status,engagement_status,responsible_lawyer_id,created_at").eq("firm_id", scope.firmId).order("created_at", { ascending: false }).limit(20),
     ]);
     if (matterResult.error) throw new Error(matterResult.error.message);
     if (prospectResult.error) throw new Error(prospectResult.error.message);
@@ -58,10 +43,7 @@ export async function GET(request: Request) {
     const allMatters = matterResult.data ?? [];
     let accessibleMatters = allMatters;
     if (!isGovernor) {
-      const { data: memberships, error } = await supabase
-        .from("matter_members")
-        .select("matter_id")
-        .eq("lawyer_id", scope.actorLawyerId);
+      const { data: memberships, error } = await supabase.from("matter_members").select("matter_id").eq("lawyer_id", scope.actorLawyerId);
       if (error) throw new Error(error.message);
       const assigned = new Set((memberships ?? []).map((item) => item.matter_id));
       accessibleMatters = allMatters.filter((matter) => matter.lead_lawyer_id === scope.actorLawyerId || assigned.has(matter.id));
@@ -69,32 +51,14 @@ export async function GET(request: Request) {
 
     const matterIds = accessibleMatters.map((matter) => matter.id);
     const empty = Promise.resolve({ data: [], error: null });
-    const taskPromise = matterIds.length
-      ? supabase.from("tasks").select("id,matter_id,assigned_to,title,deadline,status,is_completed,created_at").in("matter_id", matterIds).order("deadline", { ascending: true }).limit(100)
-      : empty;
-    const documentPromise = matterIds.length
-      ? supabase.from("documents").select("id,matter_id,title,document_type,status,review_status,version_label,created_at,updated_at").in("matter_id", matterIds).order("updated_at", { ascending: false }).limit(60)
-      : empty;
-    const clientUpdatePromise = matterIds.length
-      ? supabase.from("matter_client_updates").select("id,matter_id,title,status,delivery_status,instruction_required,instruction_status,created_at").in("matter_id", matterIds).order("created_at", { ascending: false }).limit(40)
-      : empty;
-    const closurePromise = matterIds.length
-      ? supabase.from("matter_closure_reviews").select("id,matter_id,financial_reconciled,obligations_resolved,documents_archived,client_notified,knowledge_reviewed,approved_at,updated_at").in("matter_id", matterIds)
-      : empty;
-    const invoicePromise = canSeeFinance && matterIds.length
-      ? supabase.from("invoices").select("id,matter_id,amount_xaf,status,due_date,created_at").in("matter_id", matterIds).order("created_at", { ascending: false }).limit(80)
-      : empty;
+    const taskPromise = matterIds.length ? supabase.from("tasks").select("id,matter_id,assigned_to,title,deadline,status,is_completed,created_at").in("matter_id", matterIds).order("deadline", { ascending: true }).limit(100) : empty;
+    const documentPromise = matterIds.length ? supabase.from("documents").select("id,matter_id,title,document_type,status,review_status,version_label,created_at,updated_at").in("matter_id", matterIds).order("updated_at", { ascending: false }).limit(60) : empty;
+    const clientUpdatePromise = matterIds.length ? supabase.from("matter_client_updates").select("id,matter_id,title,status,delivery_status,instruction_required,instruction_status,created_at").in("matter_id", matterIds).order("created_at", { ascending: false }).limit(40) : empty;
+    const closurePromise = matterIds.length ? supabase.from("matter_closure_reviews").select("id,matter_id,financial_reconciled,obligations_resolved,documents_archived,client_notified,knowledge_reviewed,approved_at,updated_at").in("matter_id", matterIds) : empty;
+    const invoicePromise = canSeeFinance && matterIds.length ? supabase.from("invoices").select("id,matter_id,amount_xaf,status,due_date,created_at").in("matter_id", matterIds).order("created_at", { ascending: false }).limit(80) : empty;
 
-    const [taskResult, documentResult, clientUpdateResult, closureResult, invoiceResult] = await Promise.all([
-      taskPromise,
-      documentPromise,
-      clientUpdatePromise,
-      closurePromise,
-      invoicePromise,
-    ]);
-    for (const result of [taskResult, documentResult, clientUpdateResult, closureResult, invoiceResult]) {
-      if (result.error) throw new Error(result.error.message);
-    }
+    const [taskResult, documentResult, clientUpdateResult, closureResult, invoiceResult] = await Promise.all([taskPromise, documentPromise, clientUpdatePromise, closurePromise, invoicePromise]);
+    for (const result of [taskResult, documentResult, clientUpdateResult, closureResult, invoiceResult]) if (result.error) throw new Error(result.error.message);
 
     const tasks = taskResult.data ?? [];
     const documents = documentResult.data ?? [];
@@ -103,7 +67,6 @@ export async function GET(request: Request) {
     const invoices = invoiceResult.data ?? [];
     const now = Date.now();
     const sevenDays = now + 7 * 24 * 60 * 60 * 1000;
-
     const myTasks = tasks.filter((task) => isGovernor || !task.assigned_to || task.assigned_to === scope.actorLawyerId);
     const openTasks = myTasks.filter((task) => !task.is_completed && String(task.status ?? "").toLowerCase() !== "completed");
     const urgentTasks = openTasks.filter((task) => task.deadline && new Date(task.deadline).getTime() <= sevenDays);
@@ -112,6 +75,7 @@ export async function GET(request: Request) {
     const openProspects = (prospectResult.data ?? []).filter((prospect) => !["rejected", "converted", "closed"].includes(String(prospect.status ?? "").toLowerCase()));
     const outstandingInvoices = invoices.filter((invoice) => !["paid", "settled", "cancelled", "void"].includes(String(invoice.status ?? "").toLowerCase()));
     const outstandingXaf = outstandingInvoices.reduce((sum, invoice) => sum + Number(invoice.amount_xaf ?? 0), 0);
+    const firmName = brandResult.data?.display_name || brandResult.data?.short_name || firmResult.data?.name || "Active firm";
 
     return jsonNoStore({
       success: true,
@@ -120,6 +84,9 @@ export async function GET(request: Request) {
         actorRole: role,
         title: membershipResult.data?.title ?? null,
         firmId: scope.firmId,
+        firmName,
+        firmCountry: firmResult.data?.country ?? null,
+        defaultLanguage: brandResult.data?.default_language ?? null,
       },
       capabilities: {
         governor: isGovernor,
@@ -142,13 +109,7 @@ export async function GET(request: Request) {
         outstandingXaf,
       },
       queues: {
-        matters: accessibleMatters.slice(0, 12),
-        tasks: openTasks.slice(0, 12),
-        documents: reviewQueue.slice(0, 10),
-        intake: openProspects.slice(0, 10),
-        clientUpdates: pendingClientUpdates.slice(0, 10),
-        closures: closures.slice(0, 10),
-        invoices: outstandingInvoices.slice(0, 10),
+        matters: accessibleMatters.slice(0, 12), tasks: openTasks.slice(0, 12), documents: reviewQueue.slice(0, 10), intake: openProspects.slice(0, 10), clientUpdates: pendingClientUpdates.slice(0, 10), closures: closures.slice(0, 10), invoices: outstandingInvoices.slice(0, 10),
       },
     });
   } catch (error) {
