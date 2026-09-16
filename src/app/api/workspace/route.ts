@@ -4,12 +4,20 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 const GOVERNOR_ROLES = new Set(["owner", "partner", "administrator"]);
 const FINANCE_ROLES = new Set(["owner", "partner", "administrator", "finance"]);
+const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0", Pragma: "no-cache" };
+
+function jsonNoStore(body: Record<string, unknown>, init?: { status?: number }) {
+  return NextResponse.json(body, { ...init, headers: NO_STORE_HEADERS });
+}
 
 export async function GET(request: Request) {
   try {
     const scope = await resolveRequestScope(request);
-    if (!scope.authenticated || !scope.firmId || !scope.actorLawyerId) {
-      return NextResponse.json({ success: false, error: "Authenticated firm context is required." }, { status: 401 });
+    if (!scope.authenticated) {
+      return jsonNoStore({ success: false, error: "Authentication required." }, { status: 401 });
+    }
+    if (!scope.firmId || !scope.actorLawyerId) {
+      return jsonNoStore({ success: false, error: "Firm setup is required." }, { status: 409 });
     }
 
     const supabase = createServerSupabaseClient();
@@ -105,7 +113,7 @@ export async function GET(request: Request) {
     const outstandingInvoices = invoices.filter((invoice) => !["paid", "settled", "cancelled", "void"].includes(String(invoice.status ?? "").toLowerCase()));
     const outstandingXaf = outstandingInvoices.reduce((sum, invoice) => sum + Number(invoice.amount_xaf ?? 0), 0);
 
-    return NextResponse.json({
+    return jsonNoStore({
       success: true,
       identity: {
         actorName: scope.actorName,
@@ -144,6 +152,8 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Unable to load operating workspace." }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Unable to load operating workspace.";
+    const status = message.toLowerCase().includes("authentication required") ? 401 : 500;
+    return jsonNoStore({ success: false, error: message }, { status });
   }
 }

@@ -109,7 +109,7 @@ export default function AuthPage() {
   return (
     <main className="min-h-screen bg-paper-white px-6 py-8 md:px-8">
       <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-        <section className="rounded-[2rem] border border-white/70 bg-[linear-gradient(155deg,_#082b22_0%,_#0d4335_56%,_#c5a059_170%)] p-8 text-white shadow-[0_24px_54px_rgba(0,54,41,0.18)]">
+        <section className="order-2 rounded-[2rem] border border-white/70 bg-[linear-gradient(155deg,_#082b22_0%,_#0d4335_56%,_#c5a059_170%)] p-8 text-white shadow-[0_24px_54px_rgba(0,54,41,0.18)] lg:order-1">
           <p className="text-[10px] font-black uppercase tracking-[0.32em] text-white/55">TSIDEK OS access</p>
           <h1 className="mt-4 text-4xl heading-serif text-white">Secure legal cooperation starts with verified identity.</h1>
           <p className="mt-4 max-w-2xl text-sm leading-7 text-white/74">Sign in with your firm email to open the matter workspace, activate role-aware permissions, and keep every client action attributable.</p>
@@ -118,7 +118,7 @@ export default function AuthPage() {
             <div className="rounded-[1.4rem] border border-white/10 bg-white/8 p-5"><Mail className="h-5 w-5 text-gold-accent" /><p className="mt-3 text-sm font-semibold">Persistent secure session</p><p className="mt-2 text-sm leading-6 text-white/70">TSIDEK restores the Supabase session and firm context before opening the workspace.</p></div>
           </div>
         </section>
-        <section className="glass rounded-[2rem] p-8">
+        <section className="glass order-1 rounded-[2rem] p-8 lg:order-2">
           <p className="text-[10px] font-black uppercase tracking-[0.28em] text-slate-400">Authentication</p>
           <h2 className="mt-3 text-2xl heading-serif text-heritage-green">Sign in with your work email</h2>
           <p className="mt-3 text-sm leading-7 text-slate-600">We’ll send a secure sign-in link. Once confirmed, TSIDEK resolves your membership, active firm and role before entering the workspace.</p>

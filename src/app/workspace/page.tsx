@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
@@ -20,7 +19,6 @@ import {
   FileText,
   Gauge,
   Landmark,
-  LayoutGrid,
   LibraryBig,
   Menu,
   MessageSquareText,
@@ -47,14 +45,6 @@ type WorkspacePayload = {
   capabilities?: Record<string, boolean>;
   metrics?: Record<string, number>;
   queues?: Record<string, QueueItem[]>;
-};
-type SessionPayload = {
-  authenticated: boolean;
-  needsOnboarding?: boolean;
-  firmId?: string | null;
-  activeFirmId?: string | null;
-  actorRole?: string | null;
-  memberships?: unknown[];
 };
 type GateState = "resolving-session" | "resolving-context" | "ready" | "unauthenticated" | "unauthorized" | "error";
 type QueueRow = { id: string; title: string; subtitle?: string; badge?: string; href?: string };
@@ -138,7 +128,6 @@ function normalizeRole(role: string) {
 }
 
 export default function WorkspacePage() {
-  const router = useRouter();
   const [data, setData] = useState<WorkspacePayload | null>(null);
   const [gate, setGate] = useState<GateState>("resolving-session");
   const [gateError, setGateError] = useState<string | null>(null);
@@ -148,36 +137,20 @@ export default function WorkspacePage() {
     setGate("resolving-session");
     setGateError(null);
     try {
-      const sessionResponse = await fetch("/api/session", { cache: "no-store", credentials: "include" });
-      if (sessionResponse.status === 401) {
-        setGate("unauthenticated");
-        router.replace(`/auth?redirectTo=${encodeURIComponent("/workspace")}`);
-        return;
-      }
-      if (!sessionResponse.ok) throw new Error("Unable to restore your secure session.");
-      const session = (await sessionResponse.json()) as SessionPayload;
-      if (!session.authenticated) {
-        setGate("unauthenticated");
-        router.replace(`/auth?redirectTo=${encodeURIComponent("/workspace")}`);
-        return;
-      }
-      if (session.needsOnboarding) {
-        router.replace("/onboarding");
-        return;
-      }
-
       setGate("resolving-context");
-      const contextReady = Boolean(session.activeFirmId && session.firmId && session.actorRole && (session.memberships?.length ?? 0) > 0);
-      if (!contextReady) {
-        setGate("unauthorized");
-        setGateError("Your sign-in is valid, but no active firm membership and role context could be resolved.");
+      let response = await fetch("/api/workspace", { cache: "no-store", credentials: "include" });
+      if (response.status === 401) {
+        await new Promise((resolve) => window.setTimeout(resolve, 500));
+        response = await fetch("/api/workspace", { cache: "no-store", credentials: "include" });
+      }
+      if (response.status === 401) {
+        setGate("unauthenticated");
+        window.location.replace(`/auth?redirectTo=${encodeURIComponent("/workspace")}`);
         return;
       }
-
-      const response = await fetch("/api/workspace", { cache: "no-store", credentials: "include" });
-      if (response.status === 401) {
+      if (response.status === 409) {
         setGate("unauthorized");
-        setGateError("Your session is valid, but this firm workspace is not authorized for the resolved role.");
+        window.location.replace("/onboarding");
         return;
       }
       const payload = (await response.json()) as WorkspacePayload;
@@ -188,7 +161,7 @@ export default function WorkspacePage() {
       setGate("error");
       setGateError(error instanceof Error ? error.message : "Unable to load workspace.");
     }
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     void load();
