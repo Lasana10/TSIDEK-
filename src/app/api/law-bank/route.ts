@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
-import { assertFirmPermission } from "@/lib/authorization";
+import { assertFirmModule, assertFirmPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 export async function GET(request:Request){
  try{
-  const scope=await resolveRequestScope(request);await assertFirmPermission({scope,permission:"openMatters"});if(!scope.firmId)throw new Error("Authenticated firm context is required.");
+  const scope=await resolveRequestScope(request);await assertFirmModule({scope,module:"law_bank"});await assertFirmPermission({scope,permission:"openMatters"});if(!scope.firmId)throw new Error("Authenticated firm context is required.");
   const supabase=createServerSupabaseClient();if(!supabase)throw new Error("Supabase server configuration is required.");
   const url=new URL(request.url);const q=(url.searchParams.get("q")||"").trim();const jurisdiction=(url.searchParams.get("jurisdiction")||"").trim();const type=(url.searchParams.get("type")||"").trim();
   let docs=supabase.from("legal_source_documents").select("id,firm_id,source_scope,publisher,jurisdiction,document_type,title,canonical_uri,source_url,language,version_label,valid_from,valid_until,ingestion_status,provenance,created_at").or(`firm_id.eq.${scope.firmId},source_scope.eq.public`).order("created_at",{ascending:false}).limit(80);

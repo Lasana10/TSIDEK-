@@ -10,13 +10,33 @@ export async function GET(request: Request) {
     const supabase = createServerSupabaseClient();
     if (!supabase) throw new Error("Supabase server configuration is required.");
 
-    const [{ data: brand, error: brandError }, { data: forms, error: formsError }] = await Promise.all([
+    const [{ data: brand, error: brandError }, { data: forms, error: formsError }, { data: subscription, error: subscriptionError }] = await Promise.all([
       supabase.from("firm_brand_profiles").select("*").eq("firm_id", scope.firmId).maybeSingle(),
       supabase.from("firm_form_definitions").select("id,form_key,name,description,module,version,status,schema,ui_schema,workflow,access_roles,updated_at").eq("firm_id", scope.firmId).order("module").order("name"),
+      supabase.from("firm_subscriptions").select("plan_key,status,deployment_mode,starts_at,renews_at,configuration,product_plans(name,description)").eq("firm_id", scope.firmId).maybeSingle(),
     ]);
     if (brandError) throw new Error(brandError.message);
     if (formsError) throw new Error(formsError.message);
-    return NextResponse.json({ success: true, brand, forms: forms ?? [] });
+    if (subscriptionError) throw new Error(subscriptionError.message);
+
+    let modules: Array<Record<string, unknown>> = [];
+    if (subscription?.plan_key) {
+      const moduleResult = await supabase.from("plan_modules")
+        .select("module_key,product_modules(name,category,description,core_security,sort_order)")
+        .eq("plan_key", subscription.plan_key);
+      if (moduleResult.error) throw new Error(moduleResult.error.message);
+      modules = (moduleResult.data ?? []).sort((a, b) => {
+        const left = a.product_modules as { sort_order?: number } | null;
+        const right = b.product_modules as { sort_order?: number } | null;
+        return (left?.sort_order ?? 999) - (right?.sort_order ?? 999);
+      });
+    }
+
+    const brandResponse = brand ? {
+      ...brand,
+      logo_display_url: brand.logo_asset_path ? `/api/firm/studio/logo?v=${encodeURIComponent(brand.updated_at || "1")}` : brand.logo_url,
+    } : null;
+    return NextResponse.json({ success: true, brand: brandResponse, forms: forms ?? [], subscription, modules });
   } catch (error) {
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Unable to load studio." }, { status: 403 });
   }

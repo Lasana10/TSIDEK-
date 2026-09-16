@@ -16,6 +16,12 @@ export type PermissionKey =
   | "manageClientAccess"
   | "approveAIWork";
 
+export type ProductModuleKey =
+  | "identity_security" | "matters" | "documents" | "tasks_audit" | "firm_studio"
+  | "intake" | "finance" | "workflows" | "interactions" | "law_bank" | "people"
+  | "client_portal" | "digitisation" | "institutional_ai" | "integrations"
+  | "advanced_reporting" | "multi_office" | "private_runtime";
+
 const rolePermissions: Record<string, PermissionKey[]> = {
   owner: ["openMatters","assignWork","approveFilings","viewBilling","manageEvidence","editDeadlines","inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess","approveAIWork"],
   partner: ["openMatters","assignWork","approveFilings","viewBilling","manageEvidence","editDeadlines","inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess","approveAIWork"],
@@ -130,5 +136,34 @@ export async function assertFirmPermission(input: { scope: RequestScope; permiss
 
   const effectivePermissions = permissionsFor({ lawyer: lawyerResult.data, firmMembership: membershipResult.data });
   if (!effectivePermissions.has(permission)) throw new Error(`Permission denied: ${permission} is required for this action.`);
+  return scope;
+}
+
+export async function assertFirmModule(input: { scope: RequestScope; module: ProductModuleKey }) {
+  const { scope, module } = input;
+  if (scope.source === "prototype-demo" && isDemoModeEnabled()) return scope;
+  if (!scope.actorLawyerId || !scope.firmId) throw new Error(onboardingMessage);
+  const supabase = createServerSupabaseClient();
+  if (!supabase) throw new Error("Supabase server client is unavailable.");
+
+  const [subscriptionResult, overrideResult, moduleResult] = await Promise.all([
+    supabase.from("firm_subscriptions").select("plan_key,status").eq("firm_id", scope.firmId).maybeSingle(),
+    supabase.from("firm_module_overrides").select("enabled,expires_at").eq("firm_id", scope.firmId).eq("module_key", module).maybeSingle(),
+    supabase.from("product_modules").select("name,core_security").eq("module_key", module).maybeSingle(),
+  ]);
+  for (const result of [subscriptionResult, overrideResult, moduleResult]) if (result.error) throw new Error(result.error.message);
+  const override = overrideResult.data;
+  const overrideActive = override && (!override.expires_at || new Date(override.expires_at).getTime() > Date.now());
+  if (overrideActive) {
+    if (override.enabled) return scope;
+    throw new Error(`${moduleResult.data?.name || module} is not enabled for this firm.`);
+  }
+  if (moduleResult.data?.core_security) return scope;
+  const subscription = subscriptionResult.data;
+  if (!subscription || !["trial", "active"].includes(subscription.status)) throw new Error("The firm's TSIDK subscription is not active.");
+  const included = await supabase.from("plan_modules").select("module_key")
+    .eq("plan_key", subscription.plan_key).eq("module_key", module).maybeSingle();
+  if (included.error) throw new Error(included.error.message);
+  if (!included.data) throw new Error(`${moduleResult.data?.name || module} is not included in this firm's TSIDK edition.`);
   return scope;
 }

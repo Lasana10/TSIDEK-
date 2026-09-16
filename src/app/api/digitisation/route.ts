@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
-import { assertFirmPermission, assertMatterPermission } from "@/lib/authorization";
+import { assertFirmModule, assertFirmPermission, assertMatterPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { persistUploadedFile } from "@/lib/file-vault";
 
@@ -29,6 +29,7 @@ async function refreshBatch(supabase: NonNullable<ReturnType<typeof createServer
 export async function GET(request: Request) {
   try {
     const scope = await resolveRequestScope(request);
+    await assertFirmModule({ scope, module: "digitisation" });
     if (!scope.firmId) throw new Error("Authenticated firm context is required.");
     await assertFirmPermission({ scope, permission: "manageEvidence" });
     const supabase = createServerSupabaseClient();
@@ -64,6 +65,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const scope = await resolveRequestScope(request);
+    await assertFirmModule({ scope, module: "digitisation" });
     if (!scope.firmId || !scope.actorLawyerId) throw new Error("Authenticated firm context is required.");
     await assertFirmPermission({ scope, permission: "manageEvidence" });
     const supabase = createServerSupabaseClient();
@@ -141,6 +143,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const scope = await resolveRequestScope(request);
+    await assertFirmModule({ scope, module: "digitisation" });
     if (!scope.firmId || !scope.actorLawyerId) throw new Error("Authenticated firm context is required.");
     await assertFirmPermission({ scope, permission: "manageEvidence" });
     const supabase = createServerSupabaseClient();

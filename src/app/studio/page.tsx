@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, BrainCircuit, Building2, FileText, GitBranch, Palette, Plus, Save, Scale, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, BrainCircuit, Building2, Check, FileText, GitBranch, PackageCheck, Palette, Plus, Save, Scale, ShieldCheck, Sparkles, Upload } from "lucide-react";
 
 type Brand = {
   display_name?: string;
@@ -10,6 +10,7 @@ type Brand = {
   short_name?: string;
   motto?: string;
   logo_url?: string;
+  logo_display_url?: string;
   primary_color?: string;
   secondary_color?: string;
   accent_color?: string;
@@ -23,6 +24,18 @@ type Brand = {
   document_header_html?: string;
   document_footer_html?: string;
   email_signature_html?: string;
+};
+
+type Subscription = {
+  plan_key: string;
+  status: string;
+  deployment_mode: string;
+  product_plans?: { name?: string; description?: string } | null;
+};
+
+type ProductModule = {
+  module_key: string;
+  product_modules?: { name?: string; category?: string; description?: string; core_security?: boolean } | null;
 };
 
 type FormDefinition = {
@@ -45,6 +58,8 @@ export default function FirmStudioPage() {
   const [message, setMessage] = useState("");
   const [newFormName, setNewFormName] = useState("");
   const [newFormModule, setNewFormModule] = useState("intake");
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [modules, setModules] = useState<ProductModule[]>([]);
 
   useEffect(() => {
     fetch("/api/firm/studio")
@@ -53,6 +68,8 @@ export default function FirmStudioPage() {
         if (!data.success) throw new Error(data.error || "Unable to load studio");
         setBrand(data.brand || {});
         setForms(data.forms || []);
+        setSubscription(data.subscription || null);
+        setModules(data.modules || []);
       })
       .catch((e) => setMessage(e instanceof Error ? e.message : "Unable to load studio"))
       .finally(() => setLoading(false));
@@ -100,6 +117,21 @@ export default function FirmStudioPage() {
     } finally { setSaving(false); }
   }
 
+  async function uploadLogo(file: File) {
+    setSaving(true); setMessage("");
+    try {
+      const form = new FormData();
+      form.append("logo", file);
+      const response = await fetch("/api/firm/studio/logo", { method: "POST", body: form });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error || "Unable to upload logo");
+      setBrand((current) => ({ ...current, logo_url: "", logo_display_url: data.logo_display_url }));
+      setMessage("Logo uploaded securely and applied to the firm identity.");
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Unable to upload logo");
+    } finally { setSaving(false); }
+  }
+
   if (loading) return <main className="min-h-screen bg-[#f7f8f6] p-6 text-slate-700">Loading firm studio…</main>;
 
   return (
@@ -122,6 +154,15 @@ export default function FirmStudioPage() {
           <Link href="/studio/operations" className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-300"><BrainCircuit className="h-5 w-5 text-emerald-900"/><h2 className="mt-4 text-lg font-semibold text-emerald-950">Privacy, interaction & AI</h2><p className="mt-2 text-sm leading-6 text-slate-500">Switch channels, recording, transcription and AI modes without exposing provider complexity to normal staff.</p></Link>
         </section>
 
+        <section className="rounded-[1.8rem] border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-3"><div className="rounded-2xl bg-emerald-50 p-3 text-emerald-900"><PackageCheck className="h-5 w-5" /></div><div><p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Commercial edition</p><h2 className="mt-1 text-xl font-semibold text-emerald-950">{subscription?.product_plans?.name || "TSIDK Start"}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">{subscription?.product_plans?.description || "Core legal operations for this firm."}</p></div></div>
+            <div className="flex gap-2"><span className="rounded-full bg-emerald-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-800">{subscription?.status || "active"}</span><span className="rounded-full bg-slate-100 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-600">{(subscription?.deployment_mode || "saas").replaceAll("_", " ")}</span></div>
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{modules.map((item) => <div key={item.module_key} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3"><div className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700"/><div><p className="text-sm font-bold text-slate-800">{item.product_modules?.name || item.module_key}</p><p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{item.product_modules?.core_security ? "Always protected" : item.product_modules?.category}</p></div></div></div>)}</div>
+          <p className="mt-4 text-xs leading-5 text-slate-500">Edition controls which product modules the firm owns. Staff roles still control actions, and matter authorization and ethical walls still control record access.</p>
+        </section>
+
         <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
           <section className="space-y-5">
             <div className="rounded-[1.8rem] border border-slate-200 bg-white p-5">
@@ -131,7 +172,7 @@ export default function FirmStudioPage() {
                 <input className={inputClass} value={brand.legal_name || ""} onChange={(e) => update("legal_name", e.target.value)} placeholder="Legal name" />
                 <input className={inputClass} value={brand.short_name || ""} onChange={(e) => update("short_name", e.target.value)} placeholder="Short name" />
                 <input className={inputClass} value={brand.motto || ""} onChange={(e) => update("motto", e.target.value)} placeholder="Motto" />
-                <input className={inputClass} value={brand.logo_url || ""} onChange={(e) => update("logo_url", e.target.value)} placeholder="Logo asset URL" />
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-emerald-700/30 bg-emerald-50/40 px-4 py-3 text-sm font-bold text-emerald-950"><Upload className="h-4 w-4" />Upload logo<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadLogo(file); event.currentTarget.value = ""; }} /></label>
                 <select className={inputClass} value={brand.default_language || "en"} onChange={(e) => update("default_language", e.target.value)}><option value="en">English</option><option value="fr">French</option><option value="bilingual">English + French</option></select>
               </div>
               <div className="mt-4 grid gap-4 md:grid-cols-3">
@@ -151,7 +192,7 @@ export default function FirmStudioPage() {
 
           <section className="space-y-5">
             <div className="rounded-[1.8rem] border-2 bg-white p-5 shadow-sm" style={previewStyle}>
-              <div className="flex items-center justify-between gap-4"><div>{brand.logo_url ? <img src={brand.logo_url} alt="Firm logo" className="h-14 max-w-48 object-contain" /> : <div className="flex h-14 w-14 items-center justify-center rounded-2xl text-xl font-black text-white" style={{ background: brand.primary_color || "#111827" }}>{(brand.short_name || brand.display_name || "F").slice(0,2).toUpperCase()}</div>}</div><ShieldCheck className="h-5 w-5" /></div>
+              <div className="flex items-center justify-between gap-4"><div>{(brand.logo_display_url || brand.logo_url) ? <img src={brand.logo_display_url || brand.logo_url} alt="Firm logo" className="h-14 max-w-48 object-contain" /> : <div className="flex h-14 w-14 items-center justify-center rounded-2xl text-xl font-black text-white" style={{ background: brand.primary_color || "#111827" }}>{(brand.short_name || brand.display_name || "F").slice(0,2).toUpperCase()}</div>}</div><ShieldCheck className="h-5 w-5" /></div>
               <p className="mt-6 text-[10px] font-black uppercase tracking-[0.24em] opacity-60">Live identity preview</p>
               <h2 className="mt-2 text-3xl font-semibold">{brand.display_name || "Your Firm"}</h2>
               <p className="mt-2 text-sm opacity-70">{brand.motto || "Your firm motto appears here."}</p>

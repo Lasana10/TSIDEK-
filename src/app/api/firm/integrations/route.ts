@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
-import { assertFirmPermission } from "@/lib/authorization";
+import { assertFirmModule, assertFirmPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 const providers = new Set(["nextcloud","onedrive","meta_whatsapp","firebase","resend","openrouter","pawapay","local_ai","transcription"]);
@@ -10,6 +10,7 @@ const modes = new Set(["platform_env","firm_secret_ref","oauth","local_private"]
 export async function GET(request: Request) {
   try {
     const scope = await resolveRequestScope(request);
+    await assertFirmModule({ scope, module: "integrations" });
     if (!scope.firmId) throw new Error("Authenticated firm context is required.");
     await assertFirmPermission({ scope, permission:"manageFirm" });
     const supabase = createServerSupabaseClient();
@@ -27,6 +28,7 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   try {
     const scope = await resolveRequestScope(request);
+    await assertFirmModule({ scope, module: "integrations" });
     if (!scope.firmId || !scope.actorLawyerId) throw new Error("Authenticated firm context is required.");
     await assertFirmPermission({ scope, permission:"manageFirm" });
     const body = await request.json();

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import FirmBrandRuntime from "@/components/FirmBrandRuntime";
 
 export const metadata: Metadata = {
   title: "TSIDEK OS",
@@ -13,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full"><FirmBrandRuntime />{children}</body>
     </html>
   );
 }

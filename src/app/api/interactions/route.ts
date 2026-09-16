@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
-import { assertMatterPermission } from "@/lib/authorization";
+import { assertFirmModule, assertMatterPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 const allowedTypes = new Set(["walk_in","office_meeting","phone_call","whatsapp","email","portal","referral","court_encounter","other"]);
@@ -10,6 +10,7 @@ const allowedCycleStages = new Set(["enquiry","intake","preliminary_discussion",
 export async function GET(request: Request) {
   try {
     const scope = await resolveRequestScope(request);
+    await assertFirmModule({ scope, module: "interactions" });
     if (!scope.firmId) throw new Error("Authenticated firm context is required.");
     const supabase = createServerSupabaseClient();
     if (!supabase) throw new Error("Supabase server configuration is required.");
@@ -30,6 +31,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const scope = await resolveRequestScope(request);
+    await assertFirmModule({ scope, module: "interactions" });
     if (!scope.firmId || !scope.actorLawyerId) throw new Error("Authenticated firm context is required.");
     const supabase = createServerSupabaseClient(); if (!supabase) throw new Error("Supabase server configuration is required.");
     const body = await request.json(); const action = String(body.action ?? "create_interaction");
