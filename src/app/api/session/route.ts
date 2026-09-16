@@ -1,12 +1,21 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser, isSupabaseAuthConfigured } from "@/lib/supabase-auth";
 
+const NO_STORE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+  Pragma: "no-cache",
+};
+
+function jsonNoStore(body: Record<string, unknown>, init?: { status?: number }) {
+  return NextResponse.json(body, { ...init, headers: NO_STORE_HEADERS });
+}
+
 export async function GET() {
   try {
     const identity = await getAuthenticatedUser();
 
     if (!identity?.user) {
-      return NextResponse.json({
+      return jsonNoStore({
         authenticated: false,
         authConfigured: isSupabaseAuthConfigured(),
         contextStatus: "unauthenticated",
@@ -21,7 +30,7 @@ export async function GET() {
     }
 
     if (!identity.lawyer) {
-      return NextResponse.json({
+      return jsonNoStore({
         authenticated: true,
         authConfigured: isSupabaseAuthConfigured(),
         contextStatus: "onboarding",
@@ -40,7 +49,7 @@ export async function GET() {
     const actorRole = membership?.role_key ?? membership?.title ?? identity.lawyer.role ?? null;
     const contextReady = Boolean(firmId && identity.activeFirmId && actorRole && identity.memberships.length > 0);
 
-    return NextResponse.json({
+    return jsonNoStore({
       authenticated: true,
       authConfigured: isSupabaseAuthConfigured(),
       contextStatus: contextReady ? "ready" : "unauthorized",
@@ -53,7 +62,7 @@ export async function GET() {
       userEmail: identity.user.email ?? null,
     });
   } catch (error) {
-    return NextResponse.json({
+    return jsonNoStore({
       authenticated: true,
       authConfigured: isSupabaseAuthConfigured(),
       contextStatus: "error",

@@ -19,7 +19,6 @@ type SessionPayload = {
 
 type ActivationPayload = {
   success?: boolean;
-  workspaceReady?: boolean;
   firmId?: string | null;
   activeFirmId?: string | null;
   actorRole?: string | null;
@@ -110,12 +109,11 @@ export default function OnboardingPage() {
       });
       const payload = (await response.json()) as ActivationPayload;
       if (!response.ok || !payload.success) throw new Error(payload.error || "Workspace activation failed.");
-      if (!payload.workspaceReady) {
-        throw new Error("Your firm record was saved, but workspace authority could not be confirmed. Please refresh once; no second activation is required.");
-      }
 
-      // A hard replacement avoids stale App Router state and removes onboarding
-      // from browser history after the server confirms authority.
+      // The mutation is authoritative: it throws unless the profile, membership,
+      // and active-firm context were persisted. Let /workspace perform the fresh
+      // session/context read instead of blocking here on a duplicate post-write
+      // snapshot, which can produce a false negative in the activation response.
       window.location.replace("/workspace");
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Workspace activation failed.");

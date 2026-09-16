@@ -7,6 +7,15 @@ import {
 } from "@/lib/supabase-auth";
 import { firmRoleOptions, type FirmRole } from "@/lib/firm-identity";
 
+const NO_STORE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+  Pragma: "no-cache",
+};
+
+function jsonNoStore(body: Record<string, unknown>, init?: { status?: number }) {
+  return NextResponse.json(body, { ...init, headers: NO_STORE_HEADERS });
+}
+
 function isFirmRole(value: string): value is FirmRole {
   return (firmRoleOptions as readonly string[]).includes(value);
 }
@@ -15,7 +24,7 @@ export async function POST(request: Request) {
   try {
     const identity = await getAuthenticatedUser();
     if (!identity?.user) {
-      return NextResponse.json({ success: false, error: "Authentication required." }, { status: 401 });
+      return jsonNoStore({ success: false, error: "Authentication required." }, { status: 401 });
     }
 
     const body = await request.json();
@@ -25,7 +34,7 @@ export async function POST(request: Request) {
     const roleValue = String(body.role ?? "").trim();
 
     if (!identity.lawyer && (!fullName || !firmName || !isFirmRole(roleValue))) {
-      return NextResponse.json(
+      return jsonNoStore(
         { success: false, error: "Full name, firm name, and a valid role are required." },
         { status: 400 },
       );
@@ -70,7 +79,7 @@ export async function POST(request: Request) {
       firmContext.memberships.length > 0,
     );
 
-    return NextResponse.json({
+    return jsonNoStore({
       success: true,
       workspaceReady,
       alreadyOnboarded: Boolean(identity.lawyer),
@@ -79,7 +88,7 @@ export async function POST(request: Request) {
       actorRole,
     });
   } catch (error) {
-    return NextResponse.json(
+    return jsonNoStore(
       { success: false, error: error instanceof Error ? error.message : "Unable to complete onboarding." },
       { status: 500 },
     );
