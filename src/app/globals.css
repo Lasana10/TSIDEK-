@@ -23,14 +23,8 @@
   --firm-text: #17201d;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-html {
-  scroll-behavior: smooth;
-}
-
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 body {
   margin: 0;
   background:
@@ -41,12 +35,25 @@ body {
   font-family: var(--font-sans), sans-serif;
   letter-spacing: -0.01em;
 }
+button,input,textarea,select { font: inherit; }
 
-button,
-input,
-textarea,
-select {
-  font: inherit;
+/* The supplied TSIDKENU artwork is a wide wordmark, not an app-icon tile.
+   Keep it visually native to the shell: preserve aspect ratio, remove duplicate
+   containers, and let the surrounding surface provide the background. */
+img[alt="Tsidkenu"] {
+  display: block;
+  max-width: 100%;
+  height: 100%;
+  object-fit: contain !important;
+  object-position: left center !important;
+}
+
+div:has(> img[alt="Tsidkenu"]) {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
 }
 
 .glass {
@@ -55,25 +62,21 @@ select {
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.04);
   backdrop-filter: blur(16px);
 }
-
 .card-heritage {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid #e1e3e2;
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
-
 .card-heritage:hover {
   border-color: rgba(0, 54, 41, 0.3);
   box-shadow: 0 18px 38px rgba(0, 54, 41, 0.06);
   transform: translateY(-2px);
 }
-
 .heading-serif {
   font-family: var(--font-serif), serif;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
-
 .btn-classic {
   background: #003629;
   color: #ffffff;
@@ -86,7 +89,6 @@ select {
   transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
   box-shadow: 0 14px 24px rgba(0, 54, 41, 0.14);
 }
-
 .btn-classic:hover {
   background: #0c4a39;
   transform: translateY(-1px);
