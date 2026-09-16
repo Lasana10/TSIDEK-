@@ -20,14 +20,20 @@ function trimHeader(value: string | null) {
 export async function resolveRequestScope(request?: Request): Promise<RequestScope> {
   const authIdentity = await getAuthenticatedUser();
 
-  if (authIdentity?.lawyer) {
+  if (authIdentity?.lawyer || authIdentity?.membership) {
     const membership = authIdentity.membership as { role_key?: string | null } | null;
+    const metadataName =
+      typeof authIdentity.user.user_metadata?.full_name === "string"
+        ? authIdentity.user.user_metadata.full_name
+        : typeof authIdentity.user.user_metadata?.name === "string"
+          ? authIdentity.user.user_metadata.name
+          : null;
     return {
       source: "auth-user",
-      firmId: authIdentity.activeFirmId ?? authIdentity.lawyer.firm_id ?? null,
-      actorLawyerId: authIdentity.lawyer.id ?? null,
-      actorName: authIdentity.lawyer.full_name ?? authIdentity.user.email ?? "TSIDEK User",
-      actorRole: membership?.role_key ?? authIdentity.lawyer.role ?? "lawyer",
+      firmId: authIdentity.activeFirmId ?? authIdentity.lawyer?.firm_id ?? null,
+      actorLawyerId: authIdentity.lawyer?.id ?? authIdentity.user.id,
+      actorName: authIdentity.lawyer?.full_name ?? metadataName ?? authIdentity.user.email ?? "TSIDEK User",
+      actorRole: membership?.role_key ?? authIdentity.lawyer?.role ?? "lawyer",
       userEmail: authIdentity.user.email ?? null,
       authenticated: true,
     };
