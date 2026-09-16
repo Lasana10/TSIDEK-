@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 import {
   completeUserOnboarding,
   getAuthenticatedUser,
-  getFirmContextByUserId,
-  getLawyerProfileByUserId,
 } from "@/lib/supabase-auth";
 import { firmRoleOptions, type FirmRole } from "@/lib/firm-identity";
 
@@ -56,10 +54,13 @@ export async function POST(request: Request) {
     // Do not re-run cookie/session authentication in the same activation request.
     // The user is already authenticated above; readiness is determined from the
     // persisted records that completeUserOnboarding just created or repaired.
-    const [lawyer, firmContext] = await Promise.all([
-      getLawyerProfileByUserId(identity.user.id),
-      getFirmContextByUserId(identity.user.id),
-    ]);
+    const refreshedIdentity = await getAuthenticatedUser();
+    const lawyer = refreshedIdentity?.lawyer ?? null;
+    const firmContext = {
+      membership: refreshedIdentity?.membership ?? null,
+      memberships: refreshedIdentity?.memberships ?? [],
+      activeFirmId: refreshedIdentity?.activeFirmId ?? null,
+    };
 
     const membership = firmContext.membership as {
       firm_id?: string | null;

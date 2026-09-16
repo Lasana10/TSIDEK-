@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseBrowserUrl, getSupabasePublishableKey, isSupabaseBrowserConfigReady } from "@/lib/supabase-config";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { defaultFirmCountry, firmRoleOptions, type FirmRole } from "@/lib/firm-identity";
@@ -29,8 +30,8 @@ export async function createServerAuthClient() {
   });
 }
 
-export async function getLawyerProfileByUserId(userId: string) {
-  const supabase = createServerSupabaseClient();
+export async function getLawyerProfileByUserId(userId: string, authenticatedClient?: SupabaseClient) {
+  const supabase = authenticatedClient ?? createServerSupabaseClient();
   if (!supabase) return null;
 
   const existing = await supabase
@@ -42,14 +43,14 @@ export async function getLawyerProfileByUserId(userId: string) {
   return existing.data ?? null;
 }
 
-export async function getFirmContextByUserId(userId: string) {
-  const supabase = createServerSupabaseClient();
+export async function getFirmContextByUserId(userId: string, authenticatedClient?: SupabaseClient) {
+  const supabase = authenticatedClient ?? createServerSupabaseClient();
   if (!supabase) return { membership: null, memberships: [] as Array<Record<string, unknown>>, activeFirmId: null };
 
   const [membershipsResult, contextResult] = await Promise.all([
     supabase
       .from("firm_memberships")
-      .select("id,firm_id,user_id,role_key,title,status,is_primary,created_at,firms(id,name,country)")
+      .select("id,firm_id,user_id,role_key,title,status,is_primary,created_at")
       .eq("user_id", userId)
       .eq("status", "active")
       .order("is_primary", { ascending: false })
@@ -103,8 +104,8 @@ export async function completeUserOnboarding(input: {
   country?: string | null;
   role: FirmRole;
 }) {
-  const supabase = createServerSupabaseClient();
-  if (!supabase) return null;
+  const supabase = await createServerAuthClient();
+  if (!supabase) throw new Error("Supabase authentication is unavailable.");
 
   const role = firmRoleOptions.includes(input.role) ? input.role : "Junior Associate";
   const fullName = input.fullName.trim();
@@ -113,48 +114,14 @@ export async function completeUserOnboarding(input: {
   if (!fullName) throw new Error("Full name is required.");
   if (!firmName) throw new Error("Firm name is required.");
 
-  const existingProfile = await getLawyerProfileByUserId(input.userId);
-  if (existingProfile) {
-    const existingContext = await getFirmContextByUserId(input.userId);
-    if (!existingContext.membership) {
-      const roleKey = role === "Partner" ? "partner" : role === "Paralegal" ? "paralegal" : role === "Intern" ? "intern" : role === "Project Manager" ? "administrator" : "lawyer";
-      const membershipInsert = await supabase.from("firm_memberships").insert({
-        firm_id: existingProfile.firm_id,
-        user_id: input.userId,
-        role_key: roleKey,
-        title: existingProfile.role ?? role,
-        status: "active",
-        is_primary: true,
-      });
-      if (membershipInsert.error) throw new Error(membershipInsert.error.message);
-      await setActiveFirmForUser(input.userId, existingProfile.firm_id);
-    }
-    return existingProfile;
-  }
-
-  const firmResult = await supabase.from("firms").insert({ name: firmName, country }).select("id").single();
-  if (firmResult.error || !firmResult.data) throw new Error(firmResult.error?.message ?? "Unable to create the firm profile.");
-
-  const created = await supabase.from("lawyers").insert({
-    id: input.userId,
-    firm_id: firmResult.data.id,
-    full_name: fullName,
-    role,
-  }).select("id,firm_id,full_name,role").single();
-  if (created.error || !created.data) throw new Error(created.error?.message ?? "Unable to create the lawyer profile.");
-
-  const membershipResult = await supabase.from("firm_memberships").insert({
-    firm_id: firmResult.data.id,
-    user_id: input.userId,
-    role_key: "owner",
-    title: role,
-    status: "active",
-    is_primary: true,
+  const result = await supabase.rpc("bootstrap_firm_workspace", {
+    p_full_name: fullName,
+    p_firm_name: firmName,
+    p_country: country,
+    p_role: role,
   });
-  if (membershipResult.error) throw new Error(membershipResult.error.message);
-  await setActiveFirmForUser(input.userId, firmResult.data.id);
-
-  return created.data;
+  if (result.error) throw new Error(result.error.message);
+  return getLawyerProfileByUserId(input.userId, supabase);
 }
 
 export async function getAuthenticatedUser() {
@@ -165,8 +132,10 @@ export async function getAuthenticatedUser() {
   if (error) throw new Error(error.message);
   if (!user) return null;
 
-  const lawyer = await getLawyerProfileByUserId(user.id);
-  const firmContext = await getFirmContextByUserId(user.id);
+  const [lawyer, firmContext] = await Promise.all([
+    getLawyerProfileByUserId(user.id, supabase),
+    getFirmContextByUserId(user.id, supabase),
+  ]);
 
   return {
     user,

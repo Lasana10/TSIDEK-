@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createServerAuthClient } from "@/lib/supabase-auth";
 
 const GOVERNOR_ROLES = new Set(["owner", "partner", "administrator"]);
 const FINANCE_ROLES = new Set(["owner", "partner", "administrator", "finance"]);
@@ -20,8 +20,8 @@ export async function GET(request: Request) {
       return jsonNoStore({ success: false, error: "Firm setup is required." }, { status: 409 });
     }
 
-    const supabase = createServerSupabaseClient();
-    if (!supabase) throw new Error("Supabase server configuration is required.");
+    const supabase = await createServerAuthClient();
+    if (!supabase) throw new Error("Supabase authentication is unavailable.");
 
     const membershipResult = await supabase
       .from("firm_memberships")
