@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { TSIDKENU_PRODUCT_LOGO } from "@/lib/tsidkenu-brand";
 
 type BrandPayload = {
   success?: boolean;
@@ -16,9 +17,23 @@ type BrandPayload = {
   };
 };
 
+function ensureFavicon(href: string, source: "product" | "firm") {
+  let icon = document.querySelector<HTMLLinkElement>('link[data-tsidkenu-favicon="true"]');
+  if (!icon) {
+    icon = document.createElement("link");
+    icon.rel = "icon";
+    icon.dataset.tsidkenuFavicon = "true";
+    document.head.appendChild(icon);
+  }
+  icon.dataset.source = source;
+  icon.href = href;
+}
+
 export default function FirmBrandRuntime() {
   useEffect(() => {
     let active = true;
+    ensureFavicon(TSIDKENU_PRODUCT_LOGO, "product");
+
     fetch("/api/firm/studio", { cache: "no-store" })
       .then((response) => response.ok ? response.json() as Promise<BrandPayload> : null)
       .then((data) => {
@@ -34,17 +49,11 @@ export default function FirmBrandRuntime() {
           "--firm-text": brand.text_color,
         };
         for (const [key, value] of Object.entries(values)) if (value) root.style.setProperty(key, value);
-        if (brand.display_name) document.title = `${brand.display_name} · TSIDK`;
-        if (brand.logo_display_url) {
-          let icon = document.querySelector<HTMLLinkElement>('link[data-firm-favicon="true"]');
-          if (!icon) {
-            icon = document.createElement("link");
-            icon.rel = "icon";
-            icon.dataset.firmFavicon = "true";
-            document.head.appendChild(icon);
-          }
-          icon.href = brand.logo_display_url;
-        }
+        document.title = brand.display_name ? `${brand.display_name} · TSIDKENU` : "TSIDKENU · Legal Operating System";
+
+        // Firm branding can override the favicon for white-labelled deployments.
+        // Otherwise the TSIDKENU product mark remains the default identity.
+        if (brand.logo_display_url) ensureFavicon(brand.logo_display_url, "firm");
       })
       .catch(() => undefined);
     return () => { active = false; };
