@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { loadTenantCredentials } from "@/lib/tenant-credentials.server";
 import { nextcloudPut } from "@/lib/integrations/nextcloud.server";
+import { oneDrivePut } from "@/lib/integrations/onedrive.server";
 
 export type FirmStorageProvider = "secure_vault" | "nextcloud" | "onedrive" | "local_private";
 
@@ -33,7 +34,24 @@ export async function persistFirmExternalMirror(input: {
     );
     return { provider: "nextcloud" as const, mirrored: true, path: result.path, status: result.status };
   }
-  if (profile.provider === "onedrive") throw new Error("Microsoft OneDrive is not connected for this firm yet.");
+  if (profile.provider === "onedrive") {
+    const tenant = await loadTenantCredentials(input.firmId, "onedrive");
+    const uploadBody = input.data.buffer.slice(input.data.byteOffset, input.data.byteOffset + input.data.byteLength) as ArrayBuffer;
+    const result = await oneDrivePut(
+      `/TSIDKENU/${input.relativePath.replace(/^\/+/, "")}`,
+      uploadBody,
+      input.contentType,
+      tenant ? {
+        tenantId: tenant.tenantId,
+        clientId: tenant.clientId,
+        clientSecret: tenant.clientSecret,
+        driveId: tenant.driveId,
+        userId: tenant.userId,
+        userPrincipalName: tenant.userPrincipalName,
+      } : undefined,
+    );
+    return { provider: "onedrive" as const, mirrored: true, path: result.path, status: result.status, webUrl: result.webUrl };
+  }
   if (profile.provider === "local_private") throw new Error("Local-private storage requires a connected TSIDKENU local storage agent or mounted private node.");
   throw new Error("Unsupported firm storage provider.");
 }

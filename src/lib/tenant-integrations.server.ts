@@ -5,8 +5,9 @@ import { verifyFirebaseCredentials } from "@/lib/integrations/firebase.server";
 import { verifyWhatsAppCredentials } from "@/lib/integrations/meta-whatsapp.server";
 import { verifyOpenRouter } from "@/lib/integrations/openrouter.server";
 import { verifyPawaPay } from "@/lib/integrations/pawapay.server";
+import { verifyOneDrive } from "@/lib/integrations/onedrive.server";
 
-export type TenantProvider = "nextcloud" | "firebase" | "meta_whatsapp" | "openrouter" | "pawapay";
+export type TenantProvider = "nextcloud" | "onedrive" | "firebase" | "meta_whatsapp" | "openrouter" | "pawapay";
 
 export async function getFirmIntegrationConnection(firmId: string, provider: string) {
   const supabase = createServerSupabaseClient();
@@ -29,6 +30,15 @@ export async function verifyFirmProvider(firmId: string, provider: TenantProvide
   switch (provider) {
     case "nextcloud":
       return verifyNextcloud(credentials ? { baseUrl: credentials.baseUrl, username: credentials.username, appPassword: credentials.appPassword } : undefined);
+    case "onedrive":
+      return verifyOneDrive(credentials ? {
+        tenantId: credentials.tenantId,
+        clientId: credentials.clientId,
+        clientSecret: credentials.clientSecret,
+        driveId: credentials.driveId,
+        userId: credentials.userId,
+        userPrincipalName: credentials.userPrincipalName,
+      } : undefined);
     case "firebase":
       return verifyFirebaseCredentials(credentials ? { projectId: credentials.projectId, clientEmail: credentials.clientEmail, privateKey: credentials.privateKey } : undefined);
     case "meta_whatsapp":
