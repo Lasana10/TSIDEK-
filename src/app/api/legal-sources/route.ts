@@ -59,7 +59,7 @@ async function registerBinarySource(input: {
     valid_from: input.validFrom || null,
     valid_until: input.validUntil || null,
     checksum: input.checksum,
-    ingestion_status: "pending_extraction",
+    ingestion_status: "needs_review",
     provenance: input.provenance,
     created_by: input.scope.actorLawyerId,
   }).select("id,title,ingestion_status").single();
