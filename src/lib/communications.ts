@@ -46,14 +46,15 @@ function parseSmtpPort(value: string | undefined) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 587;
 }
 
-async function sendEmailViaSmtp(input: { to: string; subject: string; text: string }) {
-  const host = process.env.SMTP_HOST;
-  const port = parseSmtpPort(process.env.SMTP_PORT);
-  const implicitTls = process.env.SMTP_SECURE === "true" || port === 465;
-  const useStartTls = !implicitTls && process.env.SMTP_STARTTLS !== "false";
-  const username = process.env.SMTP_USERNAME;
-  const password = process.env.SMTP_PASSWORD;
-  const from = process.env.SMTP_FROM;
+export async function sendEmailViaSmtp(input: { to: string; subject: string; text: string; firmId?: string }) {
+  const tenant = input.firmId ? await resolveFirmProviderCredentials(input.firmId, "smtp") : null;
+  const host = tenant?.host || process.env.SMTP_HOST;
+  const port = parseSmtpPort(tenant?.port || process.env.SMTP_PORT);
+  const implicitTls = (tenant?.secure || process.env.SMTP_SECURE) === "true" || port === 465;
+  const useStartTls = !implicitTls && (tenant?.starttls || process.env.SMTP_STARTTLS) !== "false";
+  const username = tenant?.username || process.env.SMTP_USERNAME;
+  const password = tenant?.password || process.env.SMTP_PASSWORD;
+  const from = tenant?.from || process.env.SMTP_FROM;
 
   if (!host || !username || !password || !from) return { delivered: false, status: "Queued" as const, note: "SMTP environment is not fully configured." };
 
@@ -109,7 +110,7 @@ export async function deliverMatterUpdate(input: {
   if (input.channel === "Email") {
     const recipient = findCaseFieldValue(room, ["client_email", "email", "client_contact_email"]);
     if (!recipient) return { channel: input.channel, delivered: false, status: "Queued", recipient: null, note: "No client email is stored in the matter case fields." };
-    const result = await sendEmailViaSmtp({ to: recipient, subject: input.title, text: input.message });
+    const result = await sendEmailViaSmtp({ to: recipient, subject: input.title, text: input.message, firmId: input.firmId });
     return { channel: input.channel, delivered: result.delivered, status: result.status, recipient, note: result.note };
   }
 
