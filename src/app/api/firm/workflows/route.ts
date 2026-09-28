@@ -65,7 +65,7 @@ export async function POST(request: Request) {
       firm_id: scope.firmId,
       workflow_key: workflowKey,
       name,
-      subject_type: body.subjectType === "prospect" || body.subjectType === "engagement" ? body.subjectType : "matter",
+      subject_type: ["prospect","matter","engagement","client","billing","expense","document","office"].includes(String(body.subjectType)) ? String(body.subjectType) : "matter",
       description: body.description ? String(body.description) : null,
       status: body.status === "active" ? "active" : "draft",
       version,
