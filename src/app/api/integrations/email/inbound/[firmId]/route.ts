@@ -30,7 +30,7 @@ export async function POST(request:Request,context:Context){
     if(!from) return NextResponse.json({success:false,error:"Inbound sender email is required."},{status:400});
     const supabase=createServerSupabaseClient(); if(!supabase) throw new Error("Supabase server configuration is required.");
 
-    let party=await supabase.from("parties").select("id,display_name,email,client_status").eq("firm_id",firmId).eq("email",from).maybeSingle();
+    const party=await supabase.from("parties").select("id,display_name,email,client_status").eq("firm_id",firmId).eq("email",from).maybeSingle();
     if(party.error) throw new Error(party.error.message);
     let partyId=party.data?.id||null;
     let prospectId:string|null=null;
