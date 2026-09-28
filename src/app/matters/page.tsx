@@ -92,24 +92,24 @@ export default function MattersPage() {
     void loadMatters();
   }, [loadMatters]);
 
-  const statusOptions = useMemo(() => Array.from(new Set(matters.map((matter) => case.status).filter(Boolean))).sort(), [matters]);
-  const riskOptions = useMemo(() => Array.from(new Set(matters.map((matter) => case.riskLevel).filter(Boolean))).sort(), [matters]);
+  const statusOptions = useMemo(() => Array.from(new Set(matters.map((matter) => matter.status).filter(Boolean))).sort(), [matters]);
+  const riskOptions = useMemo(() => Array.from(new Set(matters.map((matter) => matter.riskLevel).filter(Boolean))).sort(), [matters]);
 
   const visibleMatters = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return matters.filter((matter) => {
-      const matchesSearch = !needle || [case.title, case.clientName, case.matterType, case.jurisdiction, case.leadLawyer, case.physicalFileId]
+      const matchesSearch = !needle || [matter.title, matter.clientName, matter.matterType, matter.jurisdiction, matter.leadLawyer, matter.physicalFileId]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(needle));
-      const matchesRisk = risk === "all" || case.riskLevel === risk;
-      const matchesStatus = status === "all" || case.status === status;
+      const matchesRisk = risk === "all" || matter.riskLevel === risk;
+      const matchesStatus = status === "all" || matter.status === status;
       return matchesSearch && matchesRisk && matchesStatus;
     });
   }, [matters, query, risk, status]);
 
-  const highRiskCount = matters.filter((matter) => /high|critical/i.test(case.riskLevel)).length;
-  const restrictedCount = matters.filter((matter) => case.ethicalWallEnabled || /partner|confidential/i.test(case.securityClassification ?? "")).length;
-  const clientCount = new Set(matters.map((matter) => case.clientName).filter(Boolean)).size;
+  const highRiskCount = matters.filter((matter) => /high|critical/i.test(matter.riskLevel)).length;
+  const restrictedCount = matters.filter((matter) => matter.ethicalWallEnabled || /partner|confidential/i.test(matter.securityClassification ?? "")).length;
+  const clientCount = new Set(matters.map((matter) => matter.clientName).filter(Boolean)).size;
 
   async function createMatter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -123,12 +123,12 @@ export default function MattersPage() {
         body: JSON.stringify({ action: "createMatter", ...form }),
       });
       const payload = await response.json() as MatterResponse & { matterId?: string };
-      if (!response.ok || !payload.matterId) throw new Error(payload.error || "Unable to create case.");
+      if (!response.ok || !payload.matterId) throw new Error(payload.error || "Unable to create matter.");
       setForm(EMPTY_FORM);
       setCreateOpen(false);
       window.location.assign(`/matters/${payload.matterId}`);
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : "Unable to create case.");
+      setError(createError instanceof Error ? createError.message : "Unable to create matter.");
     } finally {
       setCreating(false);
     }
@@ -192,7 +192,7 @@ export default function MattersPage() {
             <div className="grid min-h-80 place-items-center rounded-[1.8rem] border border-dashed border-slate-300 bg-white p-8 text-center"><div className="max-w-md"><div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#edf4f0] text-[#0b493b]"><BriefcaseBusiness className="h-6 w-6" /></div><h2 className="mt-4 text-xl font-semibold">No cases in this view</h2><p className="mt-2 text-sm leading-6 text-slate-500">Adjust the filters or open the first governed case for this firm.</p><button onClick={() => setCreateOpen(true)} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#0b493b] px-4 py-2.5 text-sm font-bold text-white"><CirclePlus className="h-4 w-4" /> Open case</button></div></div>
           ) : (
             <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
-              {visibleMatters.map((matter) => <MatterCard key={case.id} matter={matter} />)}
+              {visibleMatters.map((matter) => <MatterCard key={matter.id} matter={matter} />)}
             </div>
           )}
         </section>
@@ -204,26 +204,26 @@ export default function MattersPage() {
 }
 
 function MatterCard({ matter }: { matter: Matter }) {
-  const highRisk = /high|critical/i.test(case.riskLevel);
+  const highRisk = /high|critical/i.test(matter.riskLevel);
   return (
-    <Link href={`/matters/${case.id}`} className="group rounded-[1.55rem] border border-slate-200 bg-white p-5 shadow-[0_12px_34px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-[#8fb5aa] hover:shadow-[0_20px_44px_rgba(15,23,42,0.07)]">
+    <Link href={`/matters/${matter.id}`} className="group rounded-[1.55rem] border border-slate-200 bg-white p-5 shadow-[0_12px_34px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-[#8fb5aa] hover:shadow-[0_20px_44px_rgba(15,23,42,0.07)]">
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0"><p className="truncate text-[10px] font-black uppercase tracking-[0.17em] text-[#0f5b49]">{case.matterType || "Matter"}</p><h2 className="mt-2 line-clamp-2 text-xl font-semibold tracking-tight text-slate-950">{case.title}</h2><p className="mt-1 truncate text-sm font-medium text-slate-500">{case.clientName}</p></div>
+        <div className="min-w-0"><p className="truncate text-[10px] font-black uppercase tracking-[0.17em] text-[#0f5b49]">{matter.matterType || "Case"}</p><h2 className="mt-2 line-clamp-2 text-xl font-semibold tracking-tight text-slate-950">{matter.title}</h2><p className="mt-1 truncate text-sm font-medium text-slate-500">{matter.clientName}</p></div>
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#edf4f0] text-[#0f5b49]"><ChevronRight className="h-5 w-5 transition group-hover:translate-x-0.5" /></div>
       </div>
       <div className="mt-5 flex flex-wrap gap-2">
-        <Badge label={case.status || "Active"} />
-        <Badge label={`${case.riskLevel || "Unrated"} risk`} danger={highRisk} />
-        {case.ethicalWallEnabled ? <Badge label="Ethical wall" controlled /> : null}
-        {case.securityClassification ? <Badge label={case.securityClassification} controlled /> : null}
+        <Badge label={matter.status || "Active"} />
+        <Badge label={`${matter.riskLevel || "Unrated"} risk`} danger={highRisk} />
+        {matter.ethicalWallEnabled ? <Badge label="Ethical wall" controlled /> : null}
+        {matter.securityClassification ? <Badge label={matter.securityClassification} controlled /> : null}
       </div>
       <div className="mt-5 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 text-xs">
-        <Detail label="Jurisdiction" value={case.jurisdiction || "Not set"} />
-        <Detail label="Lead" value={case.leadLawyer || "Unassigned"} />
-        <Detail label="Physical file" value={case.physicalFileId || "Digital-first"} />
-        <Detail label="Next legal work" value={case.nextDraft || case.primaryTrack || "Open case room"} />
+        <Detail label="Jurisdiction" value={matter.jurisdiction || "Not set"} />
+        <Detail label="Lead" value={matter.leadLawyer || "Unassigned"} />
+        <Detail label="Case reference" value={matter.physicalFileId || "Digital-first"} />
+        <Detail label="Next legal work" value={matter.nextDraft || matter.primaryTrack || "Open case room"} />
       </div>
-      {case.synopsis ? <p className="mt-4 line-clamp-2 text-xs leading-5 text-slate-500">{case.synopsis}</p> : null}
+      {matter.synopsis ? <p className="mt-4 line-clamp-2 text-xs leading-5 text-slate-500">{matter.synopsis}</p> : null}
       <div className="mt-5 flex items-center gap-2 text-xs font-bold text-[#0f5b49]">Enter governed case room <ArrowRight className="h-3.5 w-3.5" /></div>
     </Link>
   );
