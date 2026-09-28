@@ -56,7 +56,7 @@ type CreateMatterForm = {
 const EMPTY_FORM: CreateMatterForm = {
   title: "",
   clientName: "",
-  matterType: "General matter",
+  matterType: "General case",
   jurisdiction: "OHADA",
   riskLevel: "Medium",
   synopsis: "",
@@ -139,7 +139,7 @@ export default function MattersPage() {
       <div className="mx-auto max-w-[1680px] px-4 py-5 md:px-7 md:py-8 xl:px-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link href="/workspace" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-600 shadow-sm transition hover:border-[#9ebbb2] hover:text-[#0b493b]"><ArrowLeft className="h-4 w-4" /> Command workspace</Link>
-          <button onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-[#0b493b] px-4 py-2.5 text-sm font-bold text-white shadow-[0_10px_26px_rgba(11,73,59,0.18)]"><Plus className="h-4 w-4" /> Open matter</button>
+          <button onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-[#0b493b] px-4 py-2.5 text-sm font-bold text-white shadow-[0_10px_26px_rgba(11,73,59,0.18)]"><Plus className="h-4 w-4" /> Open case</button>
         </div>
 
         <section className="mt-5 overflow-hidden rounded-[2rem] border border-[#17483c]/20 bg-[#082b22] text-white shadow-[0_28px_80px_rgba(8,43,34,0.16)]">
@@ -147,8 +147,8 @@ export default function MattersPage() {
             <div className="relative p-6 md:p-8 xl:p-10">
               <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full border border-white/5 bg-white/[0.03]" />
               <div className="relative">
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-white/60"><BriefcaseBusiness className="h-3.5 w-3.5 text-[#dfc47f]" /> Matter operating system</div>
-                <h1 className="mt-5 max-w-4xl text-4xl font-semibold tracking-[-0.04em] md:text-5xl">Every legal obligation belongs to a matter.</h1>
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-white/60"><BriefcaseBusiness className="h-3.5 w-3.5 text-[#dfc47f]" /> Case operating system</div>
+                <h1 className="mt-5 max-w-4xl text-4xl font-semibold tracking-[-0.04em] md:text-5xl">Every legal obligation belongs to a case.</h1>
                 <p className="mt-4 max-w-3xl text-sm leading-7 text-white/65">Clients, deadlines, evidence, procedure, drafts, research, communications, finance, access and institutional memory converge here. No parallel case spreadsheet is required.</p>
                 <div className="mt-7 flex flex-wrap gap-2 text-xs font-semibold text-white/70">
                   <span className="rounded-xl border border-white/10 bg-black/10 px-3 py-2">Source-preserving</span>
@@ -171,25 +171,25 @@ export default function MattersPage() {
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px_auto]">
             <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-[#fbfcfb] px-4 py-3 focus-within:border-[#7da797]">
               <Search className="h-4 w-4 shrink-0 text-slate-400" />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search matter, client, lawyer, file ID or jurisdiction…" className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search case reference, client, lawyer, file ID or jurisdiction…" className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" />
             </label>
             <FilterSelect value={status} onChange={setStatus} label="Status" options={statusOptions} />
             <FilterSelect value={risk} onChange={setRisk} label="Risk" options={riskOptions} />
             <button onClick={() => { setQuery(""); setStatus("all"); setRisk("all"); }} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-xs font-bold text-slate-500 hover:bg-slate-50"><Filter className="h-4 w-4" /> Reset</button>
           </div>
           <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-400">
-            <span>{visibleMatters.length} of {matters.length} matters visible</span>
-            <span className="hidden sm:inline">Only matters authorized for the active firm membership are returned.</span>
+            <span>{visibleMatters.length} of {matters.length} cases visible</span>
+            <span className="hidden sm:inline">Only cases authorized for the active firm membership are returned.</span>
           </div>
         </section>
 
-        {error ? <div className="mt-5 flex items-start gap-3 rounded-2xl border border-red-200 bg-white p-4 text-sm text-red-700"><AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" /><div className="flex-1"><p className="font-bold">Matter operation could not complete</p><p className="mt-1 text-red-600">{error}</p></div><button onClick={() => void loadMatters()} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold">Retry</button></div> : null}
+        {error ? <div className="mt-5 flex items-start gap-3 rounded-2xl border border-red-200 bg-white p-4 text-sm text-red-700"><AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" /><div className="flex-1"><p className="font-bold">Case operation could not complete</p><p className="mt-1 text-red-600">{error}</p></div><button onClick={() => void loadMatters()} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold">Retry</button></div> : null}
 
         <section className="mt-6">
           {loading ? (
-            <div className="grid min-h-72 place-items-center rounded-[1.8rem] border border-slate-200 bg-white"><div className="text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-[#0b493b]" /><p className="mt-3 text-sm font-semibold text-slate-600">Loading governed matters…</p></div></div>
+            <div className="grid min-h-72 place-items-center rounded-[1.8rem] border border-slate-200 bg-white"><div className="text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-[#0b493b]" /><p className="mt-3 text-sm font-semibold text-slate-600">Loading governed cases…</p></div></div>
           ) : visibleMatters.length === 0 ? (
-            <div className="grid min-h-80 place-items-center rounded-[1.8rem] border border-dashed border-slate-300 bg-white p-8 text-center"><div className="max-w-md"><div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#edf4f0] text-[#0b493b]"><BriefcaseBusiness className="h-6 w-6" /></div><h2 className="mt-4 text-xl font-semibold">No matters in this view</h2><p className="mt-2 text-sm leading-6 text-slate-500">Adjust the filters or open the first governed matter for this firm.</p><button onClick={() => setCreateOpen(true)} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#0b493b] px-4 py-2.5 text-sm font-bold text-white"><CirclePlus className="h-4 w-4" /> Open matter</button></div></div>
+            <div className="grid min-h-80 place-items-center rounded-[1.8rem] border border-dashed border-slate-300 bg-white p-8 text-center"><div className="max-w-md"><div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#edf4f0] text-[#0b493b]"><BriefcaseBusiness className="h-6 w-6" /></div><h2 className="mt-4 text-xl font-semibold">No cases in this view</h2><p className="mt-2 text-sm leading-6 text-slate-500">Adjust the filters or open the first governed case for this firm.</p><button onClick={() => setCreateOpen(true)} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#0b493b] px-4 py-2.5 text-sm font-bold text-white"><CirclePlus className="h-4 w-4" /> Open case</button></div></div>
           ) : (
             <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
               {visibleMatters.map((matter) => <MatterCard key={matter.id} matter={matter} />)}
@@ -208,7 +208,7 @@ function MatterCard({ matter }: { matter: Matter }) {
   return (
     <Link href={`/matters/${matter.id}`} className="group rounded-[1.55rem] border border-slate-200 bg-white p-5 shadow-[0_12px_34px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-[#8fb5aa] hover:shadow-[0_20px_44px_rgba(15,23,42,0.07)]">
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0"><p className="truncate text-[10px] font-black uppercase tracking-[0.17em] text-[#0f5b49]">{matter.matterType || "Matter"}</p><h2 className="mt-2 line-clamp-2 text-xl font-semibold tracking-tight text-slate-950">{matter.title}</h2><p className="mt-1 truncate text-sm font-medium text-slate-500">{matter.clientName}</p></div>
+        <div className="min-w-0"><p className="truncate text-[10px] font-black uppercase tracking-[0.17em] text-[#0f5b49]">{matter.matterType || "Case"}</p><h2 className="mt-2 line-clamp-2 text-xl font-semibold tracking-tight text-slate-950">{matter.title}</h2><p className="mt-1 truncate text-sm font-medium text-slate-500">{matter.clientName}</p></div>
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#edf4f0] text-[#0f5b49]"><ChevronRight className="h-5 w-5 transition group-hover:translate-x-0.5" /></div>
       </div>
       <div className="mt-5 flex flex-wrap gap-2">
@@ -220,11 +220,11 @@ function MatterCard({ matter }: { matter: Matter }) {
       <div className="mt-5 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 text-xs">
         <Detail label="Jurisdiction" value={matter.jurisdiction || "Not set"} />
         <Detail label="Lead" value={matter.leadLawyer || "Unassigned"} />
-        <Detail label="Physical file" value={matter.physicalFileId || "Digital-first"} />
-        <Detail label="Next legal work" value={matter.nextDraft || matter.primaryTrack || "Open matter room"} />
+        <Detail label="Case reference" value={matter.physicalFileId || "Digital-first"} />
+        <Detail label="Next legal work" value={matter.nextDraft || matter.primaryTrack || "Open case room"} />
       </div>
       {matter.synopsis ? <p className="mt-4 line-clamp-2 text-xs leading-5 text-slate-500">{matter.synopsis}</p> : null}
-      <div className="mt-5 flex items-center gap-2 text-xs font-bold text-[#0f5b49]">Enter governed matter room <ArrowRight className="h-3.5 w-3.5" /></div>
+      <div className="mt-5 flex items-center gap-2 text-xs font-bold text-[#0f5b49]">Enter governed case room <ArrowRight className="h-3.5 w-3.5" /></div>
     </Link>
   );
 }
@@ -252,16 +252,16 @@ function CreateMatterDialog({ form, setForm, close, submit, creating }: { form: 
       <form onSubmit={submit} onMouseDown={(event) => event.stopPropagation()} className="my-6 w-full max-w-2xl rounded-[1.8rem] border border-white/60 bg-white p-5 shadow-2xl md:p-7">
         <div className="flex items-start justify-between gap-4"><div><div className="inline-flex items-center gap-2 rounded-full bg-[#edf4f0] px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-[#0b493b]"><Sparkles className="h-3.5 w-3.5" /> Governed matter opening</div><h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">Open a real matter record</h2><p className="mt-1 text-sm leading-6 text-slate-500">The matter becomes the anchor for documents, deadlines, legal research, client service, finance and audit history.</p></div><button type="button" onClick={close} className="rounded-xl border border-slate-200 p-2 text-slate-500"><X className="h-5 w-5" /></button></div>
         <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <Field label="Matter title" required value={form.title} onChange={(value) => setForm({ ...form, title: value })} placeholder="e.g. K-Metal SARL Debt Recovery" />
+          <Field label="Case title" required value={form.title} onChange={(value) => setForm({ ...form, title: value })} placeholder="e.g. K-Metal SARL Debt Recovery" />
           <Field label="Client" required value={form.clientName} onChange={(value) => setForm({ ...form, clientName: value })} placeholder="Client or organization" />
-          <Field label="Matter type" value={form.matterType} onChange={(value) => setForm({ ...form, matterType: value })} placeholder="Litigation, advisory, recovery…" />
+          <Field label="Case type" value={form.matterType} onChange={(value) => setForm({ ...form, matterType: value })} placeholder="Litigation, advisory, recovery…" />
           <Field label="Jurisdiction" value={form.jurisdiction} onChange={(value) => setForm({ ...form, jurisdiction: value })} placeholder="OHADA / Cameroon / Court" />
           <label><span className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-500">Risk level</span><select value={form.riskLevel} onChange={(event) => setForm({ ...form, riskLevel: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 bg-[#fbfcfb] px-3.5 py-3 text-sm outline-none focus:border-[#7da797]"><option>Low</option><option>Medium</option><option>High</option><option>Critical</option></select></label>
           <div className="hidden md:block" />
           <label className="md:col-span-2"><span className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-500">Opening synopsis</span><textarea value={form.synopsis} onChange={(event) => setForm({ ...form, synopsis: event.target.value })} rows={4} placeholder="What happened, what the client needs, and the immediate professional objective…" className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-[#fbfcfb] px-3.5 py-3 text-sm leading-6 outline-none focus:border-[#7da797]" /></label>
         </div>
         <div className="mt-6 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3.5 text-xs leading-5 text-emerald-800"><div className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /><p><strong>Human-owned legal work.</strong> AI assistance remains review-gated; opening a matter does not automatically issue legal advice, file a document or communicate externally.</p></div></div>
-        <div className="mt-6 flex flex-wrap justify-end gap-3"><button type="button" onClick={close} disabled={creating} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600">Cancel</button><button type="submit" disabled={creating || !form.title.trim() || !form.clientName.trim()} className="inline-flex items-center gap-2 rounded-xl bg-[#082b22] px-5 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CirclePlus className="h-4 w-4" />}{creating ? "Opening…" : "Open matter"}</button></div>
+        <div className="mt-6 flex flex-wrap justify-end gap-3"><button type="button" onClick={close} disabled={creating} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600">Cancel</button><button type="submit" disabled={creating || !form.title.trim() || !form.clientName.trim()} className="inline-flex items-center gap-2 rounded-xl bg-[#082b22] px-5 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CirclePlus className="h-4 w-4" />}{creating ? "Opening…" : "Open case"}</button></div>
       </form>
     </div>
   );

@@ -178,6 +178,7 @@ export function buildMatterWorkspaceForTests(input: MatterWorkspaceData) {
       lead_lawyer_id: null,
       security_classification: input.securityClassification,
       ethical_wall_enabled: input.ethicalWallEnabled,
+      case_reference: input.physicalFileId,
     },
     undefined,
     [],

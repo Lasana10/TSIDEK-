@@ -10,6 +10,14 @@ type Workflow={id:string;workflow_key:string;name:string;description?:string|nul
 type Payload={success:boolean;error?:string;workflows?:Workflow[]};
 const field="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-700/40 focus:ring-4 focus:ring-emerald-900/5";
 const roles=["owner","partner","lawyer","paralegal","intern","administrator","finance","clerk","knowledge_manager"];
+type Preset={key:string;name:string;description:string;subjectType:string;stages:Array<{key:string;name:string;type:string}>};
+const recommendedPresets:Preset[]=[
+ {key:"recommended_client_intake",name:"Client Intake & Due Diligence",description:"Enquiry → conflict → KYC → consultation → approval → engagement.",subjectType:"prospect",stages:[{key:"enquiry",name:"Enquiry",type:"work"},{key:"conflict",name:"Conflict check",type:"gate"},{key:"kyc",name:"KYC & due diligence",type:"gate"},{key:"consultation",name:"Consultation",type:"work"},{key:"approval",name:"Acceptance approval",type:"review"},{key:"engagement",name:"Engagement",type:"gate"},{key:"converted",name:"Client / case opened",type:"closure"}]},
+ {key:"recommended_litigation",name:"Litigation Case",description:"Instructions → investigation → pre-action → filing → hearing → judgment → enforcement → closure.",subjectType:"matter",stages:[{key:"instructions",name:"Instructions",type:"work"},{key:"investigation",name:"Investigation",type:"work"},{key:"pre_action",name:"Pre-action",type:"review"},{key:"filing",name:"Filing",type:"gate"},{key:"hearing",name:"Hearing",type:"work"},{key:"judgment",name:"Judgment",type:"review"},{key:"enforcement",name:"Enforcement",type:"work"},{key:"closure",name:"Closure",type:"closure"}]},
+ {key:"recommended_billing",name:"Billing & Collection",description:"Work captured → draft bill → review → invoice → payment → receipt → reconciliation.",subjectType:"billing",stages:[{key:"work_captured",name:"Work captured",type:"work"},{key:"draft_bill",name:"Draft bill",type:"finance"},{key:"review",name:"Review",type:"review"},{key:"invoice",name:"Invoice sent",type:"finance"},{key:"payment",name:"Payment",type:"finance"},{key:"receipt",name:"Receipt",type:"finance"},{key:"reconciled",name:"Reconciled",type:"closure"}]},
+ {key:"recommended_expense",name:"Office Expense & Receipt",description:"Record → receipt check → approval → accounting → complete.",subjectType:"expense",stages:[{key:"recorded",name:"Recorded",type:"work"},{key:"receipt_check",name:"Receipt check",type:"gate"},{key:"approval",name:"Approval",type:"review"},{key:"accounting",name:"Accounting",type:"finance"},{key:"complete",name:"Complete",type:"closure"}]},
+ {key:"recommended_document",name:"Document Approval",description:"Draft → internal review → approval → client review → final → filed/signed → archive.",subjectType:"document",stages:[{key:"draft",name:"Draft",type:"work"},{key:"internal_review",name:"Internal review",type:"review"},{key:"approval",name:"Approval",type:"review"},{key:"client_review",name:"Client review",type:"review"},{key:"final",name:"Final",type:"work"},{key:"filed_signed",name:"Filed / signed",type:"gate"},{key:"archived",name:"Archived",type:"closure"}]}
+];
 
 export default function WorkflowStudio(){
  const [data,setData]=useState<Payload|null>(null);const [selectedId,setSelectedId]=useState("");const [busy,setBusy]=useState(false);const [message,setMessage]=useState("");
@@ -18,9 +26,35 @@ export default function WorkflowStudio(){
  const workflow=useMemo(()=>data?.workflows?.find(w=>w.id===selectedId)||data?.workflows?.[0]||null,[data,selectedId]);
  async function patch(body:Record<string,unknown>){if(!workflow)return;setBusy(true);setMessage("");try{const r=await fetch(`/api/firm/workflows/${workflow.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const d=await r.json();if(!r.ok||!d.success)throw new Error(d.error||"Workflow update failed");setMessage("Workflow structure saved.");await load();}catch(e){setMessage(e instanceof Error?e.message:"Workflow update failed");}finally{setBusy(false);}}
  async function remove(kind:"stage"|"transition",id:string){if(!workflow)return;setBusy(true);try{const r=await fetch(`/api/firm/workflows/${workflow.id}?kind=${kind}&id=${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok||!d.success)throw new Error(d.error||"Delete failed");await load();}catch(e){setMessage(e instanceof Error?e.message:"Delete failed");}finally{setBusy(false);}}
+ async function applyPreset(preset:Preset){
+  setBusy(true);setMessage("");
+  try{
+   const create=await fetch("/api/firm/workflows",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:preset.name,workflowKey:preset.key,subjectType:preset.subjectType,description:preset.description,status:"draft",configuration:{mode:"recommended",preset:preset.key}})});
+   const created=await create.json();
+   if(!create.ok||!created.success||!created.workflow?.id)throw new Error(created.error||"Unable to create recommended workflow.");
+   const id=created.workflow.id as string;
+   for(let i=0;i<preset.stages.length;i++){
+    const stage=preset.stages[i];
+    const response=await fetch(`/api/firm/workflows/${id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"stage",stageKey:stage.key,name:stage.name,stageType:stage.type,sortOrder:(i+1)*10,isTerminal:i===preset.stages.length-1})});
+    const result=await response.json();if(!response.ok||!result.success)throw new Error(result.error||"Unable to create workflow stage.");
+    if(i>0){
+     const previous=preset.stages[i-1];
+     const transition=await fetch(`/api/firm/workflows/${id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"transition",fromStageKey:previous.key,toStageKey:stage.key,name:`${previous.name} → ${stage.name}`,allowedRoles:roles,requiresApproval:stage.type==="review",approvalRoles:stage.type==="review"?["owner","partner"]:[],sortOrder:i*10})});
+     const transitionResult=await transition.json();if(!transition.ok||!transitionResult.success)throw new Error(transitionResult.error||"Unable to create workflow transition.");
+    }
+   }
+   const activate=await fetch(`/api/firm/workflows/${id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"workflow",status:"active",configuration:{mode:"recommended",preset:preset.key}})});
+   const activated=await activate.json();if(!activate.ok||!activated.success)throw new Error(activated.error||"Unable to activate recommended workflow.");
+   setSelectedId(id);setMessage("Recommended workflow created. You can now customize stages, roles and approvals.");await load();
+  }catch(e){setMessage(e instanceof Error?e.message:"Unable to apply recommended workflow.");}finally{setBusy(false);}
+ }
  if(!data)return <main className="min-h-screen bg-slate-50 p-6 text-slate-600">Loading workflow studio…</main>;
  return <main className="min-h-screen bg-[linear-gradient(180deg,#f8fafc,#eef3f1)] px-4 py-6 md:px-6"><div className="mx-auto max-w-[1500px] space-y-5">
   <header className="rounded-[2rem] bg-[#083126] p-6 text-white"><Link href="/studio" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-white/60"><ArrowLeft className="h-4 w-4"/>Firm Studio</Link><div className="mt-5 flex items-start gap-3"><div className="rounded-2xl bg-white/10 p-3"><GitBranch className="h-6 w-6"/></div><div><p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/50">Workflow Studio</p><h1 className="mt-1 text-3xl font-semibold">Design how the firm actually works</h1><p className="mt-2 max-w-4xl text-sm leading-6 text-white/70">Stages, role ownership, gates, approvals and permitted moves are editable here; the matter room runs from this structure rather than hard-coded UI labels.</p></div></div></header>
+  <section className="rounded-[1.6rem] border border-emerald-900/10 bg-white p-5 shadow-sm">
+   <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-800">Recommended setup</p><h2 className="mt-1 text-2xl font-semibold text-slate-950">Start simple; customize only what the firm needs.</h2><p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">Choose a tested operating pattern below. TSIDKENU creates the stages and transitions as a real workflow; the editors underneath remain the Advanced layer.</p></div><div className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">Recommended → Customize → Advanced</div></div>
+   <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">{recommendedPresets.map(preset=><button key={preset.key} disabled={busy} onClick={()=>void applyPreset(preset)} className="rounded-2xl border border-slate-200 bg-[#fbfcfb] p-4 text-left transition hover:border-emerald-400 disabled:opacity-50"><p className="text-sm font-bold text-slate-900">{preset.name}</p><p className="mt-2 text-xs leading-5 text-slate-500">{preset.description}</p><p className="mt-3 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-800">{preset.subjectType} workflow</p></button>)}</div>
+  </section>
   {message?<div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">{message}</div>:null}
   <div className="grid gap-5 xl:grid-cols-[260px_1fr]">
    <aside className="rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm"><p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Workflows</p><div className="mt-3 space-y-2">{(data.workflows||[]).map(w=><button key={w.id} onClick={()=>setSelectedId(w.id)} className={`w-full rounded-xl px-3 py-3 text-left ${workflow?.id===w.id?"bg-emerald-950 text-white":"bg-slate-50 text-slate-700"}`}><p className="text-sm font-bold">{w.name}</p><p className="mt-1 text-[10px] uppercase opacity-60">v{w.version} · {w.status}</p></button>)}</div></aside>
