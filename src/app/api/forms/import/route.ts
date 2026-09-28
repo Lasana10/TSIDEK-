@@ -72,7 +72,7 @@ If the source is French, preserve French labels and provide concise English equi
     if(!fields.length) throw new Error("No usable form fields could be extracted from this file.");
 
     const name=String(parsed.name||file.name.replace(/\.[^.]+$/,"")).trim().slice(0,160);
-    const module=["intake","kyc","conflict","engagement","matter","finance","closure","general"].includes(String(parsed.module))?String(parsed.module):"general";
+    const formModule=["intake","kyc","conflict","engagement","matter","finance","closure","general"].includes(String(parsed.module))?String(parsed.module):"general";
     const formKey=`${slug(name)}_${Date.now().toString(36)}`;
     const supabase=createServerSupabaseClient();
     if(!supabase) throw new Error("Supabase server configuration is required.");
@@ -81,7 +81,7 @@ If the source is French, preserve French labels and provide concise English equi
       form_key:formKey,
       name,
       description:String(parsed.description||"Imported from an existing firm form. Review before publishing.").trim(),
-      module,
+      module:formModule,
       version:1,
       status:"draft",
       schema:{fields},
