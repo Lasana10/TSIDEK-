@@ -1,9 +1,10 @@
+import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import { assertFirmPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { sendEmailViaSmtp } from "@/lib/communications";
-import { saveTenantCredentials } from "@/lib/tenant-credentials.server";
+import { loadTenantCredentials, saveTenantCredentials } from "@/lib/tenant-credentials.server";
 import { getFirmIntegrationConnection } from "@/lib/tenant-integrations.server";
 
 export async function GET(request: Request) {
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
       parties:parties.data ?? [],
       matters:matters.data ?? [],
       providers:{
-        email:smtp ? { status:smtp.status, displayName:smtp.display_name, lastVerifiedAt:smtp.last_verified_at, lastError:smtp.last_error, configured:true } : { status:"not_configured", configured:false },
+        email:smtp ? { status:smtp.status, displayName:smtp.display_name, lastVerifiedAt:smtp.last_verified_at, lastError:smtp.last_error, configured:true, configuration:smtp.configuration } : { status:"not_configured", configured:false },
         whatsapp:whatsapp ? { status:whatsapp.status, displayName:whatsapp.display_name, lastVerifiedAt:whatsapp.last_verified_at, lastError:whatsapp.last_error, configured:true } : { status:"not_configured", configured:false }
       }
     });
@@ -93,6 +94,27 @@ export async function POST(request: Request) {
       }, { onConflict:"firm_id,provider" }).select("id,status,display_name,configuration").single();
       if (connection.error) throw new Error(connection.error.message);
       return NextResponse.json({ success:true, connection:connection.data });
+    }
+
+    if (action === "create_inbound_bridge") {
+      await assertFirmPermission({ scope, permission:"manageFirm" });
+      const existing=await loadTenantCredentials(scope.firmId,"smtp");
+      if(!existing?.host||!existing?.username||!existing?.password||!existing?.from) {
+        return NextResponse.json({success:false,error:"Configure the firm SMTP mailbox before enabling the inbound bridge."},{status:400});
+      }
+      const inboundSecret=randomBytes(32).toString("base64url");
+      await saveTenantCredentials({
+        firmId:scope.firmId,provider:"smtp",actorLawyerId:scope.actorLawyerId,
+        credentials:{...existing,inboundSecret}
+      });
+      const endpoint=new URL(`/api/integrations/email/inbound/${scope.firmId}`,request.url).toString();
+      const current=await getFirmIntegrationConnection(scope.firmId,"smtp");
+      const configuration={...(current?.configuration||{}),inbound_mode:"webhook_bridge",inbound_endpoint:endpoint};
+      const updated=await supabase.from("firm_integration_connections").update({
+        configuration,updated_by:scope.actorLawyerId,updated_at:new Date().toISOString()
+      }).eq("firm_id",scope.firmId).eq("provider","smtp").select("id,status,display_name,configuration").single();
+      if(updated.error) throw new Error(updated.error.message);
+      return NextResponse.json({success:true,endpoint,secret:inboundSecret,connection:updated.data});
     }
 
     if (action === "send_email") {

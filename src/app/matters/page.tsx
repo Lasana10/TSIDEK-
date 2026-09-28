@@ -223,6 +223,7 @@ function MatterCard({ matter }: { matter: Matter }) {
         <Detail label="Case reference" value={matter.physicalFileId || "Digital-first"} />
         <Detail label="Next legal work" value={matter.nextDraft || matter.primaryTrack || "Open case room"} />
       </div>
+      {matter.physicalFileId ? <div className="mt-4 overflow-x-auto rounded-xl border border-slate-100 bg-white p-2"><img src={`/api/cases/${matter.id}/barcode`} alt={`Scannable case reference ${matter.physicalFileId}`} className="h-[72px] min-w-[260px] max-w-full object-contain object-left" /></div> : null}
       {matter.synopsis ? <p className="mt-4 line-clamp-2 text-xs leading-5 text-slate-500">{matter.synopsis}</p> : null}
       <div className="mt-5 flex items-center gap-2 text-xs font-bold text-[#0f5b49]">Enter governed case room <ArrowRight className="h-3.5 w-3.5" /></div>
     </Link>
