@@ -39,8 +39,15 @@ export async function POST(request:Request){
       const ex=await supabase.from("firm_expenses").insert({
         firm_id:scope.firmId,matter_id:matterId,category:"case_disbursement",description:String(body.expenseDescription??created.data.title),
         amount_xaf:Math.round(expense),expense_date:new Date(created.data.occurred_at).toISOString().slice(0,10),recoverable:true,tax_relevant:false,status:"recorded",created_by:scope.actorLawyerId
-      });
+      }).select("id,description,reference").single();
       if(ex.error) throw new Error(ex.error.message);
+      const ledger=await supabase.from("finance_ledger_entries").insert({
+        firm_id:scope.firmId,matter_id:matterId,entry_type:"disbursement",source_table:"firm_expenses",source_id:ex.data.id,
+        amount_xaf:Math.round(expense),direction:"DEBIT",account_bucket:"DISBURSEMENT",status:"POSTED",
+        description:ex.data.description,provider_reference:ex.data.reference,created_by:scope.actorLawyerId,
+        metadata:{source:"compte_rendu",activityReportId:created.data.id}
+      });
+      if(ledger.error) throw new Error(ledger.error.message);
     }
     return NextResponse.json({success:true,report:created.data},{status:201});
   }catch(error){return NextResponse.json({success:false,error:error instanceof Error?error.message:"Unable to save activity report."},{status:400})}
