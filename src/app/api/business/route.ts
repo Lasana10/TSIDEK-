@@ -19,8 +19,8 @@ export async function GET(request:Request){
       caseExpenses:e.filter((x:any)=>x.matter_id&&x.status!=="void").reduce((s:number,x:any)=>s+Number(x.amount_xaf??0),0),
       billed:i.reduce((s:number,x:any)=>s+Number(x.amount_xaf??0),0),
       outstanding:i.reduce((s:number,x:any)=>s+Math.max(0,Number(x.amount_xaf??0)-Number(x.paid_xaf??0)),0),
-      cashIn:l.filter((x:any)=>x.direction==="in").reduce((s:number,x:any)=>s+Number(x.amount_xaf??0),0),
-      cashOut:l.filter((x:any)=>x.direction==="out").reduce((s:number,x:any)=>s+Number(x.amount_xaf??0),0)
+      cashIn:l.filter((x:any)=>x.direction==="CREDIT").reduce((s:number,x:any)=>s+Number(x.amount_xaf??0),0),
+      cashOut:l.filter((x:any)=>x.direction==="DEBIT").reduce((s:number,x:any)=>s+Number(x.amount_xaf??0),0)
     };
     return NextResponse.json({success:true,metrics,expenses:e,invoices:i,ledger:l,matters:matters.data??[]});
   }catch(error){return NextResponse.json({success:false,error:error instanceof Error?error.message:"Unable to load firm business."},{status:403})}
@@ -30,7 +30,7 @@ export async function POST(request:Request){
   try{
     const scope=await resolveRequestScope(request); if(!scope.authenticated||!scope.firmId||!scope.actorLawyerId) throw new Error("Authenticated firm context is required.");
     const supabase=createServerSupabaseClient(); if(!supabase) throw new Error("Supabase server configuration is required.");
-    const body=await request.json(); const amount=Number(body.amountXaf??0); if(!Number.isFinite(amount)||amount<0) throw new Error("Valid amount is required.");
+    const body=await request.json(); const amount=Number(body.amountXaf??0); if(!Number.isFinite(amount)||amount<=0) throw new Error("A positive amount is required.");
     const created=await supabase.from("firm_expenses").insert({
       firm_id:scope.firmId,matter_id:body.matterId||null,category:String(body.category??"office"),
       supplier_name:String(body.supplierName??"").trim()||null,description:String(body.description??"").trim()||"Firm expense",
@@ -41,8 +41,8 @@ export async function POST(request:Request){
     if(created.error) throw new Error(created.error.message);
     const ledger=await supabase.from("finance_ledger_entries").insert({
       firm_id:scope.firmId,matter_id:body.matterId||null,entry_type:body.matterId?"disbursement":"expense",source_table:"firm_expenses",
-      source_id:created.data.id,amount_xaf:Math.round(amount),direction:"out",account_bucket:body.matterId?"client_disbursement":"office_expense",
-      status:"posted",description:created.data.description,provider_reference:created.data.reference,created_by:scope.actorLawyerId,metadata:{category:created.data.category}
+      source_id:created.data.id,amount_xaf:Math.round(amount),direction:"DEBIT",account_bucket:body.matterId?"DISBURSEMENT":"OPERATING",
+      status:"POSTED",description:created.data.description,provider_reference:created.data.reference,created_by:scope.actorLawyerId,metadata:{category:created.data.category}
     });
     if(ledger.error) throw new Error(ledger.error.message);
     return NextResponse.json({success:true,expense:created.data},{status:201});
