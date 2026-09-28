@@ -7,12 +7,14 @@ export async function GET(request: Request) {
     const scope=await resolveRequestScope(request);
     if(!scope.authenticated||!scope.firmId) throw new Error("Authenticated firm context is required.");
     const supabase=createServerSupabaseClient(); if(!supabase) throw new Error("Supabase server configuration is required.");
-    const [work,matters]=await Promise.all([
-      supabase.from("firm_work_items").select("id,matter_id,party_id,work_scope,title,description,status,priority,assigned_to,due_at,completed_at,tags,created_at,updated_at").eq("firm_id",scope.firmId).order("updated_at",{ascending:false}).limit(400),
-      supabase.from("matters").select("id,title,client_name,status").eq("firm_id",scope.firmId).order("updated_at",{ascending:false}).limit(300)
+    const [work,matters,comments,lawyers]=await Promise.all([
+      supabase.from("firm_work_items").select("id,matter_id,party_id,work_scope,title,description,status,priority,assigned_to,due_at,completed_at,tags,metadata,created_at,updated_at").eq("firm_id",scope.firmId).order("updated_at",{ascending:false}).limit(400),
+      supabase.from("matters").select("id,title,client_name,status,case_reference").eq("firm_id",scope.firmId).order("updated_at",{ascending:false}).limit(300),
+      supabase.from("firm_work_comments").select("id,work_item_id,author_id,body,mentions,created_at").eq("firm_id",scope.firmId).order("created_at",{ascending:true}).limit(1200),
+      supabase.from("lawyers").select("id,full_name,role").eq("firm_id",scope.firmId).order("full_name").limit(300)
     ]);
-    if(work.error) throw new Error(work.error.message); if(matters.error) throw new Error(matters.error.message);
-    return NextResponse.json({success:true,items:work.data??[],matters:matters.data??[]});
+    for(const result of [work,matters,comments,lawyers]) if(result.error) throw new Error(result.error.message);
+    return NextResponse.json({success:true,items:work.data??[],matters:matters.data??[],comments:comments.data??[],lawyers:lawyers.data??[]});
   } catch(error){return NextResponse.json({success:false,error:error instanceof Error?error.message:"Unable to load workroom."},{status:403})}
 }
 
@@ -32,6 +34,31 @@ export async function POST(request:Request){
       }).select("*").single();
       if(created.error) throw new Error(created.error.message);
       return NextResponse.json({success:true,item:created.data},{status:201});
+    }
+    if(action==="comment"){
+      const workItemId=String(body.workItemId??"").trim();
+      const text=String(body.body??"").trim();
+      if(!workItemId||!text) return NextResponse.json({success:false,error:"Work item and comment are required."},{status:400});
+      const workItem=await supabase.from("firm_work_items").select("id").eq("id",workItemId).eq("firm_id",scope.firmId).maybeSingle();
+      if(workItem.error) throw new Error(workItem.error.message);
+      if(!workItem.data) return NextResponse.json({success:false,error:"Work item not found."},{status:404});
+      const mentions=Array.isArray(body.mentions)?body.mentions.map(String).slice(0,50):[];
+      const created=await supabase.from("firm_work_comments").insert({
+        firm_id:scope.firmId,work_item_id:workItemId,author_id:scope.actorLawyerId,body:text,mentions
+      }).select("*").single();
+      if(created.error) throw new Error(created.error.message);
+      return NextResponse.json({success:true,comment:created.data},{status:201});
+    }
+    if(action==="assign"){
+      const id=String(body.id??"").trim(); const assignedTo=body.assignedTo?String(body.assignedTo):null;
+      if(assignedTo){
+        const lawyer=await supabase.from("lawyers").select("id").eq("id",assignedTo).eq("firm_id",scope.firmId).maybeSingle();
+        if(lawyer.error) throw new Error(lawyer.error.message);
+        if(!lawyer.data) return NextResponse.json({success:false,error:"Assignee is not an active lawyer in this firm."},{status:400});
+      }
+      const updated=await supabase.from("firm_work_items").update({assigned_to:assignedTo,updated_at:new Date().toISOString()}).eq("id",id).eq("firm_id",scope.firmId).select("*").single();
+      if(updated.error) throw new Error(updated.error.message);
+      return NextResponse.json({success:true,item:updated.data});
     }
     if(action==="status"){
       const status=String(body.status??"open"); const allowed=new Set(["open","in_progress","waiting","review","completed","cancelled"]);
