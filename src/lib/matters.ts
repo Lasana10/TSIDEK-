@@ -65,7 +65,7 @@ type MatterRow = {
   lead_lawyer_id: string | null;
   security_classification: MatterWorkspaceData["securityClassification"] | null;
   ethical_wall_enabled: boolean | null;
-  case_reference: string;
+  case_reference: string | null;
 };
 
 type LawyerRow = {
@@ -258,7 +258,7 @@ export function buildMatterWorkspaceRecord(
     jurisdiction: matter.jurisdiction ?? "OHADA",
     leadLawyer: leadLawyer?.full_name ?? "Unassigned lead lawyer",
     projectManager: "To be assigned",
-    physicalFileId: matter.case_reference,
+    physicalFileId: matter.case_reference || `TSK-${matter.id.slice(0,8).toUpperCase()}`,
     physicalLabel: "Physical file to register",
     physicalLocation: "Cabinet registry pending",
     physicalCustody: "Custody chain not yet recorded",
