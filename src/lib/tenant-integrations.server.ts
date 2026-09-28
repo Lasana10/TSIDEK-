@@ -13,7 +13,7 @@ export async function getFirmIntegrationConnection(firmId: string, provider: str
   const supabase = createServerSupabaseClient();
   if (!supabase) throw new Error("Supabase server configuration is required.");
   const result = await supabase.from("firm_integration_connections")
-    .select("id,provider,status,credential_mode,credential_ref,configuration,last_verified_at,last_error")
+    .select("id,provider,display_name,status,credential_mode,credential_ref,configuration,last_verified_at,last_error")
     .eq("firm_id", firmId).eq("provider", provider).maybeSingle();
   if (result.error) throw new Error(result.error.message);
   return result.data;
