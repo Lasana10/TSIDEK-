@@ -48,7 +48,7 @@ export default function BusinessPage(){
  return <main className="min-h-screen bg-[#eef2ef] p-3 text-slate-900 sm:p-5 lg:p-7"><div className="mx-auto max-w-[1800px] space-y-5">
   <div className="flex flex-wrap items-center justify-between gap-3">
    <Link href="/workspace" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-600"><ArrowLeft className="h-4 w-4"/>Workspace</Link>
-   <div className="flex flex-wrap gap-2"><Link href="/business/receipts" className="inline-flex items-center gap-2 rounded-xl border border-[#0b493b] bg-white px-4 py-2.5 text-sm font-bold text-[#0b493b]"><FileCheck2 className="h-4 w-4"/>Receipt desk</Link><button onClick={()=>setOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-[#0b493b] px-4 py-2.5 text-sm font-bold text-white"><CirclePlus className="h-4 w-4"/>Record expense</button></div>
+   <div className="flex flex-wrap gap-2"><Link href="/business/operations" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700"><Landmark className="h-4 w-4"/>Obligations & suppliers</Link><Link href="/business/receipts" className="inline-flex items-center gap-2 rounded-xl border border-[#0b493b] bg-white px-4 py-2.5 text-sm font-bold text-[#0b493b]"><FileCheck2 className="h-4 w-4"/>Receipt desk</Link><button onClick={()=>setOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-[#0b493b] px-4 py-2.5 text-sm font-bold text-white"><CirclePlus className="h-4 w-4"/>Record expense</button></div>
   </div>
   <section className="overflow-hidden rounded-[2rem] bg-[#082b22] text-white">
    <div className="grid xl:grid-cols-[1fr_440px]">
