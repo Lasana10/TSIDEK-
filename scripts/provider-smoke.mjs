@@ -75,7 +75,7 @@ async function openrouter(signal) {
   const key = process.env.OPENROUTER_API_KEY || "";
   if (!key) return push("openrouter", "IMPLEMENTED_UNVERIFIED", { reason: "missing_runtime_credentials" });
   const model = process.env.OPENROUTER_SMOKE_MODEL || "openrouter/auto";
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://tsidek-os.onrender.com", "X-Title": "TSIDKENU provider verification" }, body: JSON.stringify({ model, messages: [{ role: "user", content: "Reply only with OK." }], max_tokens: 3, temperature: 0 }), signal });
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://tsidek-os.onrender.com", "X-Title": "TSIDKENU provider verification" }, body: JSON.stringify({ model, messages: [{ role: "user", content: "Reply only with OK." }], max_tokens: 32, temperature: 0 }), signal });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`chat/completions ${response.status}`);
   const content = data.choices?.[0]?.message?.content;
