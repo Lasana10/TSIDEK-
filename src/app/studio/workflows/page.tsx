@@ -8,6 +8,7 @@ type Stage={id:string;stage_key:string;name:string;description?:string|null;sort
 type Transition={id:string;from_stage_key:string;to_stage_key:string;name:string;allowed_roles:string[];requires_reason:boolean;requires_approval:boolean;approval_roles:string[];active:boolean};
 type Workflow={id:string;workflow_key:string;name:string;description?:string|null;status:string;version:number;stages:Stage[];transitions:Transition[]};
 type Payload={success:boolean;error?:string;workflows?:Workflow[]};
+type FirmProfile={practice_areas?:string[];litigation_mix?:string;practice_model?:string};
 const field="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-700/40 focus:ring-4 focus:ring-emerald-900/5";
 const roles=["owner","partner","lawyer","paralegal","intern","administrator","finance","clerk","knowledge_manager"];
 type Preset={key:string;name:string;description:string;subjectType:string;stages:Array<{key:string;name:string;type:string}>};
@@ -20,10 +21,24 @@ const recommendedPresets:Preset[]=[
 ];
 
 export default function WorkflowStudio(){
- const [data,setData]=useState<Payload|null>(null);const [selectedId,setSelectedId]=useState("");const [busy,setBusy]=useState(false);const [message,setMessage]=useState("");const [advancedOpen,setAdvancedOpen]=useState(false);
+ const [data,setData]=useState<Payload|null>(null);const [selectedId,setSelectedId]=useState("");const [busy,setBusy]=useState(false);const [message,setMessage]=useState("");const [advancedOpen,setAdvancedOpen]=useState(false);const [firmProfile,setFirmProfile]=useState<FirmProfile|null>(null);
  const load=useCallback(async()=>{const r=await fetch("/api/firm/workflows",{cache:"no-store"});const d=await r.json();setData(d);if(d.success&&!selectedId&&d.workflows?.length)setSelectedId(d.workflows[0].id);if(!d.success)setMessage(d.error||"Unable to load workflows");},[selectedId]);
  useEffect(()=>{void load();},[load]);
+ useEffect(()=>{fetch("/api/firm/ways-of-working",{cache:"no-store"}).then(r=>r.json()).then(p=>{if(p.success&&p.profile)setFirmProfile(p.profile)}).catch(()=>undefined);},[]);
  const workflow=useMemo(()=>data?.workflows?.find(w=>w.id===selectedId)||data?.workflows?.[0]||null,[data,selectedId]);
+ const orderedPresets=useMemo(()=>{
+  const areas=(firmProfile?.practice_areas||[]).map(v=>v.toLowerCase());
+  const litigationHeavy=firmProfile?.litigation_mix==="high"||firmProfile?.litigation_mix==="litigation_heavy"||areas.some(v=>v.includes("litigation")||v.includes("dispute"));
+  const corporateHeavy=areas.some(v=>v.includes("corporate")||v.includes("commercial")||v.includes("company")||v.includes("transaction"));
+  const score=(preset:Preset)=>{
+   if(preset.key==="recommended_client_intake")return 90;
+   if(preset.key==="recommended_litigation")return litigationHeavy?100:60;
+   if(preset.key==="recommended_document")return corporateHeavy?95:65;
+   if(preset.key==="recommended_billing")return 75;
+   return 55;
+  };
+  return [...recommendedPresets].sort((a,b)=>score(b)-score(a));
+ },[firmProfile]);
  async function patch(body:Record<string,unknown>){if(!workflow)return;setBusy(true);setMessage("");try{const r=await fetch(`/api/firm/workflows/${workflow.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const d=await r.json();if(!r.ok||!d.success)throw new Error(d.error||"Workflow update failed");setMessage("Workflow structure saved.");await load();}catch(e){setMessage(e instanceof Error?e.message:"Workflow update failed");}finally{setBusy(false);}}
  async function remove(kind:"stage"|"transition",id:string){if(!workflow)return;setBusy(true);try{const r=await fetch(`/api/firm/workflows/${workflow.id}?kind=${kind}&id=${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok||!d.success)throw new Error(d.error||"Delete failed");await load();}catch(e){setMessage(e instanceof Error?e.message:"Delete failed");}finally{setBusy(false);}}
  async function applyPreset(preset:Preset){
@@ -53,7 +68,7 @@ export default function WorkflowStudio(){
   <header className="rounded-[2rem] bg-[#083126] p-6 text-white"><Link href="/studio" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-white/60"><ArrowLeft className="h-4 w-4"/>Firm Control</Link><div className="mt-5 flex items-start gap-3"><div className="rounded-2xl bg-white/10 p-3"><GitBranch className="h-6 w-6"/></div><div><p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/50">Recommended workflows</p><h1 className="mt-1 text-3xl font-semibold">Choose how work should move through the firm</h1><p className="mt-2 max-w-4xl text-sm leading-6 text-white/70">Start from a recommended legal operating pattern. TSIDKENU builds the stages, approvals and transitions underneath; advanced editing is optional for firms that need deeper control.</p></div></div></header>
   <section className="rounded-[1.6rem] border border-emerald-900/10 bg-white p-5 shadow-sm">
    <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-800">Recommended setup</p><h2 className="mt-1 text-2xl font-semibold text-slate-950">You do not need to design a workflow from scratch.</h2><p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">Choose the closest operating pattern and TSIDKENU creates the working structure for the firm. The recommendation can later be adjusted without exposing technical workflow design to ordinary legal users.</p></div><div className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">Choose → Apply → Adjust if needed</div></div>
-   <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">{recommendedPresets.map(preset=><button key={preset.key} disabled={busy} onClick={()=>void applyPreset(preset)} className="rounded-2xl border border-slate-200 bg-[#fbfcfb] p-4 text-left transition hover:border-emerald-400 disabled:opacity-50"><p className="text-sm font-bold text-slate-900">{preset.name}</p><p className="mt-2 text-xs leading-5 text-slate-500">{preset.description}</p><p className="mt-3 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-800">{preset.subjectType} workflow</p></button>)}</div>
+   <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">{orderedPresets.map((preset,index)=><button key={preset.key} disabled={busy} onClick={()=>void applyPreset(preset)} className="rounded-2xl border border-slate-200 bg-[#fbfcfb] p-4 text-left transition hover:border-emerald-400 disabled:opacity-50">{index===0&&firmProfile?<span className="mb-3 inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-900">Best fit from firm profile</span>:null}<p className="text-sm font-bold text-slate-900">{preset.name}</p><p className="mt-2 text-xs leading-5 text-slate-500">{preset.description}</p><p className="mt-3 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-800">{preset.subjectType} workflow</p></button>)}</div>
   </section>
   {message?<div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">{message}</div>:null}
   <div className="grid gap-5 xl:grid-cols-[260px_1fr]">
