@@ -52,6 +52,10 @@ export default function OnboardingPage() {
   const [firmName, setFirmName] = useState("");
   const [country, setCountry] = useState(defaultFirmCountry);
   const [role, setRole] = useState<FirmRole>("Junior Associate");
+  const [practiceModel, setPracticeModel] = useState("general_practice");
+  const [teamSize, setTeamSize] = useState("5_14");
+  const [litigationMix, setLitigationMix] = useState("mixed");
+  const [approvalModel, setApprovalModel] = useState("partner_review");
 
   useEffect(() => {
     let cancelled = false;
@@ -105,6 +109,12 @@ export default function OnboardingPage() {
           firmName: firmName.trim(),
           country: country.trim(),
           role,
+          operatingProfile: {
+            practice_model: practiceModel,
+            professional_count_band: teamSize,
+            litigation_mix: litigationMix,
+            approval_model: approvalModel,
+          },
         }),
       });
       const payload = (await response.json()) as ActivationPayload;
@@ -165,6 +175,16 @@ export default function OnboardingPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="block"><span className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-400">Country</span><input value={country} onChange={(event) => setCountry(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-[#fbfcfb] px-4 py-3.5 text-sm outline-none transition focus:border-[#7da797]" /></label>
                 <label className="block"><span className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-400">Role</span><select value={role} onChange={(event) => setRole(event.target.value as FirmRole)} className="mt-2 w-full rounded-xl border border-slate-200 bg-[#fbfcfb] px-4 py-3.5 text-sm outline-none transition focus:border-[#7da797]">{firmRoleOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-[#fbfcfb] p-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-400">How the firm works</p>
+                <p className="mt-1 text-sm leading-6 text-slate-500">These answers seed your recommended operating setup. You can change them later in Firm Control.</p>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label className="block"><span className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-400">Practice model</span><select value={practiceModel} onChange={(event) => setPracticeModel(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm outline-none"><option value="general_practice">General practice</option><option value="boutique">Boutique / specialist</option><option value="full_service">Full service</option></select></label>
+                  <label className="block"><span className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-400">Team size</span><select value={teamSize} onChange={(event) => setTeamSize(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm outline-none"><option value="1_4">1–4 professionals</option><option value="5_14">5–14 professionals</option><option value="15_30">15–30 professionals</option><option value="31_plus">31+ professionals</option></select></label>
+                  <label className="block"><span className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-400">Work mix</span><select value={litigationMix} onChange={(event) => setLitigationMix(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm outline-none"><option value="litigation_heavy">Litigation-heavy</option><option value="mixed">Mixed</option><option value="transactional_heavy">Transactional-heavy</option></select></label>
+                  <label className="block"><span className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-400">Approval style</span><select value={approvalModel} onChange={(event) => setApprovalModel(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm outline-none"><option value="individual_autonomy">Individual autonomy</option><option value="partner_review">Partner review</option><option value="partner_final">Partner final approval</option><option value="committee">Committee / department</option></select></label>
+                </div>
               </div>
             </div>
 
