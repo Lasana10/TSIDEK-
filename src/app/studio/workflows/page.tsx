@@ -2,12 +2,13 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, GitBranch, Plus, Save, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, GitBranch, Plus, Save, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 
 type Stage={id:string;stage_key:string;name:string;description?:string|null;sort_order:number;stage_type:string;sla_hours?:number|null;required_roles:string[];is_terminal:boolean};
 type Transition={id:string;from_stage_key:string;to_stage_key:string;name:string;allowed_roles:string[];requires_reason:boolean;requires_approval:boolean;approval_roles:string[];active:boolean};
 type Workflow={id:string;workflow_key:string;name:string;description?:string|null;status:string;version:number;stages:Stage[];transitions:Transition[]};
 type Payload={success:boolean;error?:string;workflows?:Workflow[]};
+type FirmProfile={practice_areas?:string[];litigation_mix?:string;practice_model?:string};
 const field="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-700/40 focus:ring-4 focus:ring-emerald-900/5";
 const roles=["owner","partner","lawyer","paralegal","intern","administrator","finance","clerk","knowledge_manager"];
 type Preset={key:string;name:string;description:string;subjectType:string;stages:Array<{key:string;name:string;type:string}>};
@@ -20,10 +21,24 @@ const recommendedPresets:Preset[]=[
 ];
 
 export default function WorkflowStudio(){
- const [data,setData]=useState<Payload|null>(null);const [selectedId,setSelectedId]=useState("");const [busy,setBusy]=useState(false);const [message,setMessage]=useState("");
+ const [data,setData]=useState<Payload|null>(null);const [selectedId,setSelectedId]=useState("");const [busy,setBusy]=useState(false);const [message,setMessage]=useState("");const [advancedOpen,setAdvancedOpen]=useState(false);const [firmProfile,setFirmProfile]=useState<FirmProfile|null>(null);
  const load=useCallback(async()=>{const r=await fetch("/api/firm/workflows",{cache:"no-store"});const d=await r.json();setData(d);if(d.success&&!selectedId&&d.workflows?.length)setSelectedId(d.workflows[0].id);if(!d.success)setMessage(d.error||"Unable to load workflows");},[selectedId]);
  useEffect(()=>{void load();},[load]);
+ useEffect(()=>{fetch("/api/firm/ways-of-working",{cache:"no-store"}).then(r=>r.json()).then(p=>{if(p.success&&p.profile)setFirmProfile(p.profile)}).catch(()=>undefined);},[]);
  const workflow=useMemo(()=>data?.workflows?.find(w=>w.id===selectedId)||data?.workflows?.[0]||null,[data,selectedId]);
+ const orderedPresets=useMemo(()=>{
+  const areas=(firmProfile?.practice_areas||[]).map(v=>v.toLowerCase());
+  const litigationHeavy=firmProfile?.litigation_mix==="high"||firmProfile?.litigation_mix==="litigation_heavy"||areas.some(v=>v.includes("litigation")||v.includes("dispute"));
+  const corporateHeavy=areas.some(v=>v.includes("corporate")||v.includes("commercial")||v.includes("company")||v.includes("transaction"));
+  const score=(preset:Preset)=>{
+   if(preset.key==="recommended_client_intake")return 90;
+   if(preset.key==="recommended_litigation")return litigationHeavy?100:60;
+   if(preset.key==="recommended_document")return corporateHeavy?95:65;
+   if(preset.key==="recommended_billing")return 75;
+   return 55;
+  };
+  return [...recommendedPresets].sort((a,b)=>score(b)-score(a));
+ },[firmProfile]);
  async function patch(body:Record<string,unknown>){if(!workflow)return;setBusy(true);setMessage("");try{const r=await fetch(`/api/firm/workflows/${workflow.id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const d=await r.json();if(!r.ok||!d.success)throw new Error(d.error||"Workflow update failed");setMessage("Workflow structure saved.");await load();}catch(e){setMessage(e instanceof Error?e.message:"Workflow update failed");}finally{setBusy(false);}}
  async function remove(kind:"stage"|"transition",id:string){if(!workflow)return;setBusy(true);try{const r=await fetch(`/api/firm/workflows/${workflow.id}?kind=${kind}&id=${id}`,{method:"DELETE"});const d=await r.json();if(!r.ok||!d.success)throw new Error(d.error||"Delete failed");await load();}catch(e){setMessage(e instanceof Error?e.message:"Delete failed");}finally{setBusy(false);}}
  async function applyPreset(preset:Preset){
@@ -50,23 +65,26 @@ export default function WorkflowStudio(){
  }
  if(!data)return <main className="min-h-screen bg-slate-50 p-6 text-slate-600">Loading workflow studio…</main>;
  return <main className="min-h-screen bg-[linear-gradient(180deg,#f8fafc,#eef3f1)] px-4 py-6 md:px-6"><div className="mx-auto max-w-[1500px] space-y-5">
-  <header className="rounded-[2rem] bg-[#083126] p-6 text-white"><Link href="/studio" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-white/60"><ArrowLeft className="h-4 w-4"/>Firm Studio</Link><div className="mt-5 flex items-start gap-3"><div className="rounded-2xl bg-white/10 p-3"><GitBranch className="h-6 w-6"/></div><div><p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/50">Workflow Studio</p><h1 className="mt-1 text-3xl font-semibold">Design how the firm actually works</h1><p className="mt-2 max-w-4xl text-sm leading-6 text-white/70">Stages, role ownership, gates, approvals and permitted moves are editable here; the matter room runs from this structure rather than hard-coded UI labels.</p></div></div></header>
+  <header className="rounded-[2rem] bg-[#083126] p-6 text-white"><Link href="/studio" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-white/60"><ArrowLeft className="h-4 w-4"/>Firm Control</Link><div className="mt-5 flex items-start gap-3"><div className="rounded-2xl bg-white/10 p-3"><GitBranch className="h-6 w-6"/></div><div><p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/50">Recommended workflows</p><h1 className="mt-1 text-3xl font-semibold">Choose how work should move through the firm</h1><p className="mt-2 max-w-4xl text-sm leading-6 text-white/70">Start from a recommended legal operating pattern. TSIDKENU builds the stages, approvals and transitions underneath; advanced editing is optional for firms that need deeper control.</p></div></div></header>
   <section className="rounded-[1.6rem] border border-emerald-900/10 bg-white p-5 shadow-sm">
-   <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-800">Recommended setup</p><h2 className="mt-1 text-2xl font-semibold text-slate-950">Start simple; customize only what the firm needs.</h2><p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">Choose a tested operating pattern below. TSIDKENU creates the stages and transitions as a real workflow; the editors underneath remain the Advanced layer.</p></div><div className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">Recommended → Customize → Advanced</div></div>
-   <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">{recommendedPresets.map(preset=><button key={preset.key} disabled={busy} onClick={()=>void applyPreset(preset)} className="rounded-2xl border border-slate-200 bg-[#fbfcfb] p-4 text-left transition hover:border-emerald-400 disabled:opacity-50"><p className="text-sm font-bold text-slate-900">{preset.name}</p><p className="mt-2 text-xs leading-5 text-slate-500">{preset.description}</p><p className="mt-3 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-800">{preset.subjectType} workflow</p></button>)}</div>
+   <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-800">Recommended setup</p><h2 className="mt-1 text-2xl font-semibold text-slate-950">You do not need to design a workflow from scratch.</h2><p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">Choose the closest operating pattern and TSIDKENU creates the working structure for the firm. The recommendation can later be adjusted without exposing technical workflow design to ordinary legal users.</p></div><div className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">Choose → Apply → Adjust if needed</div></div>
+   <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">{orderedPresets.map((preset,index)=><button key={preset.key} disabled={busy} onClick={()=>void applyPreset(preset)} className="rounded-2xl border border-slate-200 bg-[#fbfcfb] p-4 text-left transition hover:border-emerald-400 disabled:opacity-50">{index===0&&firmProfile?<span className="mb-3 inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-900">Best fit from firm profile</span>:null}<p className="text-sm font-bold text-slate-900">{preset.name}</p><p className="mt-2 text-xs leading-5 text-slate-500">{preset.description}</p><p className="mt-3 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-800">{preset.subjectType} workflow</p></button>)}</div>
   </section>
   {message?<div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">{message}</div>:null}
   <div className="grid gap-5 xl:grid-cols-[260px_1fr]">
    <aside className="rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm"><p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Workflows</p><div className="mt-3 space-y-2">{(data.workflows||[]).map(w=><button key={w.id} onClick={()=>setSelectedId(w.id)} className={`w-full rounded-xl px-3 py-3 text-left ${workflow?.id===w.id?"bg-emerald-950 text-white":"bg-slate-50 text-slate-700"}`}><p className="text-sm font-bold">{w.name}</p><p className="mt-1 text-[10px] uppercase opacity-60">v{w.version} · {w.status}</p></button>)}</div></aside>
    {workflow?<section className="space-y-5">
-    <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Active structure</p><h2 className="mt-1 text-2xl font-semibold text-slate-950">{workflow.name}</h2><p className="mt-2 text-sm text-slate-600">{workflow.description||"No description."}</p></div><span className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black uppercase text-emerald-800">{workflow.status}</span></div>
+    <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Applied operating flow</p><h2 className="mt-1 text-2xl font-semibold text-slate-950">{workflow.name}</h2><p className="mt-2 text-sm text-slate-600">{workflow.description||"No description."}</p></div><span className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black uppercase text-emerald-800">{workflow.status}</span></div>
       <div className="mt-5 overflow-x-auto"><div className="flex min-w-[800px] items-start">{workflow.stages.map((s,i)=><div key={s.id} className="flex flex-1 items-center"><div className="min-w-[110px] text-center"><div className="mx-auto grid h-10 w-10 place-items-center rounded-full border border-emerald-800 bg-emerald-50 text-emerald-900"><ShieldCheck className="h-4 w-4"/></div><p className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-700">{s.name}</p><p className="mt-1 text-[10px] text-slate-400">{s.stage_type}</p></div>{i<workflow.stages.length-1?<div className="h-px flex-1 bg-slate-200"/>:null}</div>)}</div></div>
     </div>
-    <div className="grid gap-5 2xl:grid-cols-2">
+    <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><div className="rounded-xl bg-slate-100 p-2.5 text-slate-700"><Sparkles className="h-4 w-4"/></div><div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Optional</p><h3 className="text-lg font-semibold text-slate-950">Advanced configuration</h3><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">Only open this when the firm needs custom stages, role permissions, approval gates, SLAs or exceptional transitions. Recommended workflows work without touching this layer.</p></div></div><button type="button" onClick={()=>setAdvancedOpen(v=>!v)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700">{advancedOpen?<ChevronUp className="h-4 w-4"/>:<ChevronDown className="h-4 w-4"/>}{advancedOpen?"Hide advanced":"Open advanced"}</button></div>
+    </div>
+    {advancedOpen?<div className="grid gap-5 2xl:grid-cols-2">
       <StageEditor workflow={workflow} busy={busy} save={patch} remove={remove}/>
       <TransitionEditor workflow={workflow} busy={busy} save={patch} remove={remove}/>
-    </div>
-   </section>:<section className="rounded-[1.6rem] border border-slate-200 bg-white p-6">No workflow configured.</section>}
+    </div>:null}
+   </section>:<section className="rounded-[1.6rem] border border-slate-200 bg-white p-6">No workflow configured yet. Choose a recommended setup above to create one.</section>}
   </div>
  </div></main>;
 }
