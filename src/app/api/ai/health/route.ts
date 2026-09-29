@@ -32,7 +32,7 @@ export async function POST(request:Request){
     const provider=String(body.provider??"") as AiProviderName;
     if(!["gemini","openrouter","local"].includes(provider)) return NextResponse.json({success:false,error:"Choose Gemini, OpenRouter or Local AI."},{status:400});
     const started=Date.now();
-    const result=await runGovernedAi({scope,taskType:"provider_health_test",prompt:"Return exactly: TSIDKENU_AI_OK",preferredProvider:provider,userMode:provider==="local"?"local":"standard"});
+    const result=await runGovernedAi({scope,taskType:"provider_health_test",prompt:"Return exactly: TSIDKENU_AI_OK",preferredProvider:provider,userMode:provider==="local"?"local":"standard",strictProvider:true});
     const usable=Boolean(result.output&&result.output.trim());
     return NextResponse.json({success:usable,provider:result.provider,model:result.model,latencyMs:Date.now()-started,outputPreview:result.output.slice(0,120),runId:result.runId});
   }catch(error){return NextResponse.json({success:false,error:error instanceof Error?error.message:"AI health test failed."},{status:502})}
