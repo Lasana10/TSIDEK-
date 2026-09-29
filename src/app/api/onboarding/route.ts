@@ -4,6 +4,8 @@ import {
   getAuthenticatedUser,
 } from "@/lib/supabase-auth";
 import { firmRoleOptions, type FirmRole } from "@/lib/firm-identity";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { buildOperatingRecommendations, type FirmOperatingProfile } from "@/lib/firm-operating-intelligence";
 
 const NO_STORE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
@@ -70,6 +72,46 @@ export async function POST(request: Request) {
     } | null;
     const firmId = membership?.firm_id ?? lawyer?.firm_id ?? null;
     const actorRole = membership?.role_key ?? membership?.title ?? lawyer?.role ?? null;
+    if (firmId && lawyer && body.operatingProfile && typeof body.operatingProfile === "object") {
+      const supplied = body.operatingProfile as Record<string, unknown>;
+      const profile: FirmOperatingProfile = {
+        practice_model: String(supplied.practice_model ?? "general_practice"),
+        professional_count_band: String(supplied.professional_count_band ?? "5_14"),
+        practice_areas: Array.isArray(supplied.practice_areas) ? supplied.practice_areas.map(String) : [],
+        office_count: Math.max(1, Number(supplied.office_count ?? 1)),
+        approval_model: String(supplied.approval_model ?? "partner_review"),
+        billing_models: Array.isArray(supplied.billing_models) ? supplied.billing_models.map(String) : [],
+        client_types: Array.isArray(supplied.client_types) ? supplied.client_types.map(String) : [],
+        litigation_mix: String(supplied.litigation_mix ?? "mixed"),
+        support_staff_model: String(supplied.support_staff_model ?? "mixed"),
+        confidentiality_mode: String(supplied.confidentiality_mode ?? "standard"),
+        profile_notes: null,
+        configuration: {},
+      };
+      const supabase = createServerSupabaseClient();
+      if (supabase) {
+        const saved = await supabase.from("firm_operating_profiles").upsert({
+          firm_id: firmId,
+          ...profile,
+          updated_by: lawyer.id,
+          created_by: lawyer.id,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "firm_id" });
+        if (saved.error) throw new Error(saved.error.message);
+
+        for (const recommendation of buildOperatingRecommendations(profile)) {
+          const rec = await supabase.from("firm_operating_recommendations").upsert({
+            firm_id: firmId,
+            ...recommendation,
+            status: "suggested",
+            last_suggested_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "firm_id,recommendation_key" });
+          if (rec.error) throw new Error(rec.error.message);
+        }
+      }
+    }
+
     const workspaceReady = Boolean(
       lawyer &&
       membership &&
