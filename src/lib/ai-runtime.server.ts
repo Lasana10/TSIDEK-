@@ -17,6 +17,7 @@ export type AiRuntimeRequest = {
   userMode?: AiUserMode | null;
   sourceDocumentIds?: string[];
   model?: string | null;
+  strictProvider?: boolean;
 };
 
 export type AiRuntimeResult = {
@@ -121,6 +122,7 @@ function resolveRoute(input: {
   requestedMode?: AiUserMode | null;
   preferredProvider?: AiProviderName | null;
   explicitModel?: string | null;
+  strictProvider?: boolean;
 }) {
   let mode: AiUserMode = input.requestedMode || input.policy?.user_facing_mode || "standard";
   const highlyConfidential = input.matterConfidentiality === "highly_confidential" || input.matterConfidentiality === "highly-confidential" || input.matterConfidentiality === "partner-only";
@@ -132,6 +134,13 @@ function resolveRoute(input: {
   const route = routeObject(input.policy, mode);
   const configuredProvider = providerFromRoute(route);
   let provider: AiProviderName;
+  if (input.strictProvider && input.preferredProvider) {
+    if (input.profile?.ai_privacy_mode === "local_only" && input.preferredProvider !== "local") throw new Error("Firm policy prohibits cloud AI for this health test.");
+    if (mode === "local" && input.preferredProvider !== "local") throw new Error("This AI mode requires the local provider.");
+    if (mode === "private" && input.preferredProvider !== "local" && configuredProvider !== input.preferredProvider) throw new Error("Requested provider is not permitted by the firm's private AI route.");
+    if (!providerAvailable(input.preferredProvider, input.profile)) throw new Error(`${input.preferredProvider} is not configured.`);
+    provider = input.preferredProvider;
+  } else
   if (mode === "local") {
     if (!providerAvailable("local", input.profile)) throw new Error("Local AI is required for this work, but no local endpoint is configured.");
     provider = "local";
@@ -196,7 +205,7 @@ export async function runGovernedAi(input: AiRuntimeRequest): Promise<AiRuntimeR
     loadAiPolicy(input.scope.firmId),
     loadMatterConfidentiality(input.scope.firmId, input.matterId),
   ]);
-  const route = resolveRoute({ profile, policy, matterConfidentiality, requestedMode: input.userMode, preferredProvider: input.preferredProvider, explicitModel: input.model });
+  const route = resolveRoute({ profile, policy, matterConfidentiality, requestedMode: input.userMode, preferredProvider: input.preferredProvider, explicitModel: input.model, strictProvider: input.strictProvider });
   const provider = route.provider;
   const startedAt = Date.now();
   const supabase = createServerSupabaseClient();

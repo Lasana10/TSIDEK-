@@ -1,114 +1,56 @@
 "use client";
-
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import {FormEvent,useEffect,useMemo,useState} from "react";
 import Link from "next/link";
-import { ArrowLeft, Banknote, CirclePlus, FileCheck2, Landmark, Receipt, TrendingDown, TrendingUp, WalletCards } from "lucide-react";
+import {ArrowLeft,Banknote,CirclePlus,FileCheck2,Landmark,Receipt,ShieldCheck,TrendingDown,TrendingUp,WalletCards} from "lucide-react";
 
 type Expense={id:string;matter_id?:string|null;category:string;supplier_name?:string|null;description:string;amount_xaf:number;payment_method?:string|null;reference?:string|null;expense_date:string;recoverable:boolean;tax_relevant:boolean;status:string;receipt_file_name?:string|null};
 type Matter={id:string;title:string;client_name:string};
-type Payload={success:boolean;error?:string;metrics?:Record<string,number>;expenses?:Expense[];matters?:Matter[]};
+type ClientMoney={id:string;matter_id?:string|null;transaction_type:string;amount_xaf:number;direction:string;payment_method?:string|null;reference?:string|null;purpose:string;status:string;occurred_at:string};
+type Obligation={id:string;title:string;obligation_type:string;status:string;due_at?:string|null;amount_xaf?:number|null};
+type Payload={success:boolean;error?:string;metrics?:Record<string,number>;expenses?:Expense[];matters?:Matter[];clientMoney?:ClientMoney[];obligations?:Obligation[]};
 const field="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none";
 const money=(n:number)=>new Intl.NumberFormat("fr-CM",{maximumFractionDigits:0}).format(Number(n||0))+" XAF";
 
-export default function BusinessPage(){
- const[data,setData]=useState<Payload>({success:true,expenses:[],matters:[]});
- const[loading,setLoading]=useState(true);
- const[open,setOpen]=useState(false);
- const[busy,setBusy]=useState(false);
- const[message,setMessage]=useState("");
- const[form,setForm]=useState({category:"office",supplierName:"",description:"",amountXaf:"",paymentMethod:"",reference:"",expenseDate:new Date().toISOString().slice(0,10),matterId:"",recoverable:false,taxRelevant:true});
-
- async function load(){
-   setLoading(true);
-   try{
-     const response=await fetch("/api/business",{cache:"no-store",credentials:"include"});
-     const payload=await response.json();
-     if(!response.ok||!payload.success) throw new Error(payload.error||"Unable to load business.");
-     setData(payload);
-   }catch(error){setMessage(error instanceof Error?error.message:"Unable to load business.");}
-   finally{setLoading(false);}
- }
+export default function BusinessV2(){
+ const[data,setData]=useState<Payload>({success:true});const[message,setMessage]=useState("");const[busy,setBusy]=useState(false);const[expenseOpen,setExpenseOpen]=useState(false);const[moneyOpen,setMoneyOpen]=useState(false);const[tab,setTab]=useState<"overview"|"income"|"spending"|"client_money"|"obligations">("overview");
+ const[expense,setExpense]=useState({category:"office",supplierName:"",description:"",amountXaf:"",paymentMethod:"",reference:"",expenseDate:new Date().toISOString().slice(0,10),matterId:"",recoverable:false,taxRelevant:true});
+ const[clientMoney,setClientMoney]=useState({transactionType:"received",amountXaf:"",paymentMethod:"",reference:"",purpose:"",matterId:""});
+ async function load(){try{const r=await fetch("/api/business",{cache:"no-store",credentials:"include"});const p=await r.json();if(!r.ok||!p.success)throw new Error(p.error||"Unable to load firm business.");setData(p)}catch(e){setMessage(e instanceof Error?e.message:"Unable to load firm business.")}}
  useEffect(()=>{void load()},[]);
- const metrics=data.metrics||{};
- const matterMap=useMemo(()=>new Map((data.matters??[]).map(item=>[item.id,item])),[data.matters]);
-
- async function create(event:FormEvent){
-   event.preventDefault();setBusy(true);setMessage("");
-   try{
-     const response=await fetch("/api/business",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({...form,amountXaf:Number(form.amountXaf),matterId:form.matterId||null})});
-     const payload=await response.json();
-     if(!response.ok||!payload.success) throw new Error(payload.error||"Unable to record expense.");
-     setOpen(false);
-     await load();
-     setMessage("Expense recorded in firm business and finance ledger.");
-   }catch(error){setMessage(error instanceof Error?error.message:"Unable to record expense.");}
-   finally{setBusy(false);}
- }
+ const m=data.metrics||{};const matterMap=useMemo(()=>new Map((data.matters??[]).map(x=>[x.id,x])),[data.matters]);
+ async function submitExpense(e:FormEvent){e.preventDefault();setBusy(true);setMessage("");try{const r=await fetch("/api/business",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({...expense,amountXaf:Number(expense.amountXaf),matterId:expense.matterId||null})});const p=await r.json();if(!r.ok||!p.success)throw new Error(p.error||"Unable to record expense.");setExpenseOpen(false);await load();setMessage("Firm expense recorded.")}catch(e){setMessage(e instanceof Error?e.message:"Unable to record expense.")}finally{setBusy(false)}}
+ async function submitClientMoney(e:FormEvent){e.preventDefault();setBusy(true);setMessage("");try{const r=await fetch("/api/business",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"client_money",...clientMoney,amountXaf:Number(clientMoney.amountXaf),matterId:clientMoney.matterId||null})});const p=await r.json();if(!r.ok||!p.success)throw new Error(p.error||"Unable to record client money.");setMoneyOpen(false);await load();setMessage("Client money recorded separately from firm revenue.")}catch(e){setMessage(e instanceof Error?e.message:"Unable to record client money.")}finally{setBusy(false)}}
 
  return <main className="min-h-screen bg-[#eef2ef] p-3 text-slate-900 sm:p-5 lg:p-7"><div className="mx-auto max-w-[1800px] space-y-5">
-  <div className="flex flex-wrap items-center justify-between gap-3">
-   <Link href="/workspace" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-600"><ArrowLeft className="h-4 w-4"/>Workspace</Link>
-   <div className="flex flex-wrap gap-2"><Link href="/business/operations" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700"><Landmark className="h-4 w-4"/>Obligations & suppliers</Link><Link href="/business/receipts" className="inline-flex items-center gap-2 rounded-xl border border-[#0b493b] bg-white px-4 py-2.5 text-sm font-bold text-[#0b493b]"><FileCheck2 className="h-4 w-4"/>Receipt desk</Link><button onClick={()=>setOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-[#0b493b] px-4 py-2.5 text-sm font-bold text-white"><CirclePlus className="h-4 w-4"/>Record expense</button></div>
-  </div>
-  <section className="overflow-hidden rounded-[2rem] bg-[#082b22] text-white">
-   <div className="grid xl:grid-cols-[1fr_440px]">
-    <div className="p-6 md:p-8 xl:p-10">
-     <p className="text-[10px] font-black uppercase tracking-[.22em] text-[#d8bb79]">Firm business & office</p>
-     <h1 className="mt-3 text-4xl font-semibold tracking-[-.04em] md:text-5xl">Know what came in, what went out, and why.</h1>
-     <p className="mt-4 max-w-3xl text-sm leading-7 text-white/65">Client billing stays distinct from office spending, taxes, registrations, subscriptions and recoverable case disbursements.</p>
-    </div>
-    <div className="grid grid-cols-2 gap-px bg-white/10">
-     <Hero label="Office expenses" value={money(metrics.officeExpenses||0)}/>
-     <Hero label="Case expenses" value={money(metrics.caseExpenses||0)}/>
-     <Hero label="Outstanding" value={money(metrics.outstanding||0)}/>
-     <Hero label="Cash in" value={money(metrics.cashIn||0)}/>
-    </div>
-   </div>
-  </section>
+  <div className="flex flex-wrap items-center justify-between gap-3"><Link href="/workspace" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-600"><ArrowLeft className="h-4 w-4"/>Workspace</Link><div className="flex flex-wrap gap-2"><Link href="/business/receipts" className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700">Receipts</Link><Link href="/business/operations" className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700">Obligations & suppliers</Link><button onClick={()=>setMoneyOpen(true)} className="rounded-xl border border-[#0b493b] bg-white px-4 py-2.5 text-sm font-bold text-[#0b493b]">Client money</button><button onClick={()=>setExpenseOpen(true)} className="rounded-xl bg-[#0b493b] px-4 py-2.5 text-sm font-bold text-white">Record expense</button></div></div>
+  <section className="overflow-hidden rounded-[2rem] bg-[#082b22] text-white"><div className="grid xl:grid-cols-[1fr_520px]"><div className="p-6 md:p-8 xl:p-10"><p className="text-[10px] font-black uppercase tracking-[.22em] text-[#d8bb79]">Firm Business</p><h1 className="mt-3 text-4xl font-semibold tracking-[-.04em] md:text-5xl">Run the firm, not a ledger.</h1><p className="mt-4 max-w-3xl text-sm leading-7 text-white/65">TSIDKENU separates what the firm earned, what it actually received, what it spent, what clients still owe, and money the firm is merely holding for clients.</p></div><div className="grid grid-cols-2 gap-px bg-white/10"><Hero label="Cash received" value={money(m.cashIn||0)}/><Hero label="Cash spent" value={money(m.cashOut||0)}/><Hero label="Client outstanding" value={money(m.outstanding||0)}/><Hero label="Client money held" value={money(m.clientMoneyHeld||0)}/></div></div></section>
   {message&&<div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">{message}</div>}
-  <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-   <Card icon={TrendingUp} label="Billed" value={money(metrics.billed||0)}/>
-   <Card icon={WalletCards} label="Cash received" value={money(metrics.cashIn||0)}/>
-   <Card icon={TrendingDown} label="Cash spent" value={money(metrics.cashOut||0)}/>
-   <Card icon={Receipt} label="Expense records" value={String(data.expenses?.length||0)}/>
-  </section>
-  {loading?<div className="rounded-3xl bg-white p-12 text-center text-sm text-slate-500">Loading firm business…</div>:
-  <section className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm">
-   <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Expense & receipt register</h2><Landmark className="h-5 w-5 text-[#0f5b49]"/></div>
-   <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[980px] text-left text-sm">
-    <thead className="text-[10px] uppercase tracking-[.14em] text-slate-400"><tr><th className="pb-3">Date</th><th className="pb-3">Description</th><th className="pb-3">Category</th><th className="pb-3">Case / Office</th><th className="pb-3">Amount</th><th className="pb-3">Tax</th><th className="pb-3">Receipt</th></tr></thead>
-    <tbody className="divide-y divide-slate-100">{(data.expenses??[]).map(item=><tr key={item.id}>
-     <td className="py-3">{new Date(item.expense_date).toLocaleDateString()}</td>
-     <td className="py-3"><p className="font-semibold">{item.description}</p><p className="text-xs text-slate-400">{item.supplier_name||item.reference||"—"}</p></td>
-     <td className="py-3 capitalize text-slate-500">{item.category.replaceAll("_"," ")}</td>
-     <td className="py-3 text-slate-500">{item.matter_id?(matterMap.get(item.matter_id)?.title||"Case"):"Office / firm"}</td>
-     <td className="py-3 font-bold">{money(item.amount_xaf)}</td>
-     <td className="py-3">{item.tax_relevant?"Relevant":"No"}</td>
-     <td className="py-3">{item.receipt_file_name||"Not attached"}</td>
-    </tr>)}</tbody>
-   </table>{!(data.expenses??[]).length&&<p className="py-8 text-sm text-slate-500">No expenses recorded yet.</p>}</div>
-  </section>}
+
+  <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><Card icon={TrendingUp} label="Fees billed" value={money(m.billed||0)}/><Card icon={WalletCards} label="Cash received" value={money(m.cashIn||0)}/><Card icon={TrendingDown} label="Firm spending" value={money((m.officeExpenses||0)+(m.caseExpenses||0))}/><Card icon={ShieldCheck} label="Client money held" value={money(m.clientMoneyHeld||0)}/><Card icon={Landmark} label="Upcoming obligations" value={String(m.upcomingObligations||0)}/></section>
+
+  <div className="flex flex-wrap gap-2">{[["overview","Overview"],["income","Income & receivables"],["spending","Spending"],["client_money","Client money"],["obligations","Obligations"]].map(([key,label])=><button key={key} onClick={()=>setTab(key as typeof tab)} className={"rounded-xl px-4 py-2.5 text-sm font-bold "+(tab===key?"bg-[#0b493b] text-white":"border border-slate-200 bg-white text-slate-600")}>{label}</button>)}</div>
+
+  {tab==="overview"&&<div className="grid gap-4 xl:grid-cols-2"><section className="rounded-[1.5rem] border border-slate-200 bg-white p-5"><h2 className="text-xl font-semibold">What the numbers mean</h2><div className="mt-4 space-y-3 text-sm text-slate-600"><Explainer title="Fees billed" text="Invoices issued to clients. This is not the same as money already received."/><Explainer title="Cash received" text="Actual money recorded as received by the firm."/><Explainer title="Firm spending" text="Office costs and case disbursements paid by the firm."/><Explainer title="Client money held" text="Money belonging to clients or held for a purpose. It is deliberately excluded from firm revenue."/><Explainer title="Outstanding" text="Amounts invoiced but not yet fully paid."/></div></section><section className="rounded-[1.5rem] border border-slate-200 bg-white p-5"><h2 className="text-xl font-semibold">Management view</h2><div className="mt-4 grid grid-cols-2 gap-3"><Mini label="Office costs" value={money(m.officeExpenses||0)}/><Mini label="Case disbursements" value={money(m.caseExpenses||0)}/><Mini label="Outstanding fees" value={money(m.outstanding||0)}/><Mini label="Client funds held" value={money(m.clientMoneyHeld||0)}/></div><p className="mt-4 text-xs leading-5 text-slate-500">Case profitability lives inside each case accounting view, where time, disbursements, invoices and payments can be read together.</p></section></div>}
+
+  {tab==="spending"&&<TableWrap title="Firm expenses"><table className="w-full min-w-[950px] text-left text-sm"><thead className="text-[10px] uppercase tracking-[.14em] text-slate-400"><tr><th className="pb-3">Date</th><th>Description</th><th>Category</th><th>Case / office</th><th>Amount</th><th>Evidence</th></tr></thead><tbody className="divide-y divide-slate-100">{(data.expenses??[]).map(x=><tr key={x.id}><td className="py-3">{new Date(x.expense_date).toLocaleDateString()}</td><td><p className="font-semibold">{x.description}</p><p className="text-xs text-slate-400">{x.supplier_name||x.reference||"—"}</p></td><td className="capitalize">{x.category.replaceAll("_"," ")}</td><td>{x.matter_id?matterMap.get(x.matter_id)?.title||"Case":"Office"}</td><td className="font-bold">{money(x.amount_xaf)}</td><td>{x.receipt_file_name||"Missing"}</td></tr>)}</tbody></table></TableWrap>}
+
+  {tab==="client_money"&&<TableWrap title="Client money — separate from firm revenue"><table className="w-full min-w-[900px] text-left text-sm"><thead className="text-[10px] uppercase tracking-[.14em] text-slate-400"><tr><th className="pb-3">Date</th><th>Purpose</th><th>Case</th><th>Type</th><th>Direction</th><th>Amount</th><th>Status</th></tr></thead><tbody className="divide-y divide-slate-100">{(data.clientMoney??[]).map(x=><tr key={x.id}><td className="py-3">{new Date(x.occurred_at).toLocaleDateString()}</td><td>{x.purpose}<p className="text-xs text-slate-400">{x.reference||x.payment_method||""}</p></td><td>{x.matter_id?matterMap.get(x.matter_id)?.title||"Case":"—"}</td><td className="capitalize">{x.transaction_type}</td><td className="uppercase">{x.direction}</td><td className="font-bold">{money(x.amount_xaf)}</td><td>{x.status}</td></tr>)}</tbody></table></TableWrap>}
+
+  {tab==="obligations"&&<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{(data.obligations??[]).map(x=><div key={x.id} className="rounded-[1.3rem] border border-slate-200 bg-white p-4"><p className="text-[10px] font-black uppercase tracking-[.13em] text-[#0f5b49]">{x.obligation_type}</p><h3 className="mt-1 font-semibold">{x.title}</h3><p className="mt-2 text-xs text-slate-500">{x.due_at?"Due "+new Date(x.due_at).toLocaleDateString():"No due date"} · {x.status}</p>{x.amount_xaf?<p className="mt-3 text-lg font-semibold">{money(x.amount_xaf)}</p>:null}</div>)}</div>}
+
+  {tab==="income"&&<div className="grid gap-4 xl:grid-cols-3"><Mini label="Fees billed" value={money(m.billed||0)}/><Mini label="Cash received" value={money(m.cashIn||0)}/><Mini label="Still owed by clients" value={money(m.outstanding||0)}/></div>}
  </div>
- {open&&<div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/35 p-4" onClick={()=>!busy&&setOpen(false)}>
-  <form onSubmit={create} onClick={e=>e.stopPropagation()} className="w-full max-w-3xl rounded-[1.8rem] bg-white p-5 shadow-2xl">
-   <div className="flex items-center gap-3"><Banknote className="h-5 w-5 text-[#0f5b49]"/><h2 className="text-2xl font-semibold">Record firm expense</h2></div>
-   <div className="mt-5 grid gap-3 md:grid-cols-2">
-    <select className={field} value={form.category} onChange={e=>setForm({...form,category:e.target.value})}><option value="office">Office</option><option value="rent">Rent</option><option value="utilities">Utilities</option><option value="transport">Transport</option><option value="registration">Registration</option><option value="tax">Tax</option><option value="subscription">Subscription</option><option value="equipment">Equipment</option><option value="case_disbursement">Case disbursement</option></select>
-    <input required className={field} value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Description"/>
-    <input className={field} value={form.supplierName} onChange={e=>setForm({...form,supplierName:e.target.value})} placeholder="Supplier / payee"/>
-    <input required inputMode="numeric" className={field} value={form.amountXaf} onChange={e=>setForm({...form,amountXaf:e.target.value})} placeholder="Amount XAF"/>
-    <input className={field} type="date" value={form.expenseDate} onChange={e=>setForm({...form,expenseDate:e.target.value})}/>
-    <input className={field} value={form.paymentMethod} onChange={e=>setForm({...form,paymentMethod:e.target.value})} placeholder="Cash / bank / MoMo / Wave"/>
-    <input className={field} value={form.reference} onChange={e=>setForm({...form,reference:e.target.value})} placeholder="Receipt / transaction reference"/>
-    <select className={field} value={form.matterId} onChange={e=>setForm({...form,matterId:e.target.value})}><option value="">Office / firm expense</option>{(data.matters??[]).map(item=><option key={item.id} value={item.id}>{item.client_name} — {item.title}</option>)}</select>
-    <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-3 text-sm"><input type="checkbox" checked={form.taxRelevant} onChange={e=>setForm({...form,taxRelevant:e.target.checked})}/>Tax / compliance relevant</label>
-    <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-3 text-sm"><input type="checkbox" checked={form.recoverable} onChange={e=>setForm({...form,recoverable:e.target.checked})}/>Recoverable from client</label>
-   </div>
-   <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={()=>setOpen(false)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold">Cancel</button><button disabled={busy} className="rounded-xl bg-[#082b22] px-4 py-2.5 text-sm font-bold text-white">{busy?"Saving…":"Record expense"}</button></div>
-  </form>
- </div>}
+
+ {expenseOpen&&<Modal title="Record firm expense" onClose={()=>setExpenseOpen(false)}><form onSubmit={submitExpense} className="grid gap-3 md:grid-cols-2"><select className={field} value={expense.category} onChange={e=>setExpense({...expense,category:e.target.value})}><option value="office">Office</option><option value="rent">Rent</option><option value="utilities">Utilities</option><option value="transport">Transport</option><option value="registration">Registration</option><option value="tax">Tax</option><option value="subscription">Subscription</option><option value="equipment">Equipment</option><option value="case_disbursement">Case disbursement</option></select><input required className={field} value={expense.description} onChange={e=>setExpense({...expense,description:e.target.value})} placeholder="Description"/><input className={field} value={expense.supplierName} onChange={e=>setExpense({...expense,supplierName:e.target.value})} placeholder="Supplier / payee"/><input required className={field} inputMode="numeric" value={expense.amountXaf} onChange={e=>setExpense({...expense,amountXaf:e.target.value})} placeholder="Amount XAF"/><input className={field} type="date" value={expense.expenseDate} onChange={e=>setExpense({...expense,expenseDate:e.target.value})}/><input className={field} value={expense.paymentMethod} onChange={e=>setExpense({...expense,paymentMethod:e.target.value})} placeholder="Cash / bank / MoMo"/><MatterSelect value={expense.matterId} onChange={value=>setExpense({...expense,matterId:value})} matters={data.matters??[]}/><input className={field} value={expense.reference} onChange={e=>setExpense({...expense,reference:e.target.value})} placeholder="Reference"/><label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-3 text-sm"><input type="checkbox" checked={expense.recoverable} onChange={e=>setExpense({...expense,recoverable:e.target.checked})}/>Recoverable from client</label><label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-3 text-sm"><input type="checkbox" checked={expense.taxRelevant} onChange={e=>setExpense({...expense,taxRelevant:e.target.checked})}/>Tax/compliance relevant</label><button disabled={busy} className="md:col-span-2 rounded-xl bg-[#082b22] px-4 py-3 text-sm font-bold text-white">Record expense</button></form></Modal>}
+
+ {moneyOpen&&<Modal title="Record client money" onClose={()=>setMoneyOpen(false)}><form onSubmit={submitClientMoney} className="grid gap-3"><div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900"><ShieldCheck className="mr-1 inline h-4 w-4"/>This ledger is intentionally separate from firm income. Recording client money does not increase firm revenue.</div><select className={field} value={clientMoney.transactionType} onChange={e=>setClientMoney({...clientMoney,transactionType:e.target.value})}><option value="received">Received / held</option><option value="released">Released</option><option value="refunded">Refunded</option><option value="transferred">Transferred</option><option value="adjustment">Adjustment</option></select><MatterSelect value={clientMoney.matterId} onChange={value=>setClientMoney({...clientMoney,matterId:value})} matters={data.matters??[]}/><input required className={field} inputMode="numeric" value={clientMoney.amountXaf} onChange={e=>setClientMoney({...clientMoney,amountXaf:e.target.value})} placeholder="Amount XAF"/><input required className={field} value={clientMoney.purpose} onChange={e=>setClientMoney({...clientMoney,purpose:e.target.value})} placeholder="Purpose of funds"/><input className={field} value={clientMoney.paymentMethod} onChange={e=>setClientMoney({...clientMoney,paymentMethod:e.target.value})} placeholder="Payment method"/><input className={field} value={clientMoney.reference} onChange={e=>setClientMoney({...clientMoney,reference:e.target.value})} placeholder="Reference"/><button disabled={busy} className="rounded-xl bg-[#082b22] px-4 py-3 text-sm font-bold text-white">Record client money</button></form></Modal>}
  </main>
 }
 
 function Hero({label,value}:{label:string;value:string}){return <div className="bg-white/[.045] p-5"><p className="text-[9px] font-black uppercase tracking-[.16em] text-white/40">{label}</p><p className="mt-2 text-xl font-semibold">{value}</p></div>}
-function Card({icon:Icon,label,value}:{icon:typeof Receipt;label:string;value:string}){return <div className="rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-sm"><div className="w-fit rounded-xl bg-[#edf4f0] p-2.5 text-[#0f5b49]"><Icon className="h-4 w-4"/></div><p className="mt-4 text-2xl font-semibold">{value}</p><p className="mt-1 text-[10px] font-black uppercase tracking-[.15em] text-slate-400">{label}</p></div>}
+function Card({icon:Icon,label,value}:{icon:typeof Receipt;label:string;value:string}){return <div className="rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-sm"><div className="w-fit rounded-xl bg-[#edf4f0] p-2.5 text-[#0f5b49]"><Icon className="h-4 w-4"/></div><p className="mt-4 text-xl font-semibold">{value}</p><p className="mt-1 text-[10px] font-black uppercase tracking-[.15em] text-slate-400">{label}</p></div>}
+function Mini({label,value}:{label:string;value:string}){return <div className="rounded-[1.3rem] border border-slate-200 bg-white p-4"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{label}</p><p className="mt-2 text-2xl font-semibold">{value}</p></div>}
+function Explainer({title,text}:{title:string;text:string}){return <div><p className="font-semibold text-slate-800">{title}</p><p className="mt-1 text-xs leading-5">{text}</p></div>}
+function TableWrap({title,children}:{title:string;children:React.ReactNode}){return <section className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-xl font-semibold">{title}</h2><div className="mt-4 overflow-x-auto">{children}</div></section>}
+function MatterSelect({value,onChange,matters}:{value:string;onChange:(v:string)=>void;matters:Matter[]}){return <select className={field} value={value} onChange={e=>onChange(e.target.value)}><option value="">No case link</option>{matters.map(x=><option key={x.id} value={x.id}>{x.client_name} — {x.title}</option>)}</select>}
+function Modal({title,onClose,children}:{title:string;onClose:()=>void;children:React.ReactNode}){return <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4" onClick={onClose}><div onClick={e=>e.stopPropagation()} className="w-full max-w-3xl rounded-[1.7rem] bg-white p-5 shadow-2xl"><div className="mb-5 flex items-center justify-between"><h2 className="text-2xl font-semibold">{title}</h2><button onClick={onClose} className="rounded-lg px-3 py-2 text-sm text-slate-500">Close</button></div>{children}</div></div>}

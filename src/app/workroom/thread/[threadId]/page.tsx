@@ -1,0 +1,24 @@
+"use client";
+import {FormEvent,useEffect,useMemo,useState} from "react";
+import Link from "next/link";
+import {ArrowLeft,MessageSquareText,Send,UserRound} from "lucide-react";
+type Lawyer={id:string;full_name:string;role?:string|null};
+type Matter={id:string;title:string;client_name:string;case_reference?:string|null};
+type Thread={id:string;matter_id?:string|null;title:string;description?:string|null;thread_type:string;status:string};
+type Message={id:string;thread_id:string;body:string;created_by?:string|null;created_at:string};
+type Payload={success:boolean;error?:string;threads?:Thread[];messages?:Message[];lawyers?:Lawyer[];matters?:Matter[]};
+export default function ThreadPage({params}:{params:Promise<{threadId:string}>}){
+ const[id,setId]=useState("");const[data,setData]=useState<Payload>({success:true});const[body,setBody]=useState("");const[busy,setBusy]=useState(false);const[message,setMessage]=useState("");
+ useEffect(()=>{void params.then(x=>setId(x.threadId))},[params]);
+ async function load(){if(!id)return;try{const r=await fetch("/api/workroom",{cache:"no-store",credentials:"include"});const p=await r.json();if(!r.ok||!p.success)throw new Error(p.error||"Unable to load conversation.");setData(p)}catch(e){setMessage(e instanceof Error?e.message:"Unable to load conversation.")}}
+ useEffect(()=>{void load()},[id]);
+ const thread=(data.threads??[]).find(x=>x.id===id);const messages=(data.messages??[]).filter(x=>x.thread_id===id);const lawyers=useMemo(()=>new Map((data.lawyers??[]).map(x=>[x.id,x])),[data.lawyers]);const matter=thread?.matter_id?(data.matters??[]).find(x=>x.id===thread.matter_id):null;
+ async function send(e:FormEvent){e.preventDefault();if(!body.trim())return;setBusy(true);setMessage("");try{const r=await fetch("/api/workroom",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"send_message",threadId:id,body})});const p=await r.json();if(!r.ok||!p.success)throw new Error(p.error||"Unable to send message.");setBody("");await load()}catch(e){setMessage(e instanceof Error?e.message:"Unable to send message.")}finally{setBusy(false)}}
+ if(!thread)return <main className="min-h-screen bg-[#eef2ef] p-6"><Link href="/workroom">Back to Workroom</Link><p className="mt-4 text-sm text-slate-500">{message||"Loading conversation…"}</p></main>;
+ return <main className="min-h-screen bg-[#eef2ef] p-4 text-slate-900 md:p-7"><div className="mx-auto max-w-5xl space-y-5">
+  <Link href="/workroom" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-600"><ArrowLeft className="h-4 w-4"/>Workroom</Link>
+  <section className="rounded-[2rem] bg-[#082b22] p-6 text-white md:p-8"><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#d8bb79]">{thread.thread_type.replaceAll("_"," ")}</p><h1 className="mt-2 text-3xl font-semibold md:text-4xl">{thread.title}</h1>{thread.description&&<p className="mt-3 max-w-3xl text-sm leading-7 text-white/65">{thread.description}</p>}{matter&&<Link href={"/matters/"+matter.id} className="mt-4 inline-block text-xs font-bold text-[#d8bb79]">{matter.case_reference||"Case"} · {matter.client_name} · {matter.title}</Link>}</section>
+  {message&&<div className="rounded-xl border border-slate-200 bg-white p-4 text-sm">{message}</div>}
+  <section className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center gap-2"><MessageSquareText className="h-5 w-5 text-[#0f5b49]"/><h2 className="text-xl font-semibold">Conversation</h2></div><div className="mt-5 space-y-3">{messages.map(x=><article key={x.id} className="rounded-xl bg-slate-50 p-4"><div className="flex items-center gap-2"><UserRound className="h-4 w-4 text-slate-400"/><p className="text-xs font-bold">{x.created_by?lawyers.get(x.created_by)?.full_name||"Firm member":"Firm member"}</p><p className="text-[10px] text-slate-400">{new Date(x.created_at).toLocaleString()}</p></div><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{x.body}</p></article>)}{!messages.length&&<p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-400">Start the conversation.</p>}</div><form onSubmit={send} className="mt-5 flex gap-2 border-t border-slate-100 pt-5"><textarea required value={body} onChange={e=>setBody(e.target.value)} className="min-h-20 flex-1 rounded-xl border border-slate-200 p-3 text-sm outline-none" placeholder="Write an update, question, hand-off or decision context…"/><button disabled={busy} className="self-end rounded-xl bg-[#082b22] px-4 py-3 text-sm font-bold text-white"><Send className="h-4 w-4"/></button></form></section>
+ </div></main>
+}

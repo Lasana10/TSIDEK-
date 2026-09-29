@@ -78,7 +78,26 @@ async function openrouter(signal) {
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://tsidek-os.onrender.com", "X-Title": "TSIDKENU provider verification" }, body: JSON.stringify({ model, messages: [{ role: "user", content: "Reply only with OK." }], max_tokens: 3, temperature: 0 }), signal });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`chat/completions ${response.status}`);
-  push("openrouter", "VERIFIED", { status: response.status, model: typeof data.model === "string" ? data.model : model, completionResolved: Boolean(data.choices?.[0]?.message?.content) });
+  const content = data.choices?.[0]?.message?.content;
+  if (!content || !String(content).trim()) throw new Error("chat/completions 200 but no usable completion");
+  push("openrouter", "VERIFIED", { status: response.status, model: typeof data.model === "string" ? data.model : model, completionResolved: true });
+}
+
+async function gemini(signal) {
+  const key = process.env.GEMINI_API_KEY || "";
+  if (!key) return push("gemini", "IMPLEMENTED_UNVERIFIED", { reason: "missing_runtime_credentials" });
+  const model = process.env.TSIDEK_GEMINI_MODEL || "gemini-2.5-flash";
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({contents:[{parts:[{text:"Reply only with OK."}]}],generationConfig:{temperature:0,maxOutputTokens:8}}),
+    signal
+  });
+  const data = await response.json().catch(()=>({}));
+  if(!response.ok) throw new Error(`generateContent ${response.status}`);
+  const content = data?.candidates?.[0]?.content?.parts?.map((part)=>part?.text||"").join("").trim();
+  if(!content) throw new Error("generateContent 200 but no usable completion");
+  push("gemini","VERIFIED",{status:response.status,model,completionResolved:true});
 }
 
 async function pawapay(signal) {
@@ -98,6 +117,7 @@ const checks = [
   ["firebase", firebase],
   ["meta_whatsapp", whatsapp],
   ["openrouter", openrouter],
+  ["gemini", gemini],
   ["pawapay", pawapay],
 ];
 
