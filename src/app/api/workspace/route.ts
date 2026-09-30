@@ -56,15 +56,17 @@ export async function GET(request: Request) {
     const clientUpdatePromise = matterIds.length ? supabase.from("matter_client_updates").select("id,matter_id,title,status,delivery_status,instruction_required,instruction_status,created_at").in("matter_id", matterIds).order("created_at", { ascending: false }).limit(40) : empty;
     const closurePromise = matterIds.length ? supabase.from("matter_closure_reviews").select("id,matter_id,financial_reconciled,obligations_resolved,documents_archived,client_notified,knowledge_reviewed,approved_at,updated_at").in("matter_id", matterIds) : empty;
     const invoicePromise = canSeeFinance && matterIds.length ? supabase.from("invoices").select("id,matter_id,amount_xaf,status,due_date,created_at").in("matter_id", matterIds).order("created_at", { ascending: false }).limit(80) : empty;
+    const documentIntakePromise = canSeeFinance ? supabase.from("firm_document_intake_items").select("id,matter_id,original_name,document_kind,counterparty_name,amount,currency,review_status,proposed_action,created_at").eq("firm_id", scope.firmId).order("created_at",{ascending:false}).limit(40) : empty;
 
-    const [taskResult, documentResult, clientUpdateResult, closureResult, invoiceResult] = await Promise.all([taskPromise, documentPromise, clientUpdatePromise, closurePromise, invoicePromise]);
-    for (const result of [taskResult, documentResult, clientUpdateResult, closureResult, invoiceResult]) if (result.error) throw new Error(result.error.message);
+    const [taskResult, documentResult, clientUpdateResult, closureResult, invoiceResult, documentIntakeResult] = await Promise.all([taskPromise, documentPromise, clientUpdatePromise, closurePromise, invoicePromise, documentIntakePromise]);
+    for (const result of [taskResult, documentResult, clientUpdateResult, closureResult, invoiceResult, documentIntakeResult]) if (result.error) throw new Error(result.error.message);
 
     const tasks = taskResult.data ?? [];
     const documents = documentResult.data ?? [];
     const updates = clientUpdateResult.data ?? [];
     const closures = closureResult.data ?? [];
     const invoices = invoiceResult.data ?? [];
+    const documentIntake = documentIntakeResult.data ?? [];
     const now = Date.now();
     const sevenDays = now + 7 * 24 * 60 * 60 * 1000;
     const myTasks = tasks.filter((task) => isGovernor || !task.assigned_to || task.assigned_to === scope.actorLawyerId);
@@ -74,6 +76,7 @@ export async function GET(request: Request) {
     const pendingClientUpdates = updates.filter((item) => !["sent", "delivered", "acknowledged"].includes(String(item.delivery_status ?? item.status ?? "").toLowerCase()));
     const openProspects = (prospectResult.data ?? []).filter((prospect) => !["rejected", "converted", "closed"].includes(String(prospect.status ?? "").toLowerCase()));
     const outstandingInvoices = invoices.filter((invoice) => !["paid", "settled", "cancelled", "void"].includes(String(invoice.status ?? "").toLowerCase()));
+    const documentIntakeQueue = documentIntake.filter((item) => !["posted","rejected"].includes(String(item.review_status ?? "").toLowerCase()));
     const outstandingXaf = outstandingInvoices.reduce((sum, invoice) => sum + Number(invoice.amount_xaf ?? 0), 0);
     const firmName = brandResult.data?.display_name || brandResult.data?.short_name || firmResult.data?.name || "Active firm";
 
@@ -107,9 +110,10 @@ export async function GET(request: Request) {
         pendingClientUpdates: pendingClientUpdates.length,
         outstandingInvoices: outstandingInvoices.length,
         outstandingXaf,
+        documentIntakeQueue: documentIntakeQueue.length,
       },
       queues: {
-        matters: accessibleMatters.slice(0, 12), tasks: openTasks.slice(0, 12), documents: reviewQueue.slice(0, 10), intake: openProspects.slice(0, 10), clientUpdates: pendingClientUpdates.slice(0, 10), closures: closures.slice(0, 10), invoices: outstandingInvoices.slice(0, 10),
+        matters: accessibleMatters.slice(0, 12), tasks: openTasks.slice(0, 12), documents: reviewQueue.slice(0, 10), documentIntake: documentIntakeQueue.slice(0, 8), intake: openProspects.slice(0, 10), clientUpdates: pendingClientUpdates.slice(0, 10), closures: closures.slice(0, 10), invoices: outstandingInvoices.slice(0, 10),
       },
     });
   } catch (error) {
