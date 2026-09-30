@@ -141,6 +141,8 @@ create table if not exists public.workroom_external_reviews (
   allow_comment boolean not null default true,
   allow_upload boolean not null default false,
   allow_ai_review boolean not null default false,
+  selected_message_ids jsonb not null default '[]'::jsonb,
+  title text,
   expires_at timestamptz not null,
   revoked_at timestamptz,
   created_by uuid references public.lawyers(id) on delete set null,
