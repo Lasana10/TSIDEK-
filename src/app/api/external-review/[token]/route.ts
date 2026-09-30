@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { persistUploadedFile } from "@/lib/file-vault";
 
 type Ctx={params:Promise<{token:string}>};
 const hash=(value:string)=>createHash("sha256").update(value).digest("hex");
@@ -36,6 +37,20 @@ export async function GET(_:Request,context:Ctx){
 export async function POST(request:Request,context:Ctx){
   try{
     const {token}=await context.params; const {supabase,review}=await resolveReview(token);
+    const contentType=request.headers.get("content-type")||"";
+    if(contentType.includes("multipart/form-data")){
+      if(!review.allow_upload) return NextResponse.json({success:false,error:"Uploads are disabled for this review link."},{status:403});
+      const form=await request.formData(); const file=form.get("file");
+      if(!(file instanceof File)||file.size<=0) return NextResponse.json({success:false,error:"Choose a file to upload."},{status:400});
+      if(file.size>15_000_000) return NextResponse.json({success:false,error:"External review uploads must be 15 MB or smaller."},{status:400});
+      const saved=await persistUploadedFile({file,relativeDirectory:`storage/firms/${review.firm_id}/external-reviews/${review.id}`});
+      const created=await supabase.from("workroom_external_review_events").insert({
+        review_id:review.id,firm_id:review.firm_id,thread_id:review.thread_id,event_type:"upload",author_label:review.reviewer_label,
+        body:file.name,metadata:{storage_path:saved.relativePath,storage_provider:saved.provider,mime_type:saved.mimeType,size_bytes:saved.sizeBytes,original_name:file.name}
+      }).select("*").single();
+      if(created.error) throw new Error(created.error.message);
+      return NextResponse.json({success:true,event:created.data},{status:201});
+    }
     const body=await request.json(); const action=String(body.action??"comment");
     if(action==="comment"){
       if(!review.allow_comment) return NextResponse.json({success:false,error:"Comments are disabled for this review link."},{status:403});
