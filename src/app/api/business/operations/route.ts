@@ -8,13 +8,15 @@ export async function GET(request:Request){
     const scope=await resolveRequestScope(request);await assertFirmPermission({scope,permission:"viewBilling"});
     if(!scope.firmId) throw new Error("Authenticated firm context is required.");
     const supabase=createServerSupabaseClient();if(!supabase) throw new Error("Supabase server configuration is required.");
-    const [suppliers,obligations,lawyers]=await Promise.all([
+    const [suppliers,obligations,lawyers,bills,expenses]=await Promise.all([
       supabase.from("firm_suppliers").select("*").eq("firm_id",scope.firmId).order("name"),
       supabase.from("firm_operational_obligations").select("*").eq("firm_id",scope.firmId).order("due_at",{ascending:true}),
-      supabase.from("lawyers").select("id,full_name,role").eq("firm_id",scope.firmId).order("full_name")
+      supabase.from("lawyers").select("id,full_name,role").eq("firm_id",scope.firmId).order("full_name"),
+      supabase.from("firm_supplier_bills").select("*").eq("firm_id",scope.firmId).order("created_at",{ascending:false}).limit(500),
+      supabase.from("firm_expenses").select("id,supplier_name,amount_xaf,expense_date,status,description").eq("firm_id",scope.firmId).order("expense_date",{ascending:false}).limit(500)
     ]);
-    for(const result of [suppliers,obligations,lawyers]) if(result.error) throw new Error(result.error.message);
-    return NextResponse.json({success:true,suppliers:suppliers.data??[],obligations:obligations.data??[],lawyers:lawyers.data??[]});
+    for(const result of [suppliers,obligations,lawyers,bills,expenses]) if(result.error) throw new Error(result.error.message);
+    return NextResponse.json({success:true,suppliers:suppliers.data??[],obligations:obligations.data??[],lawyers:lawyers.data??[],bills:bills.data??[],expenses:expenses.data??[]});
   }catch(error){return NextResponse.json({success:false,error:error instanceof Error?error.message:"Unable to load business operations."},{status:403})}
 }
 
