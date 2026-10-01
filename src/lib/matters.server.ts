@@ -2,7 +2,6 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import type { RequestScope } from "@/lib/request-scope";
 import {
   buildMatterWorkspaceRecord,
-  loadMattersFromSupabase,
   seededMatterWorkspaceRecords,
   type MatterWorkspaceData,
 } from "@/lib/matters";
@@ -12,6 +11,31 @@ import {
   listPrototypeMatterWorkspaces,
 } from "@/lib/prototype-store.server";
 import { isDemoModeEnabled } from "@/lib/runtime-mode";
+
+async function loadServerMatters(firmId?: string) {
+  const supabase = createServerSupabaseClient();
+  if (!supabase) return null;
+
+  let query = supabase
+    .from("matters")
+    .select("id,title,client_name,status,risk_level,jurisdiction,lead_lawyer_id,security_classification,ethical_wall_enabled,case_reference")
+    .order("created_at", { ascending: false });
+  if (firmId) query = query.eq("firm_id", firmId);
+
+  const matterResult = await query;
+  if (matterResult.error) throw new Error(matterResult.error.message);
+  const rows = matterResult.data ?? [];
+  const lawyerIds = rows.map((row) => row.lead_lawyer_id).filter((id): id is string => Boolean(id));
+  const lawyerResult = lawyerIds.length
+    ? await supabase.from("lawyers").select("id,full_name,role").in("id", lawyerIds)
+    : { data: [], error: null };
+  if (lawyerResult.error) throw new Error(lawyerResult.error.message);
+  const lawyers = new Map((lawyerResult.data ?? []).map((lawyer) => [lawyer.id, lawyer]));
+
+  return rows.map((row) =>
+    buildMatterWorkspaceRecord(row, row.lead_lawyer_id ? lawyers.get(row.lead_lawyer_id) : undefined, [], [])
+  );
+}
 
 async function resolveDefaultFirmId() {
   const supabase = createServerSupabaseClient();
@@ -52,7 +76,7 @@ async function resolveDefaultFirmId() {
 }
 
 export async function listMatterWorkspacesServer(scope?: RequestScope) {
-  const liveMatters = await loadMattersFromSupabase(scope?.firmId ?? undefined);
+  const liveMatters = await loadServerMatters(scope?.firmId ?? undefined);
   if (liveMatters) {
     return liveMatters;
   }
@@ -66,7 +90,7 @@ export async function listMatterWorkspacesServer(scope?: RequestScope) {
 }
 
 export async function getMatterWorkspaceByIdServer(matterId: string, scope?: RequestScope) {
-  const liveMatters = await loadMattersFromSupabase(scope?.firmId ?? undefined);
+  const liveMatters = await loadServerMatters(scope?.firmId ?? undefined);
   if (liveMatters) {
     return liveMatters.find((matter) => matter.id === matterId) ?? null;
   }
@@ -125,7 +149,7 @@ export async function createMatterWorkspaceServer(input: {
         ethical_wall_enabled: Boolean(input.ethicalWallEnabled),
         lead_lawyer_id: input.leadLawyerId ?? scope?.actorLawyerId ?? null,
       })
-      .select("id")
+      .select("id,title,client_name,status,risk_level,jurisdiction,lead_lawyer_id,security_classification,ethical_wall_enabled,case_reference")
       .single();
 
     if (result.error || !result.data) {
@@ -155,8 +179,7 @@ export async function createMatterWorkspaceServer(input: {
       }
     }
 
-    const matters = await listMatterWorkspacesServer(scope);
-    return matters.find((item) => item.id === result.data.id) ?? null;
+    return buildMatterWorkspaceRecord(result.data, undefined, [], []);
   }
 
   if (!isDemoModeEnabled()) {
