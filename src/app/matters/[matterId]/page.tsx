@@ -12,6 +12,7 @@ import PracticeExecutionPanel from "@/components/PracticeExecutionPanel";
 import FinanceTransparencyPanel from "@/components/FinanceTransparencyPanel";
 import MatterClosurePanel from "@/components/MatterClosurePanel";
 import ProcedureGuidancePanel from "@/components/ProcedureGuidancePanel";
+import CaseRecordActions from "@/components/CaseRecordActions";
 import { getMatterWorkspaceByIdServer } from "@/lib/matters.server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import type { WorkspaceTab } from "@/components/MatterWorkspace";
@@ -83,9 +84,10 @@ export default async function MatterDetailPage({params,searchParams}:{params:Pro
       </section>
 
       <section className="space-y-5">
-        <SectionTitle eyebrow="Control & closure" title="Protect the record and close it properly" text="Access controls, final checks and reusable institutional knowledge are handled at the end of the case lifecycle."/>
+        <SectionTitle eyebrow="Control & closure" title="Protect the record and close it properly" text="Access controls, final checks, archiving and reusable institutional knowledge are handled at the end of the case lifecycle."/>
         <MatterControlDesk matterId={matterId}/>
         <MatterClosurePanel matterId={matterId}/>
+        <CaseRecordActions matterId={matterId}/>
       </section>
     </div>
   </main>
