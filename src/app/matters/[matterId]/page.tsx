@@ -14,6 +14,7 @@ import MatterClosurePanel from "@/components/MatterClosurePanel";
 import ProcedureGuidancePanel from "@/components/ProcedureGuidancePanel";
 import CaseRecordActions from "@/components/CaseRecordActions";
 import CaseIdentityPanel from "@/components/CaseIdentityPanel";
+import CaseNextAction from "@/components/CaseNextAction";
 import { getMatterWorkspaceByIdServer } from "@/lib/matters.server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import type { WorkspaceTab } from "@/components/MatterWorkspace";
@@ -63,10 +64,11 @@ export default async function MatterDetailPage({params,searchParams}:{params:Pro
         </div>
       </section>
 
+      <CaseNextAction matterId={matterId}/>
       <CaseIdentityPanel matterId={matterId}/>
       <section aria-label="Case workspace"><MatterWorkspace matter={matter} initialTab={activeTab}/></section>
 
-      <section className="space-y-5">
+      <section id="attention" className="space-y-5 scroll-mt-6">
         <SectionTitle eyebrow="Attention & activity" title="What needs attention now" text="Current obligations, approvals, risk and the chronological case record are shown together instead of in competing dashboards."/>
         <MatterCommandCenter matterId={matterId}/>
         <MatterActivityPanel matterId={matterId}/>
