@@ -4,12 +4,14 @@ import { assertMatterScopeAccess } from "@/lib/request-scope";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { statusForApiError } from "@/lib/api-errors";
 
+// Audit events intentionally do not block removal. A mistakenly created empty
+// case still has creation/governance events, and those events must remain as
+// evidence that the record existed. Substantive legal/financial records do block it.
 const removableDependencyChecks = [
   ["documents", "matter_id"],
   ["invoices", "matter_id"],
   ["matter_payments", "matter_id"],
   ["matter_disbursements", "matter_id"],
-  ["matter_events", "matter_id"],
   ["legal_document_records", "matter_id"],
 ] as const;
 
