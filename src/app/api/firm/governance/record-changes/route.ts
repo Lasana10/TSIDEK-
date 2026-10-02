@@ -3,12 +3,13 @@ import { assertFirmPermission } from "@/lib/authorization";
 import { resolveRequestScope } from "@/lib/request-scope";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
+// The audit ledger is preserved even for a mistaken case, but its existence is
+// not substantive legal history. Documents and financial/legal records are.
 const dependencyChecks = [
   ["documents", "matter_id"],
   ["invoices", "matter_id"],
   ["matter_payments", "matter_id"],
   ["matter_disbursements", "matter_id"],
-  ["matter_events", "matter_id"],
   ["legal_document_records", "matter_id"],
 ] as const;
 
