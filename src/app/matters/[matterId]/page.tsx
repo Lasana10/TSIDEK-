@@ -13,6 +13,7 @@ import FinanceTransparencyPanel from "@/components/FinanceTransparencyPanel";
 import MatterClosurePanel from "@/components/MatterClosurePanel";
 import ProcedureGuidancePanel from "@/components/ProcedureGuidancePanel";
 import CaseRecordActions from "@/components/CaseRecordActions";
+import CaseIdentityPanel from "@/components/CaseIdentityPanel";
 import { getMatterWorkspaceByIdServer } from "@/lib/matters.server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import type { WorkspaceTab } from "@/components/MatterWorkspace";
@@ -62,6 +63,7 @@ export default async function MatterDetailPage({params,searchParams}:{params:Pro
         </div>
       </section>
 
+      <CaseIdentityPanel matterId={matterId}/>
       <section aria-label="Case workspace"><MatterWorkspace matter={matter} initialTab={activeTab}/></section>
 
       <section className="space-y-5">
