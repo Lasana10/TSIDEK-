@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, CheckCircle2, FileUp, ScanLine, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
+type UploadedItem = { id: string; review_status?: string };
+
 export default function CaseDigitisationPage() {
   const params = useParams<{ matterId: string }>();
   const matterId = params.matterId;
@@ -24,11 +26,21 @@ export default function CaseDigitisationPage() {
       form.append("sourceType", "phone_scan");
       form.append("matterId", matterId);
       const response = await fetch("/api/digitisation", { method: "POST", body: form });
-      const payload = await response.json();
-      if (!response.ok || !payload.success) throw new Error(payload.error || "Unable to import case material.");
+      const payload = await response.json() as { success?: boolean; error?: string; batch?: { id: string }; items?: UploadedItem[] };
+      if (!response.ok || !payload.success || !payload.batch) throw new Error(payload.error || "Unable to import case material.");
+
+      const items = payload.items ?? [];
+      const candidates = items.filter((item) => item.review_status !== "duplicate");
+      const analysis = await Promise.allSettled(candidates.map(async (item) => {
+        const result = await fetch(`/api/digitisation/${item.id}/analyze`, { method: "POST" });
+        const body = await result.json() as { success?: boolean; error?: string };
+        if (!result.ok || !body.success) throw new Error(body.error || "Analysis unavailable");
+      }));
+      const analyzed = analysis.filter((entry) => entry.status === "fulfilled").length;
+
       setBatchId(payload.batch.id);
       setFiles([]);
-      setMessage(`${payload.items.length} file(s) captured into the review queue for this case.`);
+      setMessage(`${items.length} file(s) preserved in this case review queue. ${analyzed} received an intelligence proposal; every item still requires human confirmation.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to import case material.");
     } finally {
@@ -46,7 +58,7 @@ export default function CaseDigitisationPage() {
       <section className="overflow-hidden rounded-[2rem] bg-[#082b22] p-7 text-white shadow-xl md:p-9">
         <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[.06] px-3 py-1.5 text-[10px] font-black uppercase tracking-[.2em] text-white/60"><ScanLine className="h-4 w-4 text-[#dfc47f]"/>Case capture</div>
         <h1 className="mt-5 text-3xl font-semibold tracking-[-.03em] md:text-4xl">Scan or import paper directly into this case.</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-7 text-white/65">Use a phone photo, scanned PDF, office scan or existing file. The original is preserved and enters human review before it can become authoritative case material.</p>
+        <p className="mt-3 max-w-3xl text-sm leading-7 text-white/65">Use a phone photo, scanned PDF, office scan or existing file. The original is preserved, TSIDKENU can propose a classification when a permitted provider is available, and human review remains mandatory.</p>
       </section>
 
       {message ? <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">{message}</div> : null}
@@ -62,12 +74,12 @@ export default function CaseDigitisationPage() {
 
           {files.length ? <div className="mt-4 rounded-2xl bg-[#edf4f0] p-4 text-sm text-[#0b493b]"><strong>{files.length} file(s)</strong> selected · {Math.round(files.reduce((sum,file)=>sum+file.size,0)/1024)} KB</div> : null}
 
-          <button type="button" onClick={upload} disabled={!files.length || busy} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#0b493b] px-5 py-3.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{busy ? "Importing originals…" : "Import into case review queue"}</button>
+          <button type="button" onClick={upload} disabled={!files.length || busy} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#0b493b] px-5 py-3.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{busy ? "Preserving & analysing…" : "Import into case review queue"}</button>
         </div>
 
         <aside className="space-y-4">
-          <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm"><ShieldCheck className="h-5 w-5 text-[#0b493b]"/><p className="mt-3 text-sm font-semibold">Controlled by default</p><p className="mt-2 text-xs leading-5 text-slate-500">No OCR or AI classification becomes authoritative without human confirmation.</p></div>
-          <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm"><CheckCircle2 className="h-5 w-5 text-[#0b493b]"/><p className="mt-3 text-sm font-semibold">What happens next</p><p className="mt-2 text-xs leading-5 text-slate-500">TSIDKENU preserves the originals, checks duplicates, proposes classification and sends uncertain items to review.</p>{batchId ? <Link href="/digitisation" className="mt-4 inline-flex text-xs font-bold text-[#0b493b]">Review imported batch →</Link> : null}</div>
+          <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm"><ShieldCheck className="h-5 w-5 text-[#0b493b]"/><p className="mt-3 text-sm font-semibold">Controlled by default</p><p className="mt-2 text-xs leading-5 text-slate-500">AI can propose classification and extraction, but it cannot make a scan authoritative without human confirmation.</p></div>
+          <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm"><CheckCircle2 className="h-5 w-5 text-[#0b493b]"/><p className="mt-3 text-sm font-semibold">What happens next</p><p className="mt-2 text-xs leading-5 text-slate-500">TSIDKENU preserves originals, fingerprints duplicates, attempts permitted document intelligence, and keeps uncertain or unsupported files in human review.</p>{batchId ? <Link href="/digitisation" className="mt-4 inline-flex text-xs font-bold text-[#0b493b]">Review imported batch →</Link> : null}</div>
         </aside>
       </section>
     </div>
