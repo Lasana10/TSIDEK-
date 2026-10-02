@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import FirmBrandRuntime from "@/components/FirmBrandRuntime";
+import FirmIdentityShell from "@/components/FirmIdentityShell";
 import TsidkenuProductBrand from "@/components/TsidkenuProductBrand";
 
 export const metadata: Metadata = {
@@ -17,6 +18,7 @@ export default function RootLayout({
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full">
         <FirmBrandRuntime />
+        <FirmIdentityShell />
         <TsidkenuProductBrand />
         {children}
       </body>
