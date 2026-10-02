@@ -2,21 +2,21 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, BadgeCheck, CalendarClock, FileText, MessageSquareText, Scale, WalletCards } from "lucide-react";
+import { ArrowRight, FileText, MessageSquareText, Scale, WalletCards } from "lucide-react";
+
+type Summary = {
+  openObligations: number;
+  overdueOrCriticalObligations: number;
+  pendingApprovals: number;
+  authoritativeDocuments: number;
+  documentsAwaitingReview: number;
+  unapprovedSubstantiveCommunications: number;
+  outstandingXaf: number;
+};
 
 type CommandCenterPayload = {
   success: boolean;
-  commandCenter?: {
-    summary: {
-      openObligations: number;
-      overdueOrCriticalObligations: number;
-      pendingApprovals: number;
-      authoritativeDocuments: number;
-      documentsAwaitingReview: number;
-      unapprovedSubstantiveCommunications: number;
-      outstandingXaf: number;
-    };
-  };
+  commandCenter?: { summary: Summary };
 };
 
 type Recommendation = {
@@ -28,7 +28,7 @@ type Recommendation = {
 };
 
 export default function CaseNextAction({ matterId }: { matterId: string }) {
-  const [summary, setSummary] = useState<CommandCenterPayload["commandCenter"] extends { summary: infer S } ? S : never | null>(null);
+  const [summary, setSummary] = useState<Summary | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,7 +40,7 @@ export default function CaseNextAction({ matterId }: { matterId: string }) {
         });
         const payload = (await response.json()) as CommandCenterPayload;
         if (!cancelled && response.ok && payload.success && payload.commandCenter) {
-          setSummary(payload.commandCenter.summary as never);
+          setSummary(payload.commandCenter.summary);
         }
       } catch {
         // Keep the case room usable even when the advisory layer is temporarily unavailable.
@@ -133,7 +133,7 @@ export default function CaseNextAction({ matterId }: { matterId: string }) {
             <h2 className="mt-4 max-w-3xl text-2xl font-semibold tracking-[-.025em] text-slate-900 md:text-3xl">{recommendation.title}</h2>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">{recommendation.detail}</p>
           </div>
-          <Link href={recommendation.href} className="inline-flex w-fit items-center gap-2 rounded-xl bg-[#0b493b] px-4 py-3 text-xs font-black uppercase tracking-[.13em] text-white shadow-sm transition hover:translate-y-[-1px]">
+          <Link href={recommendation.href} className="inline-flex w-fit items-center gap-2 rounded-xl bg-[#0b493b] px-4 py-3 text-xs font-black uppercase tracking-[.13em] text-white shadow-sm transition hover:-translate-y-px">
             {recommendation.cta}<ArrowRight className="h-4 w-4" />
           </Link>
         </div>
