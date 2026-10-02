@@ -28,14 +28,30 @@ html { scroll-behavior: smooth; }
 body {
   margin: 0;
   background:
-    radial-gradient(circle at top left, rgba(197, 160, 89, 0.14), transparent 26%),
-    radial-gradient(circle at top right, rgba(0, 54, 41, 0.08), transparent 30%),
-    linear-gradient(180deg, #fbfaf7 0%, #f4f1ea 100%);
-  color: var(--foreground);
+    radial-gradient(circle at top left, color-mix(in srgb, var(--firm-accent) 14%, transparent), transparent 26%),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--firm-primary) 9%, transparent), transparent 30%),
+    linear-gradient(180deg, color-mix(in srgb, var(--firm-background) 92%, white) 0%, var(--firm-background) 100%);
+  color: var(--firm-text, var(--foreground));
   font-family: var(--font-sans), sans-serif;
   letter-spacing: -0.01em;
 }
 button,input,textarea,select { font: inherit; }
+
+.firm-identity-shell {
+  position: relative;
+  z-index: 40;
+  border-bottom: 1px solid;
+  background: color-mix(in srgb, var(--firm-surface) 92%, transparent);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 8px 30px color-mix(in srgb, var(--firm-primary) 6%, transparent);
+}
+
+.firm-primary-action {
+  background: var(--firm-primary);
+  color: white;
+}
+.firm-accent-text { color: var(--firm-primary); }
+.firm-accent-border { border-color: color-mix(in srgb, var(--firm-primary) 24%, #e2e8f0); }
 
 /* The supplied TSIDKENU artwork is a wide wordmark, not an app-icon tile.
    Keep it visually native to the shell: preserve aspect ratio, remove duplicate
@@ -57,19 +73,19 @@ div:has(> img[alt="Tsidkenu"]) {
 }
 
 .glass {
-  background: rgba(255, 255, 255, 0.86);
+  background: color-mix(in srgb, var(--firm-surface) 86%, transparent);
   border: 1px solid rgba(225, 227, 226, 0.92);
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.04);
   backdrop-filter: blur(16px);
 }
 .card-heritage {
-  background: rgba(255, 255, 255, 0.9);
+  background: color-mix(in srgb, var(--firm-surface) 90%, transparent);
   border: 1px solid #e1e3e2;
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .card-heritage:hover {
-  border-color: rgba(0, 54, 41, 0.3);
-  box-shadow: 0 18px 38px rgba(0, 54, 41, 0.06);
+  border-color: color-mix(in srgb, var(--firm-primary) 30%, transparent);
+  box-shadow: 0 18px 38px color-mix(in srgb, var(--firm-primary) 7%, transparent);
   transform: translateY(-2px);
 }
 .heading-serif {
@@ -78,7 +94,7 @@ div:has(> img[alt="Tsidkenu"]) {
   letter-spacing: -0.02em;
 }
 .btn-classic {
-  background: #003629;
+  background: var(--firm-primary);
   color: #ffffff;
   padding: 0.75rem 1.5rem;
   border: 0;
@@ -87,9 +103,9 @@ div:has(> img[alt="Tsidkenu"]) {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: 0 14px 24px rgba(0, 54, 41, 0.14);
+  box-shadow: 0 14px 24px color-mix(in srgb, var(--firm-primary) 16%, transparent);
 }
 .btn-classic:hover {
-  background: #0c4a39;
+  filter: brightness(1.08);
   transform: translateY(-1px);
 }
