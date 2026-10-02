@@ -10,14 +10,16 @@ export async function GET(request: Request) {
     const supabase = createServerSupabaseClient();
     if (!supabase) throw new Error("Supabase server configuration is required.");
 
-    const [{ data: brand, error: brandError }, { data: forms, error: formsError }, { data: subscription, error: subscriptionError }] = await Promise.all([
+    const [{ data: brand, error: brandError }, { data: forms, error: formsError }, { data: subscription, error: subscriptionError }, { data: documentStyles, error: stylesError }] = await Promise.all([
       supabase.from("firm_brand_profiles").select("*").eq("firm_id", scope.firmId).maybeSingle(),
       supabase.from("firm_form_definitions").select("id,form_key,name,description,module,version,status,schema,ui_schema,workflow,access_roles,updated_at").eq("firm_id", scope.firmId).order("module").order("name"),
       supabase.from("firm_subscriptions").select("plan_key,status,deployment_mode,starts_at,renews_at,configuration,product_plans(name,description)").eq("firm_id", scope.firmId).maybeSingle(),
+      supabase.from("firm_document_styles").select("id,document_kind,label,header_mode,footer_mode,show_logo,show_matter_reference,show_confidentiality,signature_mode,configuration,updated_at").eq("firm_id", scope.firmId).order("label"),
     ]);
     if (brandError) throw new Error(brandError.message);
     if (formsError) throw new Error(formsError.message);
     if (subscriptionError) throw new Error(subscriptionError.message);
+    if (stylesError) throw new Error(stylesError.message);
 
     let modules: Array<Record<string, unknown>> = [];
     if (subscription?.plan_key) {
@@ -36,7 +38,7 @@ export async function GET(request: Request) {
       ...brand,
       logo_display_url: brand.logo_asset_path ? `/api/firm/studio/logo?v=${encodeURIComponent(brand.updated_at || "1")}` : brand.logo_url,
     } : null;
-    return NextResponse.json({ success: true, brand: brandResponse, forms: forms ?? [], subscription, modules });
+    return NextResponse.json({ success: true, brand: brandResponse, forms: forms ?? [], subscription, modules, documentStyles: documentStyles ?? [] });
   } catch (error) {
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Unable to load studio." }, { status: 403 });
   }
@@ -55,7 +57,8 @@ export async function PATCH(request: Request) {
       "display_name","legal_name","short_name","motto","logo_url","logo_mark_url","favicon_url",
       "primary_color","secondary_color","accent_color","background_color","surface_color","text_color",
       "font_heading","font_body","document_header_html","document_footer_html","letterhead_asset_url",
-      "email_signature_html","default_language","locale","timezone","date_format","currency","configuration"
+      "email_signature_html","default_language","locale","timezone","date_format","currency","configuration",
+      "document_identity","ui_theme"
     ];
     const patch: Record<string, unknown> = { updated_by: scope.actorLawyerId, updated_at: new Date().toISOString() };
     for (const key of allowed) if (Object.prototype.hasOwnProperty.call(body, key)) patch[key] = body[key];
