@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BriefcaseBusiness, ChevronRight, Landmark, ShieldCheck } from "lucide-react";
+import { ArrowLeft, BriefcaseBusiness, Camera, ChevronRight, Landmark, ShieldCheck } from "lucide-react";
 import MatterWorkspace from "@/components/MatterWorkspace";
 import MatterWorkflowPanel from "@/components/MatterWorkflowPanel";
 import MatterActivityPanel from "@/components/MatterActivityPanel";
@@ -40,6 +40,7 @@ export default async function MatterDetailPage({params,searchParams}:{params:Pro
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link href="/matters" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-600 shadow-sm"><ArrowLeft className="h-4 w-4"/>Case portfolio</Link>
         <div className="flex flex-wrap gap-2">
+          <Link href={`/matters/${matterId}/capture`} className="inline-flex items-center gap-2 rounded-xl bg-[#082b22] px-3.5 py-2.5 text-xs font-bold text-white shadow-sm"><Camera className="h-4 w-4"/>Capture</Link>
           <Link href={`/matters/${matterId}/accounting`} className="rounded-xl border border-[#0b493b] bg-white px-3.5 py-2.5 text-xs font-bold text-[#0b493b]">Economics & time</Link>
           <Link href="/workspace" className="inline-flex items-center gap-2 text-xs font-bold text-[#0b493b]">Firm workspace<ChevronRight className="h-4 w-4"/></Link>
         </div>
