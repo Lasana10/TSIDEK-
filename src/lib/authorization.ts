@@ -14,7 +14,10 @@ export type PermissionKey =
   | "manageFirm"
   | "manageEthicalWalls"
   | "manageClientAccess"
-  | "approveAIWork";
+  | "approveAIWork"
+  | "archiveMatters"
+  | "requestMatterRemoval"
+  | "approveMatterRemoval";
 
 export type ProductModuleKey =
   | "identity_security" | "matters" | "documents" | "tasks_audit" | "firm_studio"
@@ -22,17 +25,26 @@ export type ProductModuleKey =
   | "client_portal" | "digitisation" | "institutional_ai" | "integrations"
   | "advanced_reporting" | "multi_office" | "private_runtime";
 
+const fullGovernorPermissions: PermissionKey[] = [
+  "openMatters","assignWork","approveFilings","viewBilling","manageEvidence","editDeadlines",
+  "inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess","approveAIWork",
+  "archiveMatters","requestMatterRemoval","approveMatterRemoval",
+];
+
 const rolePermissions: Record<string, PermissionKey[]> = {
-  owner: ["openMatters","assignWork","approveFilings","viewBilling","manageEvidence","editDeadlines","inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess","approveAIWork"],
-  partner: ["openMatters","assignWork","approveFilings","viewBilling","manageEvidence","editDeadlines","inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess","approveAIWork"],
-  administrator: ["openMatters","assignWork","viewBilling","manageEvidence","editDeadlines","inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess"],
+  owner: fullGovernorPermissions,
+  managing_partner: fullGovernorPermissions,
+  partner: ["openMatters","assignWork","approveFilings","viewBilling","manageEvidence","editDeadlines","inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess","approveAIWork","archiveMatters","requestMatterRemoval"],
+  administrator: ["openMatters","assignWork","viewBilling","manageEvidence","editDeadlines","inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess","archiveMatters"],
   lawyer: ["openMatters","assignWork","viewBilling","manageEvidence","editDeadlines","manageClientAccess"],
   paralegal: ["manageEvidence","editDeadlines"],
   intern: ["manageEvidence"],
   finance: ["viewBilling"],
   clerk: ["manageEvidence","editDeadlines"],
   knowledge_manager: ["manageEvidence","approveAIWork"],
-  Partner: ["openMatters","assignWork","approveFilings","viewBilling","manageEvidence","editDeadlines","inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess","approveAIWork"],
+  Partner: ["openMatters","assignWork","approveFilings","viewBilling","manageEvidence","editDeadlines","inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess","approveAIWork","archiveMatters","requestMatterRemoval"],
+  "Managing Partner": fullGovernorPermissions,
+  "Firm Head": fullGovernorPermissions,
   "Senior Associate": ["openMatters","assignWork","manageEvidence","editDeadlines","viewBilling","manageClientAccess"],
   "Junior Associate": ["openMatters","manageEvidence","editDeadlines"],
   Lawyer: ["openMatters","assignWork","manageEvidence","editDeadlines","viewBilling","manageClientAccess"],
@@ -102,7 +114,7 @@ export async function assertMatterPermission(input: {
   if (!isMember) throw new Error("The acting lawyer is not assigned to this matter.");
 
   const level = String(state.matter.confidentiality_level ?? "").toLowerCase();
-  const governor = ["owner", "partner", "administrator"].includes(state.firmMembership?.role_key ?? "") || state.lawyer.role === "Partner";
+  const governor = ["owner", "managing_partner", "partner", "administrator"].includes(state.firmMembership?.role_key ?? "") || ["Partner", "Managing Partner", "Firm Head"].includes(state.lawyer.role ?? "");
   if ((level === "partner-only" || level === "restricted") && !isLead && !governor && !explicitAllow) {
     throw new Error("Access denied: this restricted matter requires lead, partner/governor, or explicit access.");
   }

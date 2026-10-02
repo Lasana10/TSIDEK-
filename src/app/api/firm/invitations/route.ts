@@ -5,6 +5,7 @@ import { resolveRequestScope } from "@/lib/request-scope";
 import { createServerAuthClient } from "@/lib/supabase-auth";
 
 const inviteRoles = new Set([
+  "managing_partner",
   "partner",
   "lawyer",
   "paralegal",
@@ -47,6 +48,9 @@ export async function POST(request: Request) {
     const lifetimeHours = Math.min(Math.max(Number(body.lifetimeHours ?? 168), 1), 720);
     if (!email || !email.includes("@")) throw new Error("A valid email is required.");
     if (!inviteRoles.has(roleKey)) throw new Error("Unsupported firm role.");
+    if (roleKey === "managing_partner") {
+      await assertFirmPermission({ scope, permission: "approveMatterRemoval" });
+    }
 
     const rawToken = randomBytes(32).toString("base64url");
     const tokenHash = createHash("sha256").update(rawToken).digest("hex");
@@ -76,11 +80,7 @@ export async function POST(request: Request) {
     if (inserted.error) throw new Error(inserted.error.message);
 
     const origin = new URL(request.url).origin;
-    return NextResponse.json({
-      success: true,
-      invitation: inserted.data,
-      inviteUrl: `${origin}/join?token=${encodeURIComponent(rawToken)}`,
-    });
+    return NextResponse.json({ success: true, invitation: inserted.data, inviteUrl: `${origin}/join?token=${encodeURIComponent(rawToken)}` });
   } catch (error) {
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Unable to create invitation." }, { status: 400 });
   }
