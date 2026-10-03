@@ -7,6 +7,8 @@ import { createServerAuthClient } from "@/lib/supabase-auth";
 const inviteRoles = new Set([
   "managing_partner",
   "partner",
+  "senior_associate",
+  "junior_associate",
   "lawyer",
   "paralegal",
   "intern",
@@ -15,6 +17,7 @@ const inviteRoles = new Set([
   "clerk",
   "knowledge_manager",
 ]);
+const governanceRoles = new Set(["member", "firm_head", "managing_partner", "administrator"]);
 
 export async function GET(request: Request) {
   try {
@@ -26,7 +29,7 @@ export async function GET(request: Request) {
     if (!supabase) throw new Error("Supabase Auth is unavailable.");
     const result = await supabase
       .from("firm_invitations")
-      .select("id,email,role_key,status,expires_at,accepted_at,created_at")
+      .select("id,email,role_key,governance_role_key,governance_title,status,expires_at,accepted_at,created_at")
       .eq("firm_id", scope.firmId)
       .order("created_at", { ascending: false });
     if (result.error) throw new Error(result.error.message);
@@ -45,10 +48,15 @@ export async function POST(request: Request) {
     const body = await request.json();
     const email = String(body.email ?? "").trim().toLowerCase();
     const roleKey = String(body.roleKey ?? "lawyer").trim();
+    const governanceRoleKey = String(body.governanceRoleKey ?? "member").trim();
+    const governanceTitle = String(body.governanceTitle ?? "").trim() || null;
     const lifetimeHours = Math.min(Math.max(Number(body.lifetimeHours ?? 168), 1), 720);
     if (!email || !email.includes("@")) throw new Error("A valid email is required.");
-    if (!inviteRoles.has(roleKey)) throw new Error("Unsupported firm role.");
-    if (roleKey === "managing_partner") {
+    if (!inviteRoles.has(roleKey)) throw new Error("Unsupported professional role.");
+    if (!governanceRoles.has(governanceRoleKey)) throw new Error("Unsupported governance authority.");
+
+    // Only Founder/Firm Head authority may appoint another Firm Head.
+    if (governanceRoleKey === "firm_head") {
       await assertFirmPermission({ scope, permission: "approveMatterRemoval" });
     }
 
@@ -74,8 +82,8 @@ export async function POST(request: Request) {
 
     const inserted = await supabase
       .from("firm_invitations")
-      .insert({ firm_id: scope.firmId, email, role_key: roleKey, token_hash: tokenHash, status: "pending", expires_at: expiresAt, invited_by: scope.actorLawyerId })
-      .select("id,email,role_key,status,expires_at,created_at")
+      .insert({ firm_id: scope.firmId, email, role_key: roleKey, governance_role_key: governanceRoleKey, governance_title: governanceTitle, token_hash: tokenHash, status: "pending", expires_at: expiresAt, invited_by: scope.actorLawyerId })
+      .select("id,email,role_key,governance_role_key,governance_title,status,expires_at,created_at")
       .single();
     if (inserted.error) throw new Error(inserted.error.message);
 

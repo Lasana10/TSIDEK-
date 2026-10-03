@@ -25,26 +25,21 @@ export type ProductModuleKey =
   | "client_portal" | "digitisation" | "institutional_ai" | "integrations"
   | "advanced_reporting" | "multi_office" | "private_runtime";
 
-const fullGovernorPermissions: PermissionKey[] = [
-  "openMatters","assignWork","approveFilings","viewBilling","manageEvidence","editDeadlines",
-  "inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess","approveAIWork",
-  "archiveMatters","requestMatterRemoval","approveMatterRemoval",
-];
-
-const rolePermissions: Record<string, PermissionKey[]> = {
-  owner: fullGovernorPermissions,
-  managing_partner: fullGovernorPermissions,
+const professionalRolePermissions: Record<string, PermissionKey[]> = {
+  owner: ["openMatters","assignWork","approveFilings","viewBilling","manageEvidence","editDeadlines","inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess","approveAIWork","archiveMatters","requestMatterRemoval"],
+  managing_partner: ["openMatters","assignWork","approveFilings","viewBilling","manageEvidence","editDeadlines","inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess","approveAIWork","archiveMatters","requestMatterRemoval"],
   partner: ["openMatters","assignWork","approveFilings","viewBilling","manageEvidence","editDeadlines","inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess","approveAIWork","archiveMatters","requestMatterRemoval"],
   administrator: ["openMatters","assignWork","viewBilling","manageEvidence","editDeadlines","inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess","archiveMatters"],
   lawyer: ["openMatters","assignWork","viewBilling","manageEvidence","editDeadlines","manageClientAccess"],
+  senior_associate: ["openMatters","assignWork","manageEvidence","editDeadlines","viewBilling","manageClientAccess"],
+  junior_associate: ["openMatters","manageEvidence","editDeadlines"],
   paralegal: ["manageEvidence","editDeadlines"],
   intern: ["manageEvidence"],
   finance: ["viewBilling"],
   clerk: ["manageEvidence","editDeadlines"],
   knowledge_manager: ["manageEvidence","approveAIWork"],
   Partner: ["openMatters","assignWork","approveFilings","viewBilling","manageEvidence","editDeadlines","inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess","approveAIWork","archiveMatters","requestMatterRemoval"],
-  "Managing Partner": fullGovernorPermissions,
-  "Firm Head": fullGovernorPermissions,
+  "Managing Partner": ["openMatters","assignWork","approveFilings","viewBilling","manageEvidence","editDeadlines","inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess","approveAIWork","archiveMatters","requestMatterRemoval"],
   "Senior Associate": ["openMatters","assignWork","manageEvidence","editDeadlines","viewBilling","manageClientAccess"],
   "Junior Associate": ["openMatters","manageEvidence","editDeadlines"],
   Lawyer: ["openMatters","assignWork","manageEvidence","editDeadlines","viewBilling","manageClientAccess"],
@@ -53,7 +48,17 @@ const rolePermissions: Record<string, PermissionKey[]> = {
   "Project Manager": ["assignWork","manageEvidence","editDeadlines","inviteCollaborators","exportAudit","manageFirm"],
 };
 
+const governancePermissions: Record<string, PermissionKey[]> = {
+  founder: ["openMatters","assignWork","approveFilings","viewBilling","manageEvidence","editDeadlines","inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess","approveAIWork","archiveMatters","requestMatterRemoval","approveMatterRemoval"],
+  firm_head: ["openMatters","assignWork","approveFilings","viewBilling","manageEvidence","editDeadlines","inviteCollaborators","exportAudit","manageFirm","manageEthicalWalls","manageClientAccess","approveAIWork","archiveMatters","requestMatterRemoval","approveMatterRemoval"],
+  managing_partner: ["manageFirm","inviteCollaborators","exportAudit","manageEthicalWalls","archiveMatters","requestMatterRemoval"],
+  administrator: ["manageFirm","inviteCollaborators","exportAudit","archiveMatters"],
+  member: [],
+};
+
 const onboardingMessage = "Complete onboarding before using TSIDEK.";
+
+type FirmMembership = { role_key?: string | null; governance_role_key?: string | null };
 
 async function loadActorMatterState(input: { matterId: string; actorLawyerId: string }) {
   const supabase = createServerSupabaseClient();
@@ -64,7 +69,7 @@ async function loadActorMatterState(input: { matterId: string; actorLawyerId: st
     supabase.from("lawyers").select("id,firm_id,role").eq("id", input.actorLawyerId).maybeSingle(),
     supabase.from("matters").select("id,firm_id,lead_lawyer_id,confidentiality_level").eq("id", input.matterId).maybeSingle(),
     supabase.from("matter_access_overrides").select("access_type,reason,expires_at").eq("matter_id", input.matterId).eq("lawyer_id", input.actorLawyerId).or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    supabase.from("firm_memberships").select("firm_id,role_key,status").eq("user_id", input.actorLawyerId).eq("status", "active"),
+    supabase.from("firm_memberships").select("firm_id,role_key,governance_role_key,status").eq("user_id", input.actorLawyerId).eq("status", "active"),
   ]);
 
   for (const result of [memberResult, lawyerResult, matterResult, accessOverrideResult, firmMembershipResult]) {
@@ -83,10 +88,15 @@ async function loadActorMatterState(input: { matterId: string; actorLawyerId: st
   };
 }
 
-function permissionsFor(state: { lawyer?: { role?: string | null } | null; firmMembership?: { role_key?: string | null } | null }) {
+function permissionsFor(state: { lawyer?: { role?: string | null } | null; firmMembership?: FirmMembership | null }) {
   const membershipRole = state.firmMembership?.role_key ?? "";
+  const governanceRole = state.firmMembership?.governance_role_key ?? "member";
   const legacyRole = state.lawyer?.role ?? "";
-  return new Set<PermissionKey>([...(rolePermissions[membershipRole] ?? []), ...(rolePermissions[legacyRole] ?? [])]);
+  return new Set<PermissionKey>([
+    ...(professionalRolePermissions[membershipRole] ?? []),
+    ...(professionalRolePermissions[legacyRole] ?? []),
+    ...(governancePermissions[governanceRole] ?? []),
+  ]);
 }
 
 export async function assertMatterPermission(input: {
@@ -114,7 +124,7 @@ export async function assertMatterPermission(input: {
   if (!isMember) throw new Error("The acting lawyer is not assigned to this matter.");
 
   const level = String(state.matter.confidentiality_level ?? "").toLowerCase();
-  const governor = ["owner", "managing_partner", "partner", "administrator"].includes(state.firmMembership?.role_key ?? "") || ["Partner", "Managing Partner", "Firm Head"].includes(state.lawyer.role ?? "");
+  const governor = ["founder", "firm_head", "managing_partner", "administrator"].includes(state.firmMembership?.governance_role_key ?? "") || ["owner", "managing_partner", "partner", "administrator"].includes(state.firmMembership?.role_key ?? "") || ["Partner", "Managing Partner"].includes(state.lawyer.role ?? "");
   if ((level === "partner-only" || level === "restricted") && !isLead && !governor && !explicitAllow) {
     throw new Error("Access denied: this restricted matter requires lead, partner/governor, or explicit access.");
   }
@@ -139,7 +149,7 @@ export async function assertFirmPermission(input: { scope: RequestScope; permiss
 
   const [lawyerResult, membershipResult] = await Promise.all([
     supabase.from("lawyers").select("id,firm_id,role").eq("id", scope.actorLawyerId).maybeSingle(),
-    supabase.from("firm_memberships").select("firm_id,role_key,status").eq("user_id", scope.actorLawyerId).eq("firm_id", scope.firmId).eq("status", "active").maybeSingle(),
+    supabase.from("firm_memberships").select("firm_id,role_key,governance_role_key,status").eq("user_id", scope.actorLawyerId).eq("firm_id", scope.firmId).eq("status", "active").maybeSingle(),
   ]);
   if (lawyerResult.error) throw new Error(lawyerResult.error.message);
   if (membershipResult.error) throw new Error(membershipResult.error.message);
