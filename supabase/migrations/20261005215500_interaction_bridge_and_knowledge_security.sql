@@ -6,7 +6,7 @@ create or replace function tsidek_private.bridge_legal_interaction_to_matter_int
 returns trigger
 language plpgsql
 security definer
-set search_path = public, tsidek_private
+set search_path = ''
 as $$
 declare
   v_channel text;
