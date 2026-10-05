@@ -49,10 +49,10 @@ grant select,insert,update,delete on public.matter_workstreams, public.matter_mi
 
 drop policy if exists matter_workstreams_access on public.matter_workstreams;
 create policy matter_workstreams_access on public.matter_workstreams for all to authenticated
-using (firm_id=public.current_firm_id() and public.can_access_matter(matter_id))
-with check (firm_id=public.current_firm_id() and public.can_access_matter(matter_id));
+using (firm_id=tsidek_private.current_firm_id() and tsidek_private.can_access_matter(matter_id))
+with check (firm_id=tsidek_private.current_firm_id() and tsidek_private.can_access_matter(matter_id));
 
 drop policy if exists matter_milestones_access on public.matter_milestones;
 create policy matter_milestones_access on public.matter_milestones for all to authenticated
-using (firm_id=public.current_firm_id() and public.can_access_matter(matter_id))
-with check (firm_id=public.current_firm_id() and public.can_access_matter(matter_id));
+using (firm_id=tsidek_private.current_firm_id() and tsidek_private.can_access_matter(matter_id))
+with check (firm_id=tsidek_private.current_firm_id() and tsidek_private.can_access_matter(matter_id));
