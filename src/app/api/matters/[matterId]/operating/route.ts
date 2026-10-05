@@ -6,6 +6,16 @@ import { statusForApiError } from "@/lib/api-errors";
 
 const executionStatuses = new Set(["ready","awaiting_approval","in_progress","submitted","acknowledged","completed","failed","cancelled"]);
 const knowledgeStatuses = new Set(["reviewed","approved_internal","restricted","not_reusable"]);
+const providerBoundStatuses = new Set(["ready","awaiting_approval","in_progress","submitted","acknowledged","completed"]);
+
+async function assertExecutionProviderReady(input:{firmId:string;mode:string;targetSystem:string|null;status:string}){
+ if(!["direct_api","partner_api"].includes(input.mode)||!providerBoundStatuses.has(input.status))return;
+ if(!input.targetSystem)throw new Error(`${input.mode === "direct_api" ? "Direct" : "Partner"} API execution requires a target provider/system before it can be marked ready.`);
+ const supabase=createServerSupabaseClient();if(!supabase)throw new Error("Supabase persistence is required.");
+ const connection=await supabase.from("firm_integration_connections").select("id,provider,status").eq("firm_id",input.firmId).eq("provider",input.targetSystem).in("status",["verified","configured","active"]).limit(1).maybeSingle();
+ if(connection.error)throw new Error(connection.error.message);
+ if(!connection.data)throw new Error(`Execution cannot advance through ${input.mode.replace("_"," ")} because ${input.targetSystem} is not a verified/configured firm integration. Use human-assisted/manual execution or configure the provider first.`);
+}
 
 export async function GET(request:Request,{params}:{params:Promise<{matterId:string}>}){
  try{
@@ -36,11 +46,16 @@ export async function POST(request:Request,{params}:{params:Promise<{matterId:st
    await assertMatterPermission({scope,matterId,permission:"assignWork"});
    const title=String(body.title??"").trim();if(!title)throw new Error("Execution title is required.");
    const executionMode=String(body.executionMode??"human_assisted");if(!["direct_api","partner_api","human_assisted","manual"].includes(executionMode))throw new Error("Invalid execution mode.");
-   const result=await supabase.from("matter_execution_actions").insert({firm_id:scope.firmId,matter_id:matterId,title,action_type:String(body.actionType??"professional_action"),target_system:String(body.targetSystem??"").trim()||null,execution_mode:executionMode,responsible_lawyer_id:scope.actorLawyerId??null,status:"planned",due_at:body.dueAt||null}).select("*").single();
+   const targetSystem=String(body.targetSystem??"").trim()||null;
+   if(["direct_api","partner_api"].includes(executionMode)&&!targetSystem)throw new Error("Direct/partner API execution must identify the target provider/system.");
+   const result=await supabase.from("matter_execution_actions").insert({firm_id:scope.firmId,matter_id:matterId,title,action_type:String(body.actionType??"professional_action"),target_system:targetSystem,execution_mode:executionMode,responsible_lawyer_id:scope.actorLawyerId??null,status:"planned",due_at:body.dueAt||null}).select("*").single();
    if(result.error)throw new Error(result.error.message);record=result.data;eventType="MATTER_EXECUTION_PLANNED";
   } else if(action==="advance_execution"){
    const id=String(body.id??"");const status=String(body.status??"");if(!id||!executionStatuses.has(status))throw new Error("Valid execution action and status are required.");
    await assertMatterPermission({scope,matterId,permission:["awaiting_approval","submitted","acknowledged","completed"].includes(status)?"approveFilings":"assignWork"});
+   const current=await supabase.from("matter_execution_actions").select("id,execution_mode,target_system,status").eq("id",id).eq("matter_id",matterId).single();if(current.error)throw new Error(current.error.message);
+   await assertExecutionProviderReady({firmId:scope.firmId,mode:String(current.data.execution_mode),targetSystem:current.data.target_system?String(current.data.target_system):null,status});
+   if(["submitted","acknowledged","completed"].includes(status)&&["direct_api","partner_api"].includes(String(current.data.execution_mode))&&!String(body.externalReference??"").trim()&&!String(body.evidenceReference??"").trim())throw new Error("API/partner execution requires an external or evidence reference before submission/acknowledgement/completion can be recorded.");
    const patch:Record<string,unknown>={status,updated_at:new Date().toISOString()};
    if(body.lastError!==undefined)patch.last_error=String(body.lastError??"").trim()||null;
    if(body.externalReference!==undefined)patch.external_reference=String(body.externalReference??"").trim()||null;
