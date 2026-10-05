@@ -5,12 +5,15 @@ import { isDemoModeEnabled } from "@/lib/runtime-mode";
 export type MatterTimelineItem = { date: string; title: string; owner: string };
 export type MatterDocument = { name: string; type: string; state: string };
 export type MatterCollaborationItem = { actor: string; role: string; note: string };
+export type MatterWorkstream = { id: string; name: string; type: string; status: string; sequence: number; objective?: string };
+export type MatterMilestone = { id: string; title: string; status: string; sequence: number; dueAt?: string; sourceKind?: string; sourceDetail?: string };
 
 export type MatterWorkspaceData = {
   id: string; title: string; clientName: string; matterType: string; status: string; riskLevel: string; jurisdiction: string;
   leadLawyer: string; projectManager: string; physicalFileId: string; physicalLabel: string; physicalLocation: string; physicalCustody: string;
   synopsis: string; primaryTrack: string; riskToMonitor: string; aiUsageRule: string; nextDraft: string;
   engagementNature?: string; practiceArea?: string; serviceType?: string; clientObjective?: string; planLabel?: string;
+  workstreams?: MatterWorkstream[]; milestones?: MatterMilestone[];
   timeline: MatterTimelineItem[]; documents: MatterDocument[]; researchNotes: string[]; collaboration: MatterCollaborationItem[];
   governanceChecks: string[]; approvedTools: string; escalationTrigger: string; trainingOwner: string; reviewForum: string;
   mentorshipPair: string; mentorshipFocus: string; mentorshipRhythm: string;
@@ -26,10 +29,14 @@ type MatterRow = {
 type LawyerRow={id:string;full_name:string;role:string|null};
 type TaskRow={matter_id:string;title:string;deadline:string|null;status:string|null};
 type DocumentRow={matter_id:string;title?:string|null;name?:string|null;document_type?:string|null;status?:string|null};
+type WorkstreamRow={id:string;matter_id:string;name:string;workstream_type:string;status:string;sequence_no:number;objective?:string|null};
+type MilestoneRow={id:string;matter_id:string;title:string;status:string;sequence_no:number;due_at?:string|null;source_kind?:string|null;source_detail?:string|null};
 
-export function buildMatterWorkspaceRecord(matter:MatterRow,lawyer?:LawyerRow,tasks:TaskRow[]=[],documents:DocumentRow[]=[]):MatterWorkspaceData{
+export function buildMatterWorkspaceRecord(matter:MatterRow,lawyer?:LawyerRow,tasks:TaskRow[]=[],documents:DocumentRow[]=[],workstreams:WorkstreamRow[]=[],milestones:MilestoneRow=[]):MatterWorkspaceData{
  const matterTasks=tasks.filter(t=>t.matter_id===matter.id);
  const matterDocs=documents.filter(d=>d.matter_id===matter.id);
+ const matterWorkstreams=workstreams.filter(w=>w.matter_id===matter.id).sort((a,b)=>a.sequence_no-b.sequence_no);
+ const matterMilestones=milestones.filter(m=>m.matter_id===matter.id).sort((a,b)=>a.sequence_no-b.sequence_no);
  const type=matter.matter_type?.trim()||matter.service_type?.trim()||"General legal matter";
  const synopsis=matter.synopsis?.trim()||matter.client_objective?.trim()||"Matter scope and instructions are being confirmed.";
  return {
@@ -40,6 +47,8 @@ export function buildMatterWorkspaceRecord(matter:MatterRow,lawyer?:LawyerRow,ta
   aiUsageRule:matter.ai_usage_rule?.trim()||"AI suggestions require human review",nextDraft:matter.next_draft?.trim()||matterTasks.find(t=>t.status!=="Done")?.title||"Confirm matter scope and next professional action",
   engagementNature:matter.engagement_nature?.trim()||"custom",practiceArea:matter.practice_area?.trim()||undefined,serviceType:matter.service_type?.trim()||type,
   clientObjective:matter.client_objective?.trim()||synopsis,planLabel:matter.plan_label?.trim()||matter.primary_track?.trim()||"Matter plan",
+  workstreams:matterWorkstreams.map(w=>({id:w.id,name:w.name,type:w.workstream_type,status:w.status,sequence:w.sequence_no,objective:w.objective??undefined})),
+  milestones:matterMilestones.map(m=>({id:m.id,title:m.title,status:m.status,sequence:m.sequence_no,dueAt:m.due_at??undefined,sourceKind:m.source_kind??undefined,sourceDetail:m.source_detail??undefined})),
   timeline:matterTasks.map(t=>({date:t.deadline??"Unscheduled",title:t.title,owner:lawyer?.full_name??"Matter team"})),
   documents:matterDocs.map(d=>({name:d.title??d.name??"Matter document",type:d.document_type??"Document",state:d.status??"Recorded"})),
   researchNotes:[],collaboration:[],governanceChecks:["Professional review before external reliance","Client instructions and material decisions must be recorded"],approvedTools:"Firm-approved tools only",escalationTrigger:"Material risk, deadline, authority or client decision requires attention",trainingOwner:"Supervising lawyer",reviewForum:"Matter review",mentorshipPair:"Assigned by firm",mentorshipFocus:"Professional judgment and execution",mentorshipRhythm:"As required",
