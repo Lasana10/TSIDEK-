@@ -32,7 +32,7 @@ type DocumentRow={matter_id:string;title?:string|null;name?:string|null;document
 type WorkstreamRow={id:string;matter_id:string;name:string;workstream_type:string;status:string;sequence_no:number;objective?:string|null};
 type MilestoneRow={id:string;matter_id:string;title:string;status:string;sequence_no:number;due_at?:string|null;source_kind?:string|null;source_detail?:string|null};
 
-export function buildMatterWorkspaceRecord(matter:MatterRow,lawyer?:LawyerRow,tasks:TaskRow[]=[],documents:DocumentRow[]=[],workstreams:WorkstreamRow[]=[],milestones:MilestoneRow=[]):MatterWorkspaceData{
+export function buildMatterWorkspaceRecord(matter:MatterRow,lawyer?:LawyerRow,tasks:TaskRow[]=[],documents:DocumentRow[]=[],workstreams:WorkstreamRow[]=[],milestones:MilestoneRow[]=[]):MatterWorkspaceData{
  const matterTasks=tasks.filter(t=>t.matter_id===matter.id);
  const matterDocs=documents.filter(d=>d.matter_id===matter.id);
  const matterWorkstreams=workstreams.filter(w=>w.matter_id===matter.id).sort((a,b)=>a.sequence_no-b.sequence_no);
