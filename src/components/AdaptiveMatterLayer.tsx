@@ -3,16 +3,37 @@ import type { MatterWorkspaceData } from "@/lib/matters";
 import { getMatterAdaptiveRuntime,resolveAdaptiveRoom } from "@/lib/matter-adaptive-runtime";
 import type { RequestScope } from "@/lib/request-scope";
 
+type Focus={label:string;value:string};
+
+function roomFocus(matter:MatterWorkspaceData,input:{active:string;milestone:string;evidence:number;verifiedEvidence:number;decisions:number;approvedDecisions:number;instructions:number;confirmedInstructions:number}):Focus[]{
+ const evidence=`${input.verifiedEvidence}/${input.evidence} evidence item(s) verified/corroborated`;
+ const decisions=`${input.approvedDecisions}/${input.decisions} material decision(s) approved`;
+ const instructions=`${input.confirmedInstructions}/${input.instructions} instruction(s) confirmed`;
+ switch(matter.engagementNature){
+  case"contentious":return[{label:"Theory & issues",value:input.active},{label:"Evidence posture",value:evidence},{label:"Next procedural move",value:input.milestone}];
+  case"transactional":return[{label:"Deal workstream",value:input.active},{label:"Negotiation / approvals",value:decisions},{label:"Next closing condition",value:input.milestone}];
+  case"registration":return[{label:"Dossier / filing stream",value:input.active},{label:"Authority evidence",value:evidence},{label:"Next authority step",value:input.milestone}];
+  case"diligence":return[{label:"Review scope",value:input.active},{label:"Verified findings",value:evidence},{label:"Report milestone",value:input.milestone}];
+  case"advisory":return[{label:"Question & analysis",value:input.active},{label:"Client position",value:instructions},{label:"Advice / delivery",value:input.milestone}];
+  case"compliance":return[{label:"Obligation stream",value:input.active},{label:"Evidence / remediation",value:evidence},{label:"Next compliance action",value:input.milestone}];
+  default:return[{label:"Working now",value:input.active},{label:"Professional judgment",value:decisions},{label:"Next proof point",value:input.milestone}];
+ }
+}
+
 export default async function AdaptiveMatterLayer({matter,scope}:{matter:MatterWorkspaceData;scope:RequestScope}){
  const room=resolveAdaptiveRoom(matter);
  const runtime=await getMatterAdaptiveRuntime({matterId:matter.id,scope});
  const active=matter.workstreams?.find(x=>x.status==="active")??matter.workstreams?.find(x=>x.status!=="completed");
  const milestone=matter.milestones?.find(x=>!["completed","waived"].includes(x.status));
+ const verifiedEvidence=runtime.evidence.filter(x=>["verified","corroborated"].includes(x.verification_status)).length;
+ const approvedDecisions=runtime.decisions.filter(x=>x.status==="approved").length;
+ const confirmedInstructions=runtime.instructions.filter(x=>x.confirmation_status==="confirmed").length;
+ const focuses=roomFocus(matter,{active:active?.name??matter.primaryTrack,milestone:milestone?.title??matter.nextDraft,evidence:runtime.evidence.length,verifiedEvidence,decisions:runtime.decisions.length,approvedDecisions,instructions:runtime.instructions.length,confirmedInstructions});
  return <section className="space-y-4">
   <div className="overflow-hidden rounded-[1.7rem] border border-[#17483c]/15 bg-white shadow-sm">
    <div className="grid gap-0 xl:grid-cols-[320px_1fr]">
-    <div className="bg-[#0b493b] p-6 text-white"><p className="text-[9px] font-black uppercase tracking-[.2em] text-[#dfc47f]">Contextual workspace</p><h2 className="mt-2 text-2xl font-semibold">{room.kind}</h2><p className="mt-3 text-sm leading-6 text-white/65">{room.purpose}</p></div>
-    <div className="grid gap-3 p-5 md:grid-cols-3"><Cell label="Working now" value={active?.name??matter.primaryTrack}/><Cell label="Next proof point" value={milestone?.title??matter.nextDraft}/><Cell label="Professional control" value={matter.aiUsageRule}/></div>
+    <div className="bg-[#0b493b] p-6 text-white"><p className="text-[9px] font-black uppercase tracking-[.2em] text-[#dfc47f]">Contextual workspace</p><h2 className="mt-2 text-2xl font-semibold">{room.kind}</h2><p className="mt-3 text-sm leading-6 text-white/65">{room.purpose}</p><div className="mt-5 rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-[9px] font-black uppercase tracking-[.13em] text-white/35">Professional control</p><p className="mt-1 text-xs leading-5 text-white/70">{matter.aiUsageRule}</p></div></div>
+    <div className="grid gap-3 p-5 md:grid-cols-3">{focuses.map(focus=><Cell key={focus.label} label={focus.label} value={focus.value}/>)}</div>
    </div>
   </div>
   <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
