@@ -28,7 +28,7 @@ export async function POST(request:Request,{params}:{params:Promise<{matterId:st
   }else if(action==="review_communication"){
    await assertMatterPermission({scope,matterId,permission:"manageClientAccess"});
    const id=String(body.id??"");const status=String(body.status??"");if(!id||!["promoted","ignored"].includes(status))throw new Error("Valid communication review status is required.");
-   const communication=await supabase.from("matter_communication_ingest").select("id,channel,direction,sender,subject,body_text,occurred_at,instruction_candidate,evidence_candidate,processing_status").eq("id",id).eq("matter_id",matterId).single();if(communication.error)throw new Error(communication.error.message);
+   const communication=await supabase.from("matter_communication_ingest").select("id,channel,direction,sender,subject,body_text,occurred_at,instruction_candidate,evidence_candidate,processing_status,metadata").eq("id",id).eq("matter_id",matterId).single();if(communication.error)throw new Error(communication.error.message);
    const sourceReference=`communication_ingest:${id}`;
    const promoted:{instructionId?:string;evidenceId?:string}={};
    if(status==="promoted"){
@@ -46,7 +46,8 @@ export async function POST(request:Request,{params}:{params:Promise<{matterId:st
       }
     }
    }
-   const result=await supabase.from("matter_communication_ingest").update({processing_status:status,metadata:{promotion:promoted,reviewedBy:scope.actorLawyerId,reviewedAt:new Date().toISOString()}}).eq("id",id).eq("matter_id",matterId).select("*").single();if(result.error)throw new Error(result.error.message);record={communication:result.data,...promoted};eventType=`MATTER_COMMUNICATION_${status.toUpperCase()}`;
+   const existingMetadata=communication.data.metadata&&typeof communication.data.metadata==="object"?communication.data.metadata as Record<string,unknown>:{};
+   const result=await supabase.from("matter_communication_ingest").update({processing_status:status,metadata:{...existingMetadata,promotion:promoted,reviewedBy:scope.actorLawyerId,reviewedAt:new Date().toISOString()}}).eq("id",id).eq("matter_id",matterId).select("*").single();if(result.error)throw new Error(result.error.message);record={communication:result.data,...promoted};eventType=`MATTER_COMMUNICATION_${status.toUpperCase()}`;
   }else if(action==="refresh_jurisdiction_pack"){
    record=await refreshFirmJurisdictionPack({scope,matterId});eventType="MATTER_JURISDICTION_PACK_REVIEWED";
   }else if(action==="promote_outcome"){
