@@ -15,6 +15,7 @@ import ProcedureGuidancePanel from "@/components/ProcedureGuidancePanel";
 import CaseRecordActions from "@/components/CaseRecordActions";
 import CaseIdentityPanel from "@/components/CaseIdentityPanel";
 import CaseNextAction from "@/components/CaseNextAction";
+import AdaptiveMatterLayer from "@/components/AdaptiveMatterLayer";
 import { getMatterWorkspaceByIdServer } from "@/lib/matters.server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import type { WorkspaceTab } from "@/components/MatterWorkspace";
@@ -85,6 +86,7 @@ export default async function MatterDetailPage({params,searchParams}:{params:Pro
         <AdaptiveCard label="Risk to watch" value={matter.riskToMonitor}/>
       </section>
 
+      <AdaptiveMatterLayer matter={matter} scope={scope}/>
       <CaseNextAction matterId={matterId}/>
       <CaseIdentityPanel matterId={matterId}/>
       <section aria-label="Case workspace"><MatterWorkspace matter={matter} initialTab={activeTab}/></section>
