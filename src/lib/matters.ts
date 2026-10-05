@@ -10,6 +10,7 @@ export type MatterWorkspaceData = {
   id: string; title: string; clientName: string; matterType: string; status: string; riskLevel: string; jurisdiction: string;
   leadLawyer: string; projectManager: string; physicalFileId: string; physicalLabel: string; physicalLocation: string; physicalCustody: string;
   synopsis: string; primaryTrack: string; riskToMonitor: string; aiUsageRule: string; nextDraft: string;
+  engagementNature?: string; practiceArea?: string; serviceType?: string; clientObjective?: string; planLabel?: string;
   timeline: MatterTimelineItem[]; documents: MatterDocument[]; researchNotes: string[]; collaboration: MatterCollaborationItem[];
   governanceChecks: string[]; approvedTools: string; escalationTrigger: string; trainingOwner: string; reviewForum: string;
   mentorshipPair: string; mentorshipFocus: string; mentorshipRhythm: string;
@@ -37,6 +38,8 @@ export function buildMatterWorkspaceRecord(matter:MatterRow,lawyer?:LawyerRow,ta
   physicalLabel:`${matter.client_name} — ${matter.title}`,physicalLocation:"Registry / check custody record",physicalCustody:"Registered",synopsis,
   primaryTrack:matter.primary_track?.trim()||matter.plan_label?.trim()||"Matter plan",riskToMonitor:matter.risk_to_monitor?.trim()||"Confirm material legal and factual risks",
   aiUsageRule:matter.ai_usage_rule?.trim()||"AI suggestions require human review",nextDraft:matter.next_draft?.trim()||matterTasks.find(t=>t.status!=="Done")?.title||"Confirm matter scope and next professional action",
+  engagementNature:matter.engagement_nature?.trim()||"custom",practiceArea:matter.practice_area?.trim()||undefined,serviceType:matter.service_type?.trim()||type,
+  clientObjective:matter.client_objective?.trim()||synopsis,planLabel:matter.plan_label?.trim()||matter.primary_track?.trim()||"Matter plan",
   timeline:matterTasks.map(t=>({date:t.deadline??"Unscheduled",title:t.title,owner:lawyer?.full_name??"Matter team"})),
   documents:matterDocs.map(d=>({name:d.title??d.name??"Matter document",type:d.document_type??"Document",state:d.status??"Recorded"})),
   researchNotes:[],collaboration:[],governanceChecks:["Professional review before external reliance","Client instructions and material decisions must be recorded"],approvedTools:"Firm-approved tools only",escalationTrigger:"Material risk, deadline, authority or client decision requires attention",trainingOwner:"Supervising lawyer",reviewForum:"Matter review",mentorshipPair:"Assigned by firm",mentorshipFocus:"Professional judgment and execution",mentorshipRhythm:"As required",
