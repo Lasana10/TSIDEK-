@@ -16,7 +16,7 @@ export function inferMatterOperatingModel(input: { matterType?: string; synopsis
   const text = `${input.matterType ?? ""} ${input.synopsis ?? ""} ${input.title ?? ""} ${input.jurisdiction ?? ""}`.toLowerCase();
   let nature: MatterNature = "custom";
   let practiceArea = "General legal practice";
-  let serviceType = input.matterType?.trim() || "Custom legal instruction";
+  const serviceType = input.matterType?.trim() || "Custom legal instruction";
   let planLabel = "Matter plan";
   let workstreams = ["Instructions & scope", "Facts & documents", "Legal analysis", "Client decisions", "Deliverable & closure"];
   let milestones = ["Scope confirmed", "Core record assembled", "Legal position reviewed", "Client decision recorded", "Instruction completed"];
