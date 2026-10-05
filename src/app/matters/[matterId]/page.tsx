@@ -16,6 +16,7 @@ import CaseRecordActions from "@/components/CaseRecordActions";
 import CaseIdentityPanel from "@/components/CaseIdentityPanel";
 import CaseNextAction from "@/components/CaseNextAction";
 import AdaptiveMatterLayer from "@/components/AdaptiveMatterLayer";
+import AdaptiveMatterActions from "@/components/AdaptiveMatterActions";
 import { getMatterWorkspaceByIdServer } from "@/lib/matters.server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import type { WorkspaceTab } from "@/components/MatterWorkspace";
@@ -87,6 +88,7 @@ export default async function MatterDetailPage({params,searchParams}:{params:Pro
       </section>
 
       <AdaptiveMatterLayer matter={matter} scope={scope}/>
+      <AdaptiveMatterActions matterId={matterId}/>
       <CaseNextAction matterId={matterId}/>
       <CaseIdentityPanel matterId={matterId}/>
       <section aria-label="Case workspace"><MatterWorkspace matter={matter} initialTab={activeTab}/></section>
