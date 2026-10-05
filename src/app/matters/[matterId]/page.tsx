@@ -17,6 +17,9 @@ import CaseIdentityPanel from "@/components/CaseIdentityPanel";
 import CaseNextAction from "@/components/CaseNextAction";
 import AdaptiveMatterLayer from "@/components/AdaptiveMatterLayer";
 import AdaptiveMatterActions from "@/components/AdaptiveMatterActions";
+import MatterOperatingChain from "@/components/MatterOperatingChain";
+import MatterOperatingActions from "@/components/MatterOperatingActions";
+import MatterIntelligenceSection from "@/components/MatterIntelligenceSection";
 import { getMatterWorkspaceByIdServer } from "@/lib/matters.server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import type { WorkspaceTab } from "@/components/MatterWorkspace";
@@ -87,6 +90,9 @@ export default async function MatterDetailPage({params,searchParams}:{params:Pro
         <AdaptiveCard label="Risk to watch" value={matter.riskToMonitor}/>
       </section>
 
+      <MatterOperatingChain matterId={matterId} scope={scope}/>
+      <MatterOperatingActions matterId={matterId}/>
+      <MatterIntelligenceSection matterId={matterId} scope={scope}/>
       <AdaptiveMatterLayer matter={matter} scope={scope}/>
       <AdaptiveMatterActions matterId={matterId}/>
       <CaseNextAction matterId={matterId}/>
