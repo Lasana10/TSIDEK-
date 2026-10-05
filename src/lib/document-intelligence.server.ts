@@ -8,6 +8,13 @@ export type DocumentExtraction = {
   language: string | null;
   parties: string[];
   identifiers: string[];
+  keyFacts: string[];
+  obligations: string[];
+  datesAndDeadlines: string[];
+  monetaryTerms: string[];
+  legalReferences: string[];
+  contradictionsOrGaps: string[];
+  suggestedMatterActions: string[];
   summary: string | null;
   confidence: number;
   warnings: string[];
@@ -29,7 +36,7 @@ function stringOrNull(value: unknown) {
 
 function stringArray(value: unknown) {
   return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()).slice(0, 30)
+    ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()).slice(0, 50)
     : [];
 }
 
@@ -42,6 +49,13 @@ function normalizeExtraction(parsed: Record<string, unknown>): DocumentExtractio
     language: stringOrNull(parsed.language),
     parties: stringArray(parsed.parties),
     identifiers: stringArray(parsed.identifiers),
+    keyFacts: stringArray(parsed.keyFacts),
+    obligations: stringArray(parsed.obligations),
+    datesAndDeadlines: stringArray(parsed.datesAndDeadlines),
+    monetaryTerms: stringArray(parsed.monetaryTerms),
+    legalReferences: stringArray(parsed.legalReferences),
+    contradictionsOrGaps: stringArray(parsed.contradictionsOrGaps),
+    suggestedMatterActions: stringArray(parsed.suggestedMatterActions),
     summary: stringOrNull(parsed.summary),
     confidence: Number.isFinite(confidenceRaw) ? Math.min(1, Math.max(0, confidenceRaw)) : 0,
     warnings: stringArray(parsed.warnings),
@@ -49,7 +63,7 @@ function normalizeExtraction(parsed: Record<string, unknown>): DocumentExtractio
 }
 
 function promptFor(originalName: string) {
-  return `You are TSIDKENU's document intake classifier for a law firm operating in Cameroon/OHADA/CEMAC/OAPI contexts. Extract only what is supported by the document. Never invent facts. Return JSON only with keys: title, documentType, documentDate (YYYY-MM-DD or null), language, parties (array), identifiers (array), summary, confidence (0 to 1), warnings (array). The original filename is ${JSON.stringify(originalName)}. Use concise professional labels and flag uncertainty in warnings.`;
+  return `You are TSIDKENU's governed document-intelligence engine for a law firm. Extract only what is supported by the document and never invent facts, law, authority, deadlines, obligations or amounts. Return JSON only with keys: title, documentType, documentDate (YYYY-MM-DD or null), language, parties (array), identifiers (array), keyFacts (array), obligations (array), datesAndDeadlines (array), monetaryTerms (array), legalReferences (array), contradictionsOrGaps (array), suggestedMatterActions (array), summary, confidence (0 to 1), warnings (array). Suggested actions must be framed as reviewable proposals, never as completed acts. The original filename is ${JSON.stringify(originalName)}. Flag uncertainty explicitly.`;
 }
 
 function openRouterMessageText(value: unknown) {
@@ -66,8 +80,6 @@ function providerOrder(): DocumentProvider[] {
   const configured = String(process.env.TSIDEK_DOCUMENT_AI_PROVIDER || "auto").trim().toLowerCase();
   if (configured === "gemini") return ["gemini", "openrouter"];
   if (configured === "openrouter") return ["openrouter", "gemini"];
-  // Auto mode is provider-neutral. Prefer the configured multi-model gateway in
-  // production, then use a direct Gemini credential only when the firm/runtime has one.
   return ["openrouter", "gemini"];
 }
 
