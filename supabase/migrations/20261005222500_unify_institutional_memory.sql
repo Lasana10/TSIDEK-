@@ -30,6 +30,8 @@ begin
   return new;
 end $$;
 
+revoke all on function tsidek_private.sync_institutional_memory_to_firm_knowledge() from public, anon, authenticated;
+
 drop trigger if exists trg_sync_institutional_memory_to_firm_knowledge on public.institutional_memory_entries;
 create trigger trg_sync_institutional_memory_to_firm_knowledge
 after insert or update of approved,title,summary,outcome,approved_by,approved_at on public.institutional_memory_entries
