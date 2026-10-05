@@ -1,11 +1,22 @@
 import { NextResponse } from "next/server";
 import { assertMatterScopeAccess } from "@/lib/request-scope";
+import { assertMatterPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { statusForApiError } from "@/lib/api-errors";
 
 const actions=new Set(["record_decision","decide","record_instruction","confirm_instruction","record_evidence","verify_evidence","create_handoff","advance_handoff"]);
+
+async function assertAdaptivePermission(action:string,scope:Awaited<ReturnType<typeof assertMatterScopeAccess>>,matterId:string){
+ if(action==="record_decision")return assertMatterPermission({scope,matterId,allowAnyMember:true});
+ if(action==="decide")return assertMatterPermission({scope,matterId,permission:"approveFilings"});
+ if(action==="record_instruction"||action==="confirm_instruction")return assertMatterPermission({scope,matterId,permission:"manageClientAccess"});
+ if(action==="record_evidence"||action==="verify_evidence")return assertMatterPermission({scope,matterId,permission:"manageEvidence"});
+ if(action==="create_handoff"||action==="advance_handoff")return assertMatterPermission({scope,matterId,permission:"assignWork"});
+ return assertMatterPermission({scope,matterId,allowAnyMember:true});
+}
+
 export async function GET(request:Request,{params}:{params:Promise<{matterId:string}>}){
- try{const{matterId}=await params;await assertMatterScopeAccess(request,matterId);const supabase=createServerSupabaseClient();if(!supabase)throw new Error("Supabase persistence is required.");
+ try{const{matterId}=await params;const scope=await assertMatterScopeAccess(request,matterId);await assertMatterPermission({scope,matterId,allowAnyMember:true});const supabase=createServerSupabaseClient();if(!supabase)throw new Error("Supabase persistence is required.");
  const [decisions,instructions,evidence,handoffs]=await Promise.all([
  supabase.from("matter_decisions").select("*").eq("matter_id",matterId).order("created_at",{ascending:false}),
  supabase.from("matter_client_instructions").select("*").eq("matter_id",matterId).order("received_at",{ascending:false}),
@@ -14,8 +25,10 @@ export async function GET(request:Request,{params}:{params:Promise<{matterId:str
  for(const r of[decisions,instructions,evidence,handoffs])if(r.error)throw new Error(r.error.message);
  return NextResponse.json({success:true,decisions:decisions.data??[],instructions:instructions.data??[],evidence:evidence.data??[],handoffs:handoffs.data??[]});}
  catch(error){return NextResponse.json({success:false,error:error instanceof Error?error.message:"Unable to load adaptive matter record."},{status:statusForApiError(error)});}}
+
 export async function POST(request:Request,{params}:{params:Promise<{matterId:string}>}){
  try{const{matterId}=await params;const scope=await assertMatterScopeAccess(request,matterId);if(!scope.firmId)throw new Error("Authenticated firm context is required.");const body=await request.json();const action=String(body.action??"");if(!actions.has(action))return NextResponse.json({success:false,error:"Unsupported adaptive matter action."},{status:400});
+ await assertAdaptivePermission(action,scope,matterId);
  const supabase=createServerSupabaseClient();if(!supabase)throw new Error("Supabase persistence is required.");let record:unknown=null;let eventType="";
  if(action==="record_decision"){const title=String(body.title??"").trim(),decision=String(body.decision??"").trim();if(!title||!decision)throw new Error("Decision title and decision are required.");const r=await supabase.from("matter_decisions").insert({firm_id:scope.firmId,matter_id:matterId,title,decision,question:String(body.question??"").trim()||null,rationale:String(body.rationale??"").trim()||null,status:"proposed",authority_level:String(body.authorityLevel??"matter_team")}).select("*").single();if(r.error)throw new Error(r.error.message);record=r.data;eventType="MATTER_DECISION_PROPOSED";}
  if(action==="decide"){const id=String(body.id??""),status=String(body.status??"");if(!id||!["approved","rejected","superseded"].includes(status))throw new Error("Valid decision and status are required.");const r=await supabase.from("matter_decisions").update({status,decided_by:scope.actorLawyerId??null,decided_at:new Date().toISOString(),rationale:String(body.rationale??"").trim()||undefined}).eq("id",id).eq("matter_id",matterId).select("*").single();if(r.error)throw new Error(r.error.message);record=r.data;eventType=`MATTER_DECISION_${status.toUpperCase()}`;}
@@ -25,6 +38,6 @@ export async function POST(request:Request,{params}:{params:Promise<{matterId:st
  if(action==="verify_evidence"){const id=String(body.id??""),status=String(body.status??"");if(!id||!["corroborated","verified","disputed","superseded"].includes(status))throw new Error("Valid evidence verification status is required.");const r=await supabase.from("matter_evidence_provenance").update({verification_status:status,verified_by:scope.actorLawyerId??null,verified_at:new Date().toISOString(),reliability_note:String(body.reliabilityNote??"").trim()||undefined}).eq("id",id).eq("matter_id",matterId).select("*").single();if(r.error)throw new Error(r.error.message);record=r.data;eventType=`MATTER_EVIDENCE_${status.toUpperCase()}`;}
  if(action==="create_handoff"){const purpose=String(body.purpose??"").trim();if(!purpose)throw new Error("Handoff purpose is required.");const r=await supabase.from("matter_handoffs").insert({firm_id:scope.firmId,matter_id:matterId,purpose,handoff_type:String(body.handoffType??"professional"),from_lawyer_id:scope.actorLawyerId??null,to_lawyer_id:body.toLawyerId||null,external_professional:String(body.externalProfessional??"").trim()||null,scope_note:String(body.scopeNote??"").trim()||null,authority_note:String(body.authorityNote??"").trim()||null}).select("*").single();if(r.error)throw new Error(r.error.message);record=r.data;eventType="MATTER_HANDOFF_PREPARED";}
  if(action==="advance_handoff"){const id=String(body.id??""),status=String(body.status??"");if(!id||!["accepted","in_progress","returned","completed","cancelled"].includes(status))throw new Error("Valid handoff status is required.");const patch:Record<string,unknown>={status};if(status==="accepted")patch.accepted_at=new Date().toISOString();if(status==="completed")patch.completed_at=new Date().toISOString();const r=await supabase.from("matter_handoffs").update(patch).eq("id",id).eq("matter_id",matterId).select("*").single();if(r.error)throw new Error(r.error.message);record=r.data;eventType=`MATTER_HANDOFF_${status.toUpperCase()}`;}
- await supabase.from("matter_events").insert({matter_id:matterId,event_type:eventType,actor_name:scope.actorName,metadata:{adaptiveAction:action,record}});
+ const event=await supabase.from("matter_events").insert({matter_id:matterId,event_type:eventType,actor_name:scope.actorName,metadata:{adaptiveAction:action,record}});if(event.error)throw new Error(event.error.message);
  return NextResponse.json({success:true,record});}
  catch(error){return NextResponse.json({success:false,error:error instanceof Error?error.message:"Unable to update adaptive matter record."},{status:statusForApiError(error)});}}
