@@ -5,7 +5,7 @@ create or replace function tsidek_private.sync_institutional_memory_to_firm_know
 returns trigger
 language plpgsql
 security definer
-set search_path = public, tsidek_private
+set search_path = ''
 as $$
 begin
   insert into public.firm_knowledge_entries(
