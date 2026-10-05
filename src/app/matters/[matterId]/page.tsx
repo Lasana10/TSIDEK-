@@ -18,6 +18,7 @@ import CaseNextAction from "@/components/CaseNextAction";
 import AdaptiveMatterLayer from "@/components/AdaptiveMatterLayer";
 import AdaptiveMatterActions from "@/components/AdaptiveMatterActions";
 import MatterOperatingChain from "@/components/MatterOperatingChain";
+import MatterOperatingActions from "@/components/MatterOperatingActions";
 import { getMatterWorkspaceByIdServer } from "@/lib/matters.server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import type { WorkspaceTab } from "@/components/MatterWorkspace";
@@ -89,6 +90,7 @@ export default async function MatterDetailPage({params,searchParams}:{params:Pro
       </section>
 
       <MatterOperatingChain matterId={matterId} scope={scope}/>
+      <MatterOperatingActions matterId={matterId}/>
       <AdaptiveMatterLayer matter={matter} scope={scope}/>
       <AdaptiveMatterActions matterId={matterId}/>
       <CaseNextAction matterId={matterId}/>
