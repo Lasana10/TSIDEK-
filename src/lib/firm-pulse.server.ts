@@ -15,6 +15,8 @@ function dueSeverity(dueAt:string|null){
  return null;
 }
 
+const emptyPulse=()=>({generatedAt:new Date().toISOString(),summary:{activeMatters:0,attentionMatters:0,criticalItems:0,highItems:0,pendingApprovals:0,outstandingXaf:0,unbilledMinutes:0,unbilledValueXaf:0,recoverableExpensesXaf:0,communicationReview:0,unresolvedClaims:0,executionBlocks:0},attention:[] as AttentionItem[]});
+
 export async function getFirmPulse(scope:RequestScope){
  await assertFirmPermission({scope,permission:"manageFirm"});
  if(!scope.firmId)throw new Error("Authenticated firm context is required.");
@@ -23,18 +25,18 @@ export async function getFirmPulse(scope:RequestScope){
  if(mattersResult.error)throw new Error(mattersResult.error.message);
  const matters=mattersResult.data??[];
  const ids=matters.map(x=>x.id);
- const empty={data:[],error:null} as {data:never[];error:null};
+ if(!ids.length)return emptyPulse();
  const [obligations,approvals,invoices,payments,timeEntries,expenses,communications,claims,executions,packs]=await Promise.all([
-  ids.length?supabase.from("matter_obligations").select("id,matter_id,title,due_at,status,consequence,legal_basis").in("matter_id",ids).in("status",["OPEN","IN_PROGRESS","MISSED"]):Promise.resolve(empty),
-  ids.length?supabase.from("matter_approvals").select("id,matter_id,approval_type,subject_type,status,requested_at").in("matter_id",ids).eq("status","PENDING"):Promise.resolve(empty),
-  ids.length?supabase.from("invoices").select("id,matter_id,amount_xaf,status,due_date").in("matter_id",ids):Promise.resolve(empty),
-  ids.length?supabase.from("matter_payments").select("id,matter_id,amount_xaf,status").in("matter_id",ids):Promise.resolve(empty),
-  ids.length?supabase.from("matter_time_entries").select("matter_id,minutes,billable,billing_status,hourly_rate_xaf").in("matter_id",ids).eq("billable",true).eq("billing_status","unbilled"):Promise.resolve(empty),
-  ids.length?supabase.from("firm_expenses").select("matter_id,amount_xaf,recoverable,status").in("matter_id",ids).eq("recoverable",true).neq("status","void"):Promise.resolve(empty),
-  ids.length?supabase.from("matter_communication_ingest").select("matter_id,processing_status").in("matter_id",ids).eq("processing_status","review_required"):Promise.resolve(empty),
-  ids.length?supabase.from("matter_legal_claims").select("matter_id,verification_status").in("matter_id",ids).in("verification_status",["unverified","disputed"]):Promise.resolve(empty),
-  ids.length?supabase.from("matter_execution_actions").select("matter_id,title,status,last_error,target_system,execution_mode").in("matter_id",ids).in("status",["awaiting_approval","failed"]):Promise.resolve(empty),
-  supabase.from("jurisdiction_packs").select("jurisdiction_key,status,firm_id,source_scope").eq("status","active"),
+  supabase.from("matter_obligations").select("id,matter_id,title,due_at,status,consequence,legal_basis").in("matter_id",ids).in("status",["OPEN","IN_PROGRESS","MISSED"]),
+  supabase.from("matter_approvals").select("id,matter_id,approval_type,subject_type,status,requested_at").in("matter_id",ids).eq("status","PENDING"),
+  supabase.from("invoices").select("id,matter_id,amount_xaf,status,due_date").in("matter_id",ids),
+  supabase.from("matter_payments").select("id,matter_id,amount_xaf,status").in("matter_id",ids),
+  supabase.from("matter_time_entries").select("matter_id,minutes,billable,billing_status,hourly_rate_xaf").in("matter_id",ids).eq("billable",true).eq("billing_status","unbilled"),
+  supabase.from("firm_expenses").select("matter_id,amount_xaf,recoverable,status").in("matter_id",ids).eq("recoverable",true).neq("status","void"),
+  supabase.from("matter_communication_ingest").select("matter_id,processing_status").in("matter_id",ids).eq("processing_status","review_required"),
+  supabase.from("matter_legal_claims").select("matter_id,verification_status").in("matter_id",ids).in("verification_status",["unverified","disputed"]),
+  supabase.from("matter_execution_actions").select("matter_id,title,status,last_error,target_system,execution_mode").in("matter_id",ids).in("status",["awaiting_approval","failed"]),
+  supabase.from("jurisdiction_packs").select("jurisdiction_key,status,firm_id,source_scope").eq("status","active").or(`source_scope.eq.public,firm_id.eq.${scope.firmId}`),
  ]);
  for(const result of[obligations,approvals,invoices,payments,timeEntries,expenses,communications,claims,executions,packs])if(result.error)throw new Error(result.error.message);
  const byId=new Map(matters.map(m=>[m.id,m]));
