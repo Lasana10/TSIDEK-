@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { loadTenantCredentials } from "@/lib/tenant-credentials.server";
 import { persistUploadedFile } from "@/lib/file-vault";
+import { recordMatterCommunicationCandidate } from "@/lib/matter-communication-ingest.server";
 
 type Context={params:Promise<{firmId:string}>};
 type Attachment={filename?:string;mimeType?:string;base64?:string};
@@ -83,6 +84,12 @@ export async function POST(request:Request,context:Context){
       metadata:{source:"inbound_email_bridge",sender:from,sender_name:fromName,attachments:attachmentRows}
     }).select("id,matter_id,prospect_id,primary_party_id").single();
     if(interaction.error) throw new Error(interaction.error.message);
+
+    await recordMatterCommunicationCandidate({
+      firmId,matterId:matter?.id,channel:"email",direction:"inbound",externalId:messageId,sender:from,subject,bodyText:text,
+      instructionCandidate:Boolean(text),evidenceCandidate:Boolean(text||attachmentRows.length),metadata:{legalInteractionId:interaction.data.id,attachments:attachmentRows,senderName:fromName}
+    });
+
     return NextResponse.json({success:true,interaction:interaction.data,matchedMatter:matter?{id:matter.id,caseReference:matter.case_reference,title:matter.title}:null,newEnquiry:Boolean(prospectId&&!party.data),attachmentsStored:attachmentRows.length},{status:201});
   }catch(error){return NextResponse.json({success:false,error:error instanceof Error?error.message:"Inbound email processing failed."},{status:400})}
 }
