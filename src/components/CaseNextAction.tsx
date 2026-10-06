@@ -1,16 +1,15 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { ArrowRight, FileText, MessageSquareText, Scale, ScanLine, WalletCards } from "lucide-react";
 import { getMatterOperatingSystem } from "@/lib/matter-operating-system.server";
-import type { RequestScope } from "@/lib/request-scope";
+import { resolveRequestScope, type RequestScope } from "@/lib/request-scope";
 
 type Recommendation={eyebrow:string;title:string;detail:string;href:string;cta:string};
 
-export default async function CaseNextAction({matterId,scope}:{matterId:string;scope:RequestScope}){
+export default async function CaseNextAction({matterId,scope:providedScope}:{matterId:string;scope?:RequestScope}){
+ const scope=providedScope??await resolveRequestScope(new Request("http://tsidek.local/internal",{headers:await headers()}));
  const operating=await getMatterOperatingSystem({matterId,scope});
- const command=operating.command;
- const stages=operating.stages;
- const stage=(key:string)=>stages.find(item=>item.key===key);
- const recommendation:Recommendation=resolveRecommendation();
+ const command=operating.command;const stages=operating.stages;const stage=(key:string)=>stages.find(item=>item.key===key);const recommendation:Recommendation=resolveRecommendation();
  function resolveRecommendation():Recommendation{
   if(command.summary.overdueOrCriticalObligations>0)return{eyebrow:"Priority now",title:`${command.summary.overdueOrCriticalObligations} critical or overdue obligation${command.summary.overdueOrCriticalObligations===1?"":"s"}`,detail:"Deadlines and duties take precedence over routine work. Resolve the control risk before the Matter drifts.",href:`/matters/${matterId}#attention`,cta:"Review obligations"};
   const client=stage("client");if(client?.state==="attention"||client?.state==="active")return{eyebrow:"Client position",title:client.detail,detail:"Confirm material instructions or review incoming communications before strategy or execution relies on an uncertain client position.",href:`/matters/${matterId}#room`,cta:"Open Matter Room"};
@@ -25,14 +24,6 @@ export default async function CaseNextAction({matterId,scope}:{matterId:string;s
   const money=stage("money");if(money?.state==="attention")return{eyebrow:"Matter economics",title:money.detail,detail:"Bring billing, collections and recoverable costs current while the work is still easy to reconcile.",href:`/matters/${matterId}/accounting`,cta:"Review economics"};
   return{eyebrow:"Matter on track",title:"Advance the live Matter plan",detail:"Control queues are clear. Continue from the current workstream, milestone and contextual Room rather than opening a separate strategy system.",href:`/matters/${matterId}#room`,cta:"Open Matter Room"};
  }
- return <section className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(420px,.75fr)]">
-  <div className="overflow-hidden rounded-[1.8rem] border border-[#17483c]/15 bg-white shadow-sm"><div className="flex h-full flex-col justify-between gap-6 p-6 md:p-7"><div><div className="inline-flex items-center gap-2 rounded-full bg-[#edf4f0] px-3 py-1.5 text-[9px] font-black uppercase tracking-[.18em] text-[#0b493b]"><Scale className="h-3.5 w-3.5"/>{recommendation.eyebrow}</div><h2 className="mt-4 max-w-3xl text-2xl font-semibold tracking-[-.025em] text-slate-900 md:text-3xl">{recommendation.title}</h2><p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">{recommendation.detail}</p></div><Link href={recommendation.href} className="inline-flex w-fit items-center gap-2 rounded-xl bg-[#0b493b] px-4 py-3 text-xs font-black uppercase tracking-[.13em] text-white shadow-sm transition hover:-translate-y-px">{recommendation.cta}<ArrowRight className="h-4 w-4"/></Link></div></div>
-  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-   <Quick href={`/digitisation/case/${matterId}`} icon={<ScanLine className="h-4 w-4"/>} title="Scan / import paper" text="Put scans and PDFs into this Matter's governed review queue."/>
-   <Quick href={`/matters/${matterId}?tab=documents`} icon={<FileText className="h-4 w-4"/>} title="Documents & source record" text="Capture, review and rely on the controlled Matter file."/>
-   <Quick href={`/workroom`} icon={<MessageSquareText className="h-4 w-4"/>} title="Workroom collaboration" text="Coordinate conversations and assigned work without creating a second legal record."/>
-   <Quick href={`/matters/${matterId}/accounting`} icon={<WalletCards className="h-4 w-4"/>} title="Time & economics" text="See fees, expenses, receipts and outstanding money."/>
-  </div>
- </section>;
+ return <section className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(420px,.75fr)]"><div className="overflow-hidden rounded-[1.8rem] border border-[#17483c]/15 bg-white shadow-sm"><div className="flex h-full flex-col justify-between gap-6 p-6 md:p-7"><div><div className="inline-flex items-center gap-2 rounded-full bg-[#edf4f0] px-3 py-1.5 text-[9px] font-black uppercase tracking-[.18em] text-[#0b493b]"><Scale className="h-3.5 w-3.5"/>{recommendation.eyebrow}</div><h2 className="mt-4 max-w-3xl text-2xl font-semibold tracking-[-.025em] text-slate-900 md:text-3xl">{recommendation.title}</h2><p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">{recommendation.detail}</p></div><Link href={recommendation.href} className="inline-flex w-fit items-center gap-2 rounded-xl bg-[#0b493b] px-4 py-3 text-xs font-black uppercase tracking-[.13em] text-white shadow-sm transition hover:-translate-y-px">{recommendation.cta}<ArrowRight className="h-4 w-4"/></Link></div></div><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1"><Quick href={`/digitisation/case/${matterId}`} icon={<ScanLine className="h-4 w-4"/>} title="Scan / import paper" text="Put scans and PDFs into this Matter's governed review queue."/><Quick href={`/matters/${matterId}?tab=documents`} icon={<FileText className="h-4 w-4"/>} title="Documents & source record" text="Capture, review and rely on the controlled Matter file."/><Quick href="/workroom" icon={<MessageSquareText className="h-4 w-4"/>} title="Workroom collaboration" text="Coordinate conversations and assigned work without creating a second legal record."/><Quick href={`/matters/${matterId}/accounting`} icon={<WalletCards className="h-4 w-4"/>} title="Time & economics" text="See fees, expenses, receipts and outstanding money."/></div></section>;
 }
 function Quick({href,icon,title,text}:{href:string;icon:React.ReactNode;title:string;text:string}){return <Link href={href} className="group flex items-center gap-4 rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm transition hover:border-[#0b493b]/30 hover:shadow-md"><div className="rounded-xl bg-[#edf4f0] p-2.5 text-[#0b493b]">{icon}</div><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-slate-900">{title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{text}</p></div><ArrowRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-[#0b493b]"/></Link>}
