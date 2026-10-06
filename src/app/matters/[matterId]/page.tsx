@@ -19,14 +19,13 @@ import AdaptiveMatterLayer from "@/components/AdaptiveMatterLayer";
 import AdaptiveMatterActions from "@/components/AdaptiveMatterActions";
 import MatterOperatingChain from "@/components/MatterOperatingChain";
 import MatterOperatingActions from "@/components/MatterOperatingActions";
-import MatterIntelligenceSection from "@/components/MatterIntelligenceSection";
 import { getMatterWorkspaceByIdServer } from "@/lib/matters.server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import type { WorkspaceTab } from "@/components/MatterWorkspace";
 
 function resolveWorkspaceTab(value:string|string[]|undefined):WorkspaceTab{
   const tab=Array.isArray(value)?value[0]:value;
-  switch(tab){case"documents":case"strategy":case"studio":case"intelligence":case"collaboration":case"governance":case"finance":case"overview":return tab;default:return"overview";}
+  switch(tab){case"documents":case"studio":case"collaboration":case"governance":case"finance":case"overview":return tab;default:return"overview";}
 }
 function natureLabel(value?:string){switch(value){case"contentious":return"Contentious";case"transactional":return"Transactional";case"registration":return"Registration / filing";case"advisory":return"Advisory";case"diligence":return"Review / diligence";case"compliance":return"Compliance";default:return"Adaptive matter";}}
 
@@ -58,7 +57,7 @@ export default async function MatterDetailPage({params,searchParams}:{params:Pro
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><AdaptiveCard label="Client objective" value={matter.clientObjective??matter.synopsis}/><AdaptiveCard label="Current workstream" value={activeWorkstream?.name??matter.primaryTrack}/><AdaptiveCard label="Next milestone" value={nextMilestone?.title??matter.nextDraft}/><AdaptiveCard label="Risk to watch" value={matter.riskToMonitor}/></section>
 
       <section className="space-y-4">
-        <SectionTitle eyebrow="Matter command" title="What matters now and what happens next" text="TSID leads with the live plan, next professional action and contextual room. Supporting systems stay available below without competing for attention."/>
+        <SectionTitle eyebrow="Matter command" title="What matters now and what happens next" text="TSID leads with one live Matter plan and one contextual Room. Strategy, intelligence and evidence are inside that Room rather than competing beside it."/>
         <MatterOperatingChain matterId={matterId} scope={scope}/>
         <CaseNextAction matterId={matterId}/>
         <AdaptiveMatterLayer matter={matter} scope={scope}/>
@@ -70,11 +69,7 @@ export default async function MatterDetailPage({params,searchParams}:{params:Pro
         <MatterOperatingActions matterId={matterId}/>
       </section>
 
-      <Disclosure title="Intelligence & evidence" description="Legal propositions, source-backed intelligence, communication review and institutional knowledge.">
-        <MatterIntelligenceSection matterId={matterId} scope={scope}/>
-      </Disclosure>
-
-      <Disclosure title="Full case workspace" description="Documents, strategy, case file, collaboration, governance and finance tools. Open this when deeper case work is needed.">
+      <Disclosure title="Case file & collaboration" description="Documents, case file, collaboration, governance and finance tools. Strategy and legal intelligence stay in the canonical Matter Room above.">
         <CaseIdentityPanel matterId={matterId}/>
         <section aria-label="Case workspace"><MatterWorkspace matter={matter} initialTab={activeTab}/></section>
       </Disclosure>
@@ -83,7 +78,7 @@ export default async function MatterDetailPage({params,searchParams}:{params:Pro
         <MatterCommandCenter matterId={matterId}/><MatterActivityPanel matterId={matterId}/>
       </Disclosure>
 
-      <Disclosure title="Procedure & specialist execution" description="Workflow, procedural guidance and practice-specific execution support.">
+      <Disclosure title="Firm process & procedure" description="Internal process gates, source-backed procedural guidance and specialist docket support. These support the Matter plan; they do not replace it.">
         <MatterWorkflowPanel matterId={matterId}/><ProcedureGuidancePanel matterId={matterId}/><PracticeExecutionPanel matterId={matterId}/>
       </Disclosure>
 
@@ -91,7 +86,7 @@ export default async function MatterDetailPage({params,searchParams}:{params:Pro
         <ClientAccessPanel matterId={matterId}/><FinanceTransparencyPanel matterId={matterId}/>
       </Disclosure>
 
-      <Disclosure title="Control & closure" description="Access controls, final checks, archiving and reusable institutional knowledge.">
+      <Disclosure title="Control & closure" description="Access controls, close-out checks and archiving. Reusable learning is captured through the canonical Outcome & Knowledge flow above.">
         <MatterControlDesk matterId={matterId}/><MatterClosurePanel matterId={matterId}/><CaseRecordActions matterId={matterId}/>
       </Disclosure>
     </div>
