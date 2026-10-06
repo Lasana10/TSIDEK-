@@ -57,6 +57,10 @@ export function inferMatterOperatingModel(input: { matterType?: string; synopsis
     nature = "contentious"; practiceArea = "Criminal"; planLabel = "Defence / complaint plan";
     workstreams = ["Allegation & chronology", "Evidence & investigation", "Immediate safeguards", "Procedure & advocacy", "Outcome / follow-through"];
     milestones = ["Instructions secured", "Evidence position known", "Immediate action completed", "Procedural stage prepared", "Outcome recorded"];
+  } else if (textHas(text, ["defamation", "defarmation", "libel", "slander", "reputation", "reputational"])) {
+    nature = "contentious"; practiceArea = "Media / reputation"; planLabel = "Case strategy";
+    workstreams = ["Publication & chronology", "Parties / audience / reach", "Claims, defences & harm", "Evidence & authorities", "Procedure / remedy / enforcement"];
+    milestones = ["Publication record verified", "Claims and defences reviewed", "Evidence gaps resolved", "Procedural / settlement route confirmed", "Outcome / remedy implemented"];
   } else if (textHas(text, ["employment", "labour", "dismissal", "employee", "employer"])) {
     nature = "contentious"; practiceArea = "Employment / labour"; planLabel = "Resolution plan";
     workstreams = ["Employment record", "Claims & remedies", "Conciliation / Labour Inspector", "Proceedings if required", "Resolution & enforcement"];
