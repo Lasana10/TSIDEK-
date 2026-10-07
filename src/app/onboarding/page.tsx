@@ -152,7 +152,7 @@ export default function OnboardingPage() {
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#082b22] text-[#d9ba78]"><ShieldCheck className="h-5 w-5" /></div>
           <div>
             <p className="text-sm font-black tracking-[0.14em] text-[#082b22]">TSIDKENU</p>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Secure firm activation</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">{t("onboarding.secure","Secure firm activation")}</p>
           </div>
         </div>
 
