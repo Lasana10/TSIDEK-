@@ -16,6 +16,7 @@ export default function LocaleProvider({children}:{children:React.ReactNode}){
  const setLocale=useCallback((next:Locale)=>{
   setLocaleState(next);
   window.localStorage.setItem("tsid.locale",next);
+  document.cookie=`tsid_locale=${next}; Path=/; Max-Age=31536000; SameSite=Lax`;
  },[]);
  useEffect(()=>{
   const meta=localeMeta[locale];
