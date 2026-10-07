@@ -3,38 +3,47 @@
 import { useCallback,useEffect,useMemo,useState } from "react";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { Archive,ArrowRight,Bell,BookOpenCheck,BriefcaseBusiness,Building2,ChevronRight,CircleUserRound,Clock3,FileCheck2,FileSearch,FileText,FolderOpen,Gauge,Landmark,LibraryBig,Menu,MessageSquareText,Receipt,ScanLine,Search,ShieldCheck,Users,X } from "lucide-react";
+import { Archive,ArrowRight,Bell,BriefcaseBusiness,Building2,ChevronDown,ChevronRight,CircleUserRound,Clock3,FileCheck2,FileSearch,FileText,FolderOpen,Gauge,Landmark,LibraryBig,Menu,MessageSquareText,Receipt,Search,ShieldCheck,Users,X } from "lucide-react";
 import TsidkenuLogo from "@/components/TsidkenuLogo";
 import FirmPulse from "@/components/FirmPulse";
-import { useLocale } from "@/components/LocaleProvider";
-import { formatDate,formatMoney } from "@/lib/i18n";
+import { LanguageSwitcher,useLocale } from "@/components/LocaleProvider";
+import { formatDate,formatMoney,normalizeLocale } from "@/lib/i18n";
 
 type QueueItem=Record<string,unknown>;
-type Payload={success:boolean;error?:string;identity?:{actorName?:string|null;actorRole?:string|null;title?:string|null;firmId?:string|null;firmName?:string|null;firmCountry?:string|null};capabilities?:Record<string,boolean>;metrics?:Record<string,number>;queues?:Record<string,QueueItem[]>};
+type Payload={success:boolean;error?:string;identity?:{actorName?:string|null;actorRole?:string|null;title?:string|null;firmId?:string|null;firmName?:string|null;firmCountry?:string|null;defaultLanguage?:string|null};capabilities?:Record<string,boolean>;metrics?:Record<string,number>;queues?:Record<string,QueueItem[]>};
 type Nav={href:string;label:string;description:string;icon:LucideIcon;finance?:boolean};
+type NavGroup={key:string;label:string;icon:LucideIcon;items:Nav[]};
 type Row={id:string;title:string;subtitle:string;badge:string;href?:string};
 
-const nav:Nav[]=[
- {href:"/workspace",label:"Command",description:"Today, risk and priority",icon:Gauge},
- {href:"/search",label:"Search",description:"Cases, clients, documents and references",icon:Search},
- {href:"/clients",label:"Clients",description:"Relationships, KYC and client history",icon:Users},
- {href:"/matters",label:"Cases",description:"Dossiers, deadlines and legal work",icon:BriefcaseBusiness},
- {href:"/workroom",label:"Workroom",description:"Assignments, follow-up and team work",icon:Clock3},
- {href:"/activity-reports",label:"Compte Rendu",description:"Work record, time and billing evidence",icon:FileCheck2},
- {href:"/intake",label:"Intake & Due Diligence",description:"Intake, conflict, KYC and engagement",icon:Users},
- {href:"/communications",label:"Communications",description:"Email, WhatsApp, calls and client history",icon:MessageSquareText},
- {href:"/interactions",label:"Interactions",description:"Notes, recordings and meetings",icon:MessageSquareText},
- {href:"/whatsapp",label:"WhatsApp Desk",description:"Messages, secure forms and triggers",icon:MessageSquareText},
- {href:"/forms",label:"Forms Bank",description:"Reusable firm forms and records",icon:FolderOpen},
- {href:"/document-bank",label:"Document Bank",description:"Precedents and AI-assisted adaptation",icon:FileText},
- {href:"/law-bank",label:"Law Bank",description:"Law and verified legal sources",icon:LibraryBig},
- {href:"/business",label:"Business & Office",description:"Suppliers, obligations, spending and evidence",icon:Landmark,finance:true},
- {href:"/finance",label:"Billing & Finance",description:"Invoices, payments, cash and collections",icon:Receipt,finance:true},
- {href:"/digitisation",label:"Digitisation",description:"Evidence and legacy files",icon:Archive},
- {href:"/people",label:"People",description:"Teams and performance",icon:CircleUserRound},
- {href:"/storage",label:"Storage & Integrations",description:"File custody and provider health",icon:Archive},
- {href:"/firm-control",label:"Firm Control",description:"Ways of working, recommended setup and governance",icon:Building2},
- {href:"/studio",label:"Firm Studio",description:"Identity, forms, workflows, legal parameters and AI policy",icon:Building2},
+const navGroups:NavGroup[]=[
+ {key:"matters",label:"Matter Work",icon:BriefcaseBusiness,items:[
+  {href:"/matters",label:"Cases",description:"Dossiers, deadlines and legal work",icon:BriefcaseBusiness},
+  {href:"/workroom",label:"Workroom",description:"Assignments, follow-up and team work",icon:Clock3},
+  {href:"/activity-reports",label:"Work Reports",description:"Work record, time and billing evidence",icon:FileCheck2},
+ ]},
+ {key:"clients",label:"Clients",icon:Users,items:[
+  {href:"/clients",label:"Client Records",description:"Relationships, KYC and client history",icon:Users},
+  {href:"/intake",label:"New Client & Due Diligence",description:"Intake, conflict, KYC and engagement",icon:Users},
+  {href:"/communications",label:"Communications",description:"Email, WhatsApp, calls and client history",icon:MessageSquareText},
+  {href:"/interactions",label:"Meetings & Notes",description:"Notes, recordings and meetings",icon:MessageSquareText},
+  {href:"/whatsapp",label:"WhatsApp",description:"Messages, secure forms and triggers",icon:MessageSquareText},
+ ]},
+ {key:"knowledge",label:"Knowledge & Documents",icon:LibraryBig,items:[
+  {href:"/document-bank",label:"Documents & Precedents",description:"Precedents and AI-assisted adaptation",icon:FileText},
+  {href:"/law-bank",label:"Legal Sources",description:"Law and verified legal sources",icon:LibraryBig},
+  {href:"/forms",label:"Forms",description:"Reusable firm forms and records",icon:FolderOpen},
+  {href:"/digitisation",label:"Digitisation",description:"Evidence and legacy files",icon:Archive},
+ ]},
+ {key:"office",label:"Office & Finance",icon:Landmark,items:[
+  {href:"/business",label:"Office Operations",description:"Suppliers, obligations, spending and evidence",icon:Landmark,finance:true},
+  {href:"/finance",label:"Billing & Finance",description:"Invoices, payments, cash and collections",icon:Receipt,finance:true},
+  {href:"/people",label:"People",description:"Teams and performance",icon:CircleUserRound},
+  {href:"/storage",label:"Files & Integrations",description:"File custody and provider health",icon:Archive},
+ ]},
+ {key:"firm",label:"Firm Setup",icon:Building2,items:[
+  {href:"/firm-control",label:"Firm Control",description:"Governance, authority and adopted ways of working",icon:ShieldCheck},
+  {href:"/studio",label:"Firm Studio",description:"Identity, forms, workflows, legal parameters and AI policy",icon:Building2},
+ ]},
 ];
 const roleExperience:Record<string,{eyebrow:string;heading:string;summary:string}>={
  owner:{eyebrow:"Firm command",heading:"Run the firm from one accountable legal operating surface.",summary:"Matters, client obligations, legal sources, collections and professional controls are visible without turning the system into a wall of cards."},
@@ -49,10 +58,11 @@ const navKeys:Record<string,[string,string]>={
 function roleKey(role:string){const x=role.toLowerCase();if(x.includes("owner")||x.includes("founder"))return"owner";if(x.includes("partner"))return"partner";if(x.includes("finance")||x.includes("account"))return"finance";return"lawyer"}
 
 export default function WorkspacePage(){
- const{locale,t}=useLocale();
+ const{locale,t,setLocale}=useLocale();
  const[data,setData]=useState<Payload|null>(null);const[loading,setLoading]=useState(true);const[error,setError]=useState("");const[mobile,setMobile]=useState(false);
  const load=useCallback(async()=>{setLoading(true);setError("");try{const r=await fetch("/api/workspace",{cache:"no-store",credentials:"include"});if(r.status===401){window.location.replace("/auth?redirectTo=%2Fworkspace");return}if(r.status===409){window.location.replace("/onboarding");return}const p=await r.json() as Payload;if(!r.ok||!p.success)throw new Error(p.error||"Unable to load workspace.");setData(p)}catch(e){setError(e instanceof Error?e.message:"Unable to load workspace.")}finally{setLoading(false)}},[]);
  useEffect(()=>{void load()},[load]);
+ useEffect(()=>{if(!data?.identity?.defaultLanguage||typeof window==="undefined")return;if(window.localStorage.getItem("tsid.locale"))return;setLocale(normalizeLocale(data.identity.defaultLanguage));},[data?.identity?.defaultLanguage,setLocale]);
  if(loading)return <State title={t("workspace.loading","Restoring legal workspace")} detail={t("workspace.loadingDetail","Resolving active firm, role and operating queues…")}/>;
  if(error||!data?.success)return <State title={t("workspace.unavailable","Workspace unavailable")} detail={error||data?.error||"Unable to load workspace."} action={<button onClick={()=>void load()} className="rounded-xl bg-[#082b22] px-4 py-2.5 text-sm font-bold text-white">Retry</button>}/>;
  const role=data.identity?.actorRole||"lawyer", rk=roleKey(role), fallbackExperience=roleExperience[rk]||roleExperience.lawyer, experience={eyebrow:t(`role.${rk}.eyebrow`,fallbackExperience.eyebrow),heading:t(`role.${rk}.heading`,fallbackExperience.heading),summary:t(`role.${rk}.summary`,fallbackExperience.summary)}, metrics=data.metrics||{}, queues=data.queues||{};
@@ -63,11 +73,11 @@ export default function WorkspacePage(){
  const docs=rows("documents","title",i=>[s(i.document_type),s(i.version_label)].filter(Boolean).join(" • "),i=>s(i.matter_id)?`/matters/${s(i.matter_id)}`:undefined);
  const intake=rows("intake","prospect_name",i=>`Conflict ${s(i.conflict_status)||"pending"} • Engagement ${s(i.engagement_status)||"pending"}`,()=>"/intake");
  const aiIntake=rows("documentIntake","original_name",i=>[s(i.document_kind),s(i.counterparty_name),s(i.proposed_action)].filter(Boolean).join(" • "),()=>"/business/documents");
- const visibleNav=nav.filter(item=>!item.finance||data.capabilities?.finance).map(item=>{const keys=navKeys[item.href];return keys?{...item,label:t(keys[0],item.label),description:t(keys[1],item.description)}:item});
+ const visibleGroups=navGroups.filter(group=>group.key!=="firm"||Boolean(data.capabilities?.studio)).map(group=>({...group,label:t(`menu.${group.key}`,group.label),items:group.items.filter(item=>!item.finance||data.capabilities?.finance).map(item=>{const keys=navKeys[item.href];return keys?{...item,label:t(keys[0],item.label),description:t(keys[1],item.description)}:item})})).filter(group=>group.items.length);
  return <main className="min-h-screen bg-[#eef2ef] text-slate-900">
   <div className="min-h-screen lg:grid lg:grid-cols-[272px_minmax(0,1fr)] 2xl:grid-cols-[292px_minmax(0,1fr)]">
-   <aside className="hidden h-screen flex-col border-r border-white/10 bg-[#062f27] text-white lg:sticky lg:top-0 lg:flex"><div className="px-5 pb-5 pt-6"><TsidkenuLogo surface="dark"/><div className="mt-6 rounded-2xl border border-white/10 bg-white/[.055] p-4"><p className="text-[9px] font-black uppercase tracking-[.2em] text-white/35">{t("workspace.activeFirm","Active firm")}</p><p className="mt-2 truncate text-sm font-bold">{firm}</p><p className="mt-1 truncate text-[10px] text-white/40">{[country,role].filter(Boolean).join(" • ")}</p></div></div><nav className="flex-1 overflow-y-auto px-3 pb-5">{visibleNav.map(item=><NavLink key={item.href} item={item}/>)}</nav><div className="border-t border-white/10 p-4"><div className="rounded-xl bg-black/10 p-3"><p className="truncate text-xs font-bold">{data.identity?.actorName||"Firm member"}</p><p className="mt-1 text-[9px] font-black uppercase tracking-[.14em] text-white/35">{role}</p></div></div></aside>
-   {mobile&&<div className="fixed inset-0 z-50 bg-[#041d18]/50 backdrop-blur-sm lg:hidden" onClick={()=>setMobile(false)}><aside className="h-full w-[88%] max-w-sm bg-[#062f27] p-5 text-white shadow-2xl" onClick={e=>e.stopPropagation()}><div className="flex items-center justify-between"><TsidkenuLogo surface="dark"/><button onClick={()=>setMobile(false)} className="rounded-xl border border-white/10 p-2"><X className="h-5 w-5"/></button></div><p className="mt-6 text-xs font-bold text-white/50">{firm}</p><nav className="mt-4 space-y-1">{visibleNav.map(item=><NavLink key={item.href} item={item}/>)}</nav></aside></div>}
+   <aside className="hidden h-screen flex-col border-r border-white/10 bg-[#062f27] text-white lg:sticky lg:top-0 lg:flex"><div className="px-5 pb-4 pt-6"><TsidkenuLogo surface="dark"/><div className="mt-5 rounded-2xl border border-white/10 bg-white/[.055] p-4"><p className="text-[9px] font-black uppercase tracking-[.2em] text-white/35">{t("workspace.activeFirm","Active firm")}</p><p className="mt-2 truncate text-sm font-bold">{firm}</p><p className="mt-1 truncate text-[10px] text-white/40">{[country,role].filter(Boolean).join(" • ")}</p></div><div className="mt-3 rounded-xl border border-white/10 bg-white/[.04] p-2"><LanguageSwitcher compact className="[&>select]:w-full [&>select]:border-white/10 [&>select]:bg-white/10 [&>select]:text-white"/></div></div><nav className="flex-1 overflow-y-auto px-3 pb-5"><NavLink item={{href:"/workspace",label:t("menu.home","Home"),description:t("nav.command.desc","Today, risk and priority"),icon:Gauge}}/>{visibleGroups.map(group=><NavGroupSection key={group.key} group={group}/>)}</nav><div className="border-t border-white/10 p-4"><div className="rounded-xl bg-black/10 p-3"><p className="truncate text-xs font-bold">{data.identity?.actorName||"Firm member"}</p><p className="mt-1 text-[9px] font-black uppercase tracking-[.14em] text-white/35">{role}</p></div></div></aside>
+   {mobile&&<div className="fixed inset-0 z-50 bg-[#041d18]/50 backdrop-blur-sm lg:hidden" onClick={()=>setMobile(false)}><aside className="h-full w-[88%] max-w-sm overflow-y-auto bg-[#062f27] p-5 text-white shadow-2xl" onClick={e=>e.stopPropagation()}><div className="flex items-center justify-between"><TsidkenuLogo surface="dark"/><button onClick={()=>setMobile(false)} className="rounded-xl border border-white/10 p-2"><X className="h-5 w-5"/></button></div><p className="mt-5 text-xs font-bold text-white/50">{firm}</p><div className="mt-3 rounded-xl border border-white/10 bg-white/[.04] p-2"><LanguageSwitcher compact className="[&>select]:w-full [&>select]:border-white/10 [&>select]:bg-white/10 [&>select]:text-white"/></div><nav className="mt-4"><NavLink item={{href:"/workspace",label:t("menu.home","Home"),description:t("nav.command.desc","Today, risk and priority"),icon:Gauge}}/>{visibleGroups.map(group=><NavGroupSection key={group.key} group={group}/>)}</nav></aside></div>}
    <section className="min-w-0"><header className="sticky top-0 z-30 border-b border-slate-200/80 bg-[#f8faf8]/92 backdrop-blur-xl"><div className="flex h-16 items-center gap-3 px-4 sm:px-6 xl:px-8 2xl:px-10"><button onClick={()=>setMobile(true)} className="rounded-xl border border-slate-200 bg-white p-2.5 lg:hidden"><Menu className="h-5 w-5"/></button><div className="min-w-0 flex-1"><p className="truncate text-xs font-black uppercase tracking-[.13em] text-slate-400">{firm}</p><p className="truncate text-sm font-semibold text-slate-800">{t("workspace.legalWorkspace","Legal operating workspace")}</p></div><Link href="/search" className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-600 md:inline-flex"><Search className="h-4 w-4"/>{t("common.search","Search")}</Link><Link href="/communications" className="hidden rounded-xl bg-[#083b30] px-4 py-2.5 text-sm font-bold text-white sm:inline-flex">{t("common.communications","Communications")}</Link><button className="rounded-xl border border-slate-200 bg-white p-2.5" aria-label={t("common.notifications","Notifications")}><Bell className="h-5 w-5"/></button></div></header>
     <div className="space-y-5 px-4 py-5 sm:px-6 sm:py-6 xl:px-8 xl:py-8 2xl:px-10">
      <section className="overflow-hidden rounded-[2rem] bg-[#07372d] text-white shadow-[0_24px_70px_rgba(7,55,45,.16)]"><div className="grid xl:grid-cols-[minmax(0,1fr)_380px]"><div className="p-6 sm:p-8 xl:p-10 2xl:p-12"><p className="text-[10px] font-black uppercase tracking-[.22em] text-[#d6b66f]">{experience.eyebrow}</p><h1 className="mt-3 max-w-5xl text-3xl font-semibold tracking-[-.04em] sm:text-4xl xl:text-5xl 2xl:text-[3.6rem] 2xl:leading-[1.02]">{experience.heading}</h1><p className="mt-4 max-w-4xl text-sm leading-7 text-white/65 sm:text-base">{experience.summary}</p></div><div className="grid grid-cols-2 gap-px border-t border-white/10 bg-white/10 xl:border-l xl:border-t-0"><Hero label={t("workspace.activeCases","Active cases")} value={String(metrics.activeMatters||0)} icon={BriefcaseBusiness}/><Hero label={t("workspace.urgentWork","Urgent work")} value={String(metrics.urgentTasks||0)} icon={Clock3}/><Hero label={t("workspace.openIntake","Open intake")} value={String(metrics.openIntake||0)} icon={Users}/><Hero label={t("workspace.highRisk","High risk")} value={String(metrics.highRiskMatters||0)} icon={ShieldCheck}/></div></div></section>
@@ -81,7 +91,8 @@ export default function WorkspacePage(){
  </main>
 }
 
-function NavLink({item}:{item:Nav}){const Icon=item.icon;return <Link href={item.href} className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-white/62 transition hover:bg-white/[.07] hover:text-white"><Icon className="h-4 w-4 shrink-0 text-white/40 group-hover:text-[#e0c17d]"/><div className="min-w-0"><p className="text-xs font-bold">{item.label}</p><p className="mt-0.5 truncate text-[9px] text-white/27">{item.description}</p></div></Link>}
+function NavGroupSection({group}:{group:NavGroup}){const Icon=group.icon;return <details className="group/nav mt-1"><summary className="flex cursor-pointer list-none items-center gap-3 rounded-xl px-3 py-3 text-white/72 transition hover:bg-white/[.07] hover:text-white"><Icon className="h-4 w-4 shrink-0 text-[#d8bb79]"/><span className="flex-1 text-xs font-bold">{group.label}</span><ChevronDown className="h-3.5 w-3.5 text-white/30 transition group-open/nav:rotate-180"/></summary><div className="mb-2 ml-4 border-l border-white/10 pl-2">{group.items.map(item=><NavLink key={item.href} item={item} nested/>)}</div></details>}
+function NavLink({item,nested=false}:{item:Nav;nested?:boolean}){const Icon=item.icon;return <Link href={item.href} className={`group flex items-center gap-3 rounded-xl ${nested?"px-3 py-2":"px-3 py-2.5"} text-white/62 transition hover:bg-white/[.07] hover:text-white`}><Icon className={`${nested?"h-3.5 w-3.5":"h-4 w-4"} shrink-0 text-white/40 group-hover:text-[#e0c17d]`}/><div className="min-w-0"><p className="text-xs font-bold">{item.label}</p>{!nested?<p className="mt-0.5 truncate text-[9px] text-white/27">{item.description}</p>:null}</div></Link>}
 function Hero({label,value,icon:Icon}:{label:string;value:string;icon:LucideIcon}){return <div className="bg-white/[.045] p-5 sm:p-6"><Icon className="h-4 w-4 text-[#d8bb79]"/><p className="mt-4 text-2xl font-semibold">{value}</p><p className="mt-1 text-[9px] font-black uppercase tracking-[.15em] text-white/38">{label}</p></div>}
 function Action({href,icon:Icon,title,text}:{href:string;icon:LucideIcon;title:string;text:string}){return <Link href={href} className="group flex min-h-28 items-center gap-4 rounded-[1.45rem] border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-[#8eafa4]"><div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#edf4f0] text-[#0f5b49]"><Icon className="h-5 w-5"/></div><div className="min-w-0 flex-1"><p className="text-sm font-bold text-slate-950">{title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{text}</p></div><ArrowRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5"/></Link>}
 function Queue({title,icon:Icon,rows,empty}:{title:string;icon:LucideIcon;rows:Row[];empty:string}){return <div className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center gap-3"><div className="rounded-xl bg-[#edf4f0] p-2.5 text-[#0f5b49]"><Icon className="h-4 w-4"/></div><h2 className="text-base font-bold">{title}</h2><span className="ml-auto rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-500">{rows.length}</span></div><div className="mt-4 space-y-1">{rows.slice(0,6).map(row=>{const body=<div className="group flex items-center gap-3 rounded-xl px-3 py-3 hover:bg-[#f4f8f6]"><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{row.title}</p><p className="mt-1 truncate text-[11px] text-slate-500">{row.subtitle||"Open record"}</p></div><span className="max-w-24 truncate rounded-full bg-slate-100 px-2 py-1 text-[9px] font-black uppercase text-slate-500">{row.badge}</span><ChevronRight className="h-4 w-4 text-slate-300"/></div>;return row.href?<Link key={row.id||row.title} href={row.href}>{body}</Link>:<div key={row.id||row.title}>{body}</div>})}{!rows.length&&<div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">{empty}</div>}</div></div>}
