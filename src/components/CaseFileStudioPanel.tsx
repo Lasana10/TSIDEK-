@@ -2,6 +2,8 @@
 
 import React, { startTransition, useMemo, useState } from "react";
 import { Database, FileCog, FolderArchive, PenSquare, ScrollText } from "lucide-react";
+import { useLocale } from "@/components/LocaleProvider";
+import { localeLabels,supportedLocales,type Locale } from "@/lib/i18n";
 import type { MatterWorkspaceData } from "@/lib/matters";
 import type { MatterRoomData } from "@/lib/matter-room";
 
@@ -48,7 +50,7 @@ export default function CaseFileStudioPanel({
   const [templateTitle, setTemplateTitle] = useState(`${matter.matterType} Heritage Draft`);
   const [templatePracticeArea, setTemplatePracticeArea] = useState(matter.matterType);
   const [templateJurisdiction, setTemplateJurisdiction] = useState(matter.jurisdiction);
-  const [templateLanguage, setTemplateLanguage] = useState<"FR" | "EN" | "Bilingual">("FR");
+  const [templateLanguage, setTemplateLanguage] = useState<string>("fr");
   const [templateBody, setTemplateBody] = useState("");
   const [templateFormNote, setTemplateFormNote] = useState("Keep the chamber structure and formal pleading form intact.");
 
@@ -223,8 +225,8 @@ export default function CaseFileStudioPanel({
           <div className="flex items-center gap-3">
             <Database className="h-5 w-5 text-heritage-green" />
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Structured case fields</p>
-              <h3 className="mt-1 text-lg font-semibold text-heritage-green">Matter facts we can reuse everywhere</h3>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{t("studio.case.fields","Structured case fields")}</p>
+              <h3 className="mt-1 text-lg font-semibold text-heritage-green">{t("studio.case.fieldsTitle","Matter facts we can reuse everywhere")}</h3>
             </div>
           </div>
 
@@ -263,8 +265,8 @@ export default function CaseFileStudioPanel({
           <div className="flex items-center gap-3">
             <FolderArchive className="h-5 w-5 text-heritage-green" />
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Digital case file store</p>
-              <h3 className="mt-1 text-lg font-semibold text-heritage-green">The digital twin of the physical file</h3>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{t("studio.case.digital","Digital case file store")}</p>
+              <h3 className="mt-1 text-lg font-semibold text-heritage-green">{t("studio.case.digitalTitle","The digital twin of the physical file")}</h3>
             </div>
           </div>
 
@@ -311,8 +313,8 @@ export default function CaseFileStudioPanel({
           <div className="flex items-center gap-3">
             <FileCog className="h-5 w-5 text-heritage-green" />
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Template library</p>
-              <h3 className="mt-1 text-lg font-semibold text-heritage-green">Preserve form, change context</h3>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{t("studio.case.templates","Template library")}</p>
+              <h3 className="mt-1 text-lg font-semibold text-heritage-green">{t("studio.case.templatesTitle","Preserve form, change context")}</h3>
             </div>
           </div>
 
@@ -342,9 +344,7 @@ export default function CaseFileStudioPanel({
                 <input value={templateJurisdiction} onChange={(event) => setTemplateJurisdiction(event.target.value)} placeholder="Jurisdiction" className="rounded-[1rem] border border-slate-200 bg-white p-4 text-sm outline-none focus:border-heritage-green" />
               </div>
               <select value={templateLanguage} onChange={(event) => setTemplateLanguage(event.target.value as typeof templateLanguage)} className="rounded-[1rem] border border-slate-200 bg-white p-4 text-sm outline-none focus:border-heritage-green">
-                {["FR", "EN", "Bilingual"].map((item) => (
-                  <option key={item} value={item}>{item}</option>
-                ))}
+                {supportedLocales.map((item) => <option key={item} value={item}>{localeLabels[item as Locale]}</option>)}<option value="bilingual">Bilingual / Multilingual</option>
               </select>
               <textarea value={templateBody} onChange={(event) => setTemplateBody(event.target.value)} placeholder="Paste your current template body here. Leave blank to use the built-in heritage draft." className="min-h-40 rounded-[1rem] border border-slate-200 bg-white p-4 text-sm outline-none focus:border-heritage-green" />
               <textarea value={templateFormNote} onChange={(event) => setTemplateFormNote(event.target.value)} placeholder="What form must remain untouched?" className="min-h-24 rounded-[1rem] border border-slate-200 bg-white p-4 text-sm outline-none focus:border-heritage-green" />
@@ -357,8 +357,8 @@ export default function CaseFileStudioPanel({
           <div className="flex items-center gap-3">
             <PenSquare className="h-5 w-5 text-gold-accent" />
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">Personalized drafting</p>
-              <h3 className="mt-1 text-lg font-semibold">Generate a matter-specific draft from firm form</h3>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">{t("studio.case.drafting","Personalized drafting")}</p>
+              <h3 className="mt-1 text-lg font-semibold">{t("studio.case.draftingTitle","Generate a matter-specific draft from firm form")}</h3>
             </div>
           </div>
 
