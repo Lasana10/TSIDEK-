@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, Building2, CheckCircle2, Loader2, ShieldCheck, UserRound } from "lucide-react";
 import { defaultFirmCountry, firmRoleOptions, type FirmRole } from "@/lib/firm-identity";
+import { LanguageSwitcher, useLocale } from "@/components/LocaleProvider";
 
 type SessionPayload = {
   authenticated: boolean;
@@ -44,6 +45,7 @@ function cleanName(actorName?: string | null, email?: string | null) {
 }
 
 export default function OnboardingPage() {
+  const {t}=useLocale();
   const [session, setSession] = useState<SessionPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -146,7 +148,7 @@ export default function OnboardingPage() {
   return (
     <main className="min-h-screen bg-[#f4f6f3] px-4 py-5 text-slate-900 sm:px-6 sm:py-8">
       <div className="mx-auto max-w-2xl">
-        <div className="mb-5 flex items-center gap-3 px-1">
+        <div className="mb-5 flex items-center justify-between gap-3 px-1"><div className="flex items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#082b22] text-[#d9ba78]"><ShieldCheck className="h-5 w-5" /></div>
           <div>
             <p className="text-sm font-black tracking-[0.14em] text-[#082b22]">TSIDKENU</p>
@@ -157,8 +159,8 @@ export default function OnboardingPage() {
         <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
           <div className="border-b border-slate-100 bg-[#082b22] px-6 py-7 text-white sm:px-8">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/65"><CheckCircle2 className="h-3.5 w-3.5 text-[#d9ba78]" /> One-time setup</div>
-            <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em]">Activate your firm workspace</h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-white/65">A short setup establishes your identity and firm authority. After this, TSIDKENU opens directly to your role-native workspace.</p>
+            <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em]">{t("onboarding.title","Activate your firm workspace")}</h1>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-white/65">{t("onboarding.summary","A short setup establishes your identity and firm authority. After this, TSIDKENU opens directly to your role-native workspace.")}</p>
           </div>
 
           <div className="p-6 sm:p-8">
@@ -190,7 +192,7 @@ export default function OnboardingPage() {
 
             {error ? <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">{error}</div> : null}
 
-            <button onClick={() => void activateWorkspace()} disabled={submitting} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#082b22] px-5 py-4 text-sm font-bold text-white shadow-[0_12px_30px_rgba(8,43,34,0.18)] transition hover:bg-[#0d3b30] disabled:cursor-not-allowed disabled:opacity-60">{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{submitting ? "Activating…" : "Enter workspace"}<ArrowRight className="h-4 w-4" /></button>
+            <button onClick={() => void activateWorkspace()} disabled={submitting} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#082b22] px-5 py-4 text-sm font-bold text-white shadow-[0_12px_30px_rgba(8,43,34,0.18)] transition hover:bg-[#0d3b30] disabled:cursor-not-allowed disabled:opacity-60">{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{submitting ? t("onboarding.activating","Activating…") : t("onboarding.enter","Enter workspace")}<ArrowRight className="h-4 w-4" /></button>
             <p className="mt-3 text-center text-[11px] leading-5 text-slate-400">Your role is enforced by server-side firm membership. This screen cannot grant itself authority.</p>
           </div>
         </section>
