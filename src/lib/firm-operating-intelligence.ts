@@ -15,7 +15,7 @@ export type FirmOperatingProfile = {
 
 export type OperatingRecommendation = {
   recommendation_key: string;
-  category: "client_onboarding" | "litigation" | "team_work" | "billing" | "documents" | "client_updates" | "confidentiality";
+  category: "client_onboarding" | "litigation" | "team_work" | "billing" | "documents" | "client_updates" | "confidentiality" | "international";
   title: string;
   description: string;
   rationale: string;
@@ -35,6 +35,10 @@ export function buildOperatingRecommendations(profile: FirmOperatingProfile): Op
   const partnerApproval = profile.approval_model === "partner_review" || profile.approval_model === "partner_final";
   const largerTeam = ["15_30", "31_plus"].includes(profile.professional_count_band);
   const higherConfidentiality = ["strict", "high"].includes(profile.confidentiality_mode);
+  const configuration = profile.configuration ?? {};
+  const operatingCountries = Array.isArray(configuration.operating_countries) ? configuration.operating_countries.map(String).filter(Boolean) : [];
+  const workingLanguages = Array.isArray(configuration.working_languages) ? configuration.working_languages.map(String).filter(Boolean) : [];
+  const internationalPractice = operatingCountries.length > 1 || workingLanguages.length > 1 || Boolean(configuration.cross_border_clients);
 
   recommendations.push({
     recommendation_key: "client_onboarding_conflict_kyc",
@@ -130,6 +134,27 @@ export function buildOperatingRecommendations(profile: FirmOperatingProfile): Op
       approval_for_sensitive_update: partnerApproval,
     },
   });
+
+  if (internationalPractice) {
+    recommendations.push({
+      recommendation_key: "international_localisation_jurisdiction",
+      category: "international",
+      title: "International practice & localisation",
+      description: "Use matter-level jurisdiction, language and document-language context while keeping firm governance and evidence standards consistent across offices.",
+      rationale: "Your firm profile indicates cross-border, multi-country or multilingual work. TSIDKENU should adapt language and jurisdiction context without fragmenting the operating model.",
+      source_kind: "profile",
+      suggested_configuration: {
+        operating_countries: operatingCountries,
+        working_languages: workingLanguages,
+        cross_border_clients: Boolean(configuration.cross_border_clients),
+        require_matter_jurisdiction: true,
+        require_document_language: true,
+        preserve_source_language: true,
+        translate_interface_independently: true,
+        jurisdiction_pack_required_for_external_legal_assertions: true,
+      },
+    });
+  }
 
   if (higherConfidentiality) {
     recommendations.push({
