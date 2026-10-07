@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Building2 } from "lucide-react";
+import { LanguageSwitcher } from "@/components/LocaleProvider";
 
 type Brand = {
   display_name?: string;
@@ -42,9 +43,10 @@ export default function FirmIdentityShell() {
             {brand.motto ? <p className="truncate text-[10px] font-medium text-slate-500">{brand.motto}</p> : <p className="text-[10px] font-medium text-slate-400">Firm workspace</p>}
           </div>
         </Link>
-        <div className="hidden items-center gap-2 sm:flex">
-          <span className="h-2 w-2 rounded-full" style={{ background: brand.accent_color || "#c5a059" }} />
-          <span className="text-[9px] font-black uppercase tracking-[.16em] text-slate-400">Powered by TSIDKENU</span>
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher compact className="hidden sm:inline-flex" />
+          <span className="hidden h-2 w-2 rounded-full sm:inline-block" style={{ background: brand.accent_color || "#c5a059" }} />
+          <span className="hidden text-[9px] font-black uppercase tracking-[.16em] text-slate-400 md:inline">Powered by TSIDKENU</span>
         </div>
       </div>
     </div>
