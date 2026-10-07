@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
-import { assertMatterPermission } from "@/lib/authorization";
+import { assertFirmModule, assertMatterPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { transcribeVaultRecording } from "@/lib/transcription.server";
 
 type Context={params:Promise<{interactionId:string}>};
 export async function POST(request:Request,context:Context){
  try{
-  const{interactionId}=await context.params;const scope=await resolveRequestScope(request);if(!scope.firmId||!scope.actorLawyerId)throw new Error("Authenticated firm context is required.");
+  const{interactionId}=await context.params;const scope=await resolveRequestScope(request);await assertFirmModule({scope,module:"interactions"});if(!scope.firmId||!scope.actorLawyerId)throw new Error("Authenticated firm context is required.");
   const supabase=createServerSupabaseClient();if(!supabase)throw new Error("Supabase server configuration is required.");
   const interaction=await supabase.from("legal_interactions").select("id,firm_id,matter_id,recording_storage_ref,transcript_status,confidentiality_level,consent_recording,metadata").eq("id",interactionId).eq("firm_id",scope.firmId).single();if(interaction.error)throw new Error(interaction.error.message);
   if(interaction.data.matter_id)await assertMatterPermission({scope,matterId:interaction.data.matter_id,allowAnyMember:true});
