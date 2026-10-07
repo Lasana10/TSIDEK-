@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
-import { assertMatterPermission } from "@/lib/authorization";
+import { assertFirmModule, assertMatterPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { resolveFirmProviderCredentials } from "@/lib/tenant-integrations.server";
 import { PaymentService, type MobileMoneyProvider } from "@/lib/payment-service/pawapay";
@@ -9,6 +9,7 @@ type Context = { params: Promise<{ matterId: string }> };
 
 async function runtime(request: Request, matterId: string) {
   const scope = await resolveRequestScope(request);
+  await assertFirmModule({ scope, module: "finance" });
   await assertMatterPermission({ scope, matterId, permission: "viewBilling" });
   if (!scope.firmId) throw new Error("Authenticated firm context is required.");
   const firmId = scope.firmId;
