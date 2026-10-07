@@ -7,10 +7,10 @@ import { Archive,ArrowRight,Bell,BriefcaseBusiness,Building2,ChevronDown,Chevron
 import TsidkenuLogo from "@/components/TsidkenuLogo";
 import FirmPulse from "@/components/FirmPulse";
 import { LanguageSwitcher,useLocale } from "@/components/LocaleProvider";
-import { formatDate,formatMoney } from "@/lib/i18n";
+import { formatDate,formatMoney,normalizeLocale } from "@/lib/i18n";
 
 type QueueItem=Record<string,unknown>;
-type Payload={success:boolean;error?:string;identity?:{actorName?:string|null;actorRole?:string|null;title?:string|null;firmId?:string|null;firmName?:string|null;firmCountry?:string|null};capabilities?:Record<string,boolean>;metrics?:Record<string,number>;queues?:Record<string,QueueItem[]>};
+type Payload={success:boolean;error?:string;identity?:{actorName?:string|null;actorRole?:string|null;title?:string|null;firmId?:string|null;firmName?:string|null;firmCountry?:string|null;defaultLanguage?:string|null};capabilities?:Record<string,boolean>;metrics?:Record<string,number>;queues?:Record<string,QueueItem[]>};
 type Nav={href:string;label:string;description:string;icon:LucideIcon;finance?:boolean};
 type NavGroup={key:string;label:string;icon:LucideIcon;items:Nav[]};
 type Row={id:string;title:string;subtitle:string;badge:string;href?:string};
@@ -58,10 +58,11 @@ const navKeys:Record<string,[string,string]>={
 function roleKey(role:string){const x=role.toLowerCase();if(x.includes("owner")||x.includes("founder"))return"owner";if(x.includes("partner"))return"partner";if(x.includes("finance")||x.includes("account"))return"finance";return"lawyer"}
 
 export default function WorkspacePage(){
- const{locale,t}=useLocale();
+ const{locale,t,setLocale}=useLocale();
  const[data,setData]=useState<Payload|null>(null);const[loading,setLoading]=useState(true);const[error,setError]=useState("");const[mobile,setMobile]=useState(false);
  const load=useCallback(async()=>{setLoading(true);setError("");try{const r=await fetch("/api/workspace",{cache:"no-store",credentials:"include"});if(r.status===401){window.location.replace("/auth?redirectTo=%2Fworkspace");return}if(r.status===409){window.location.replace("/onboarding");return}const p=await r.json() as Payload;if(!r.ok||!p.success)throw new Error(p.error||"Unable to load workspace.");setData(p)}catch(e){setError(e instanceof Error?e.message:"Unable to load workspace.")}finally{setLoading(false)}},[]);
  useEffect(()=>{void load()},[load]);
+ useEffect(()=>{if(!data?.identity?.defaultLanguage||typeof window==="undefined")return;if(window.localStorage.getItem("tsid.locale"))return;setLocale(normalizeLocale(data.identity.defaultLanguage));},[data?.identity?.defaultLanguage,setLocale]);
  if(loading)return <State title={t("workspace.loading","Restoring legal workspace")} detail={t("workspace.loadingDetail","Resolving active firm, role and operating queues…")}/>;
  if(error||!data?.success)return <State title={t("workspace.unavailable","Workspace unavailable")} detail={error||data?.error||"Unable to load workspace."} action={<button onClick={()=>void load()} className="rounded-xl bg-[#082b22] px-4 py-2.5 text-sm font-bold text-white">Retry</button>}/>;
  const role=data.identity?.actorRole||"lawyer", rk=roleKey(role), fallbackExperience=roleExperience[rk]||roleExperience.lawyer, experience={eyebrow:t(`role.${rk}.eyebrow`,fallbackExperience.eyebrow),heading:t(`role.${rk}.heading`,fallbackExperience.heading),summary:t(`role.${rk}.summary`,fallbackExperience.summary)}, metrics=data.metrics||{}, queues=data.queues||{};
