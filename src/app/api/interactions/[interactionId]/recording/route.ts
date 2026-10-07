@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
-import { assertMatterPermission } from "@/lib/authorization";
+import { assertFirmModule, assertMatterPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { persistUploadedFile } from "@/lib/file-vault";
 import { getTranscriptionStatus, transcribeVaultRecording } from "@/lib/transcription.server";
@@ -10,7 +10,7 @@ type Context={params:Promise<{interactionId:string}>};
 export async function POST(request:Request,context:Context){
  try{
   const{interactionId}=await context.params;
-  const scope=await resolveRequestScope(request);
+  const scope=await resolveRequestScope(request);await assertFirmModule({scope,module:"interactions"});
   if(!scope.firmId||!scope.actorLawyerId)throw new Error("Authenticated firm context is required.");
   const supabase=createServerSupabaseClient();
   if(!supabase)throw new Error("Supabase server configuration is required.");
