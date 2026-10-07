@@ -32,6 +32,7 @@ const nav:Nav[]=[
  {href:"/people",label:"People",description:"Teams and performance",icon:CircleUserRound},
  {href:"/storage",label:"Storage & Integrations",description:"File custody and provider health",icon:Archive},
  {href:"/firm-control",label:"Firm Control",description:"Ways of working, recommended setup and governance",icon:Building2},
+ {href:"/studio",label:"Firm Studio",description:"Identity, forms, workflows, legal parameters and AI policy",icon:Building2},
 ];
 const roleExperience:Record<string,{eyebrow:string;heading:string;summary:string}>={
  owner:{eyebrow:"Firm command",heading:"Run the firm from one accountable legal operating surface.",summary:"Matters, client obligations, legal sources, collections and professional controls are visible without turning the system into a wall of cards."},

@@ -132,7 +132,7 @@ export default function FirmStudioPage() {
     } finally { setSaving(false); }
   }
 
-  if (loading) return <main className="min-h-screen bg-[#f7f8f6] p-6 text-slate-700">Loading firm control…</main>;
+  if (loading) return <main className="min-h-screen bg-[#f7f8f6] p-6 text-slate-700">Loading Firm Studio…</main>;
 
   return (
     <main className="min-h-screen bg-[#f7f8f6] px-4 py-6 text-slate-700 md:px-6 xl:px-8">
@@ -140,8 +140,8 @@ export default function FirmStudioPage() {
         <div className="flex flex-col gap-4 rounded-[2rem] border border-white bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
           <div>
             <Link href="/workspace" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-400"><ArrowLeft className="h-4 w-4" /> Back to workspace</Link>
-            <div className="mt-4 flex items-center gap-3"><div className="rounded-2xl bg-emerald-950 p-3 text-white"><Building2 className="h-5 w-5" /></div><div><p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">Firm Control</p><h1 className="text-3xl font-semibold text-emerald-950">Govern how the firm works</h1></div></div>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">Set the firm’s identity and brand, operating practices, legal framework, recommended workflows, documents and technology policies. TSIDKENU carries those choices into everyday work so staff do not have to manage configuration complexity.</p>
+            <div className="mt-4 flex items-center gap-3"><div className="rounded-2xl bg-emerald-950 p-3 text-white"><Building2 className="h-5 w-5" /></div><div><p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">Firm Studio</p><h1 className="text-3xl font-semibold text-emerald-950">Design how the firm operates</h1></div></div>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">This is the firm-design environment: shape identity, forms, legal taxonomy, workflow patterns, interaction policy and AI behavior. Firm Control governs adoption and authority; Studio lets the firm evolve the operating system without exposing configuration complexity to everyday staff.</p>
           </div>
         </div>
 
@@ -149,7 +149,7 @@ export default function FirmStudioPage() {
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <a href="#identity-brand" className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-300"><Palette className="h-5 w-5 text-emerald-900"/><h2 className="mt-4 text-lg font-semibold text-emerald-950">Identity & Brand</h2><p className="mt-2 text-sm leading-6 text-slate-500">Firm name, logo, colours, languages, document identity and client-facing visual appearance.</p></a>
-          <Link href="/firm-control/ways-of-working" className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50/40 p-5 shadow-sm transition hover:border-emerald-400"><Settings2 className="h-5 w-5 text-emerald-900"/><h2 className="mt-4 text-lg font-semibold text-emerald-950">Ways of Working</h2><p className="mt-2 text-sm leading-6 text-slate-600">Firm profile, blended recommendations and the operating rules your firm actually adopts.</p></Link>
+          <Link href="/firm-control/ways-of-working" className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50/40 p-5 shadow-sm transition hover:border-emerald-400"><Settings2 className="h-5 w-5 text-emerald-900"/><h2 className="mt-4 text-lg font-semibold text-emerald-950">Ways of Working</h2><p className="mt-2 text-sm leading-6 text-slate-600">Profile the firm, receive blended recommendations and govern which operating rules become adopted practice.</p></Link>
           <Link href="/studio/legal-parameters" className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-300"><Scale className="h-5 w-5 text-emerald-900"/><h2 className="mt-4 text-lg font-semibold text-emerald-950">Legal Parameters</h2><p className="mt-2 text-sm leading-6 text-slate-500">Matter types, jurisdictions, courts, procedure tracks, document types, fees, risk and confidentiality.</p></Link>
           <Link href="/studio/workflows" className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-300"><GitBranch className="h-5 w-5 text-emerald-900"/><h2 className="mt-4 text-lg font-semibold text-emerald-950">Recommended Workflows</h2><p className="mt-2 text-sm leading-6 text-slate-500">Start from recommended legal operating patterns. Advanced stage, approval and transition design is available only when the firm needs it.</p></Link>
           <a href="#forms-documents" className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-300"><FileText className="h-5 w-5 text-emerald-900"/><h2 className="mt-4 text-lg font-semibold text-emerald-950">Forms & Documents</h2><p className="mt-2 text-sm leading-6 text-slate-500">Controlled forms, letterhead, communication identity and reusable firm document presentation.</p></a>

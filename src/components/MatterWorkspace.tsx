@@ -25,7 +25,6 @@ import {
   Workflow,
 } from "lucide-react";
 import CaseFileStudioPanel from "@/components/CaseFileStudioPanel";
-import LegalIntelligencePanel from "@/components/LegalIntelligencePanel";
 import { OHADA_RULES } from "@/lib/deadline-engine/rules";
 import type { MatterDeadlinePreview } from "@/lib/deadlines";
 import type { MatterWorkspaceData } from "@/lib/matters";
@@ -44,9 +43,7 @@ import type { MatterAccessStatus, MatterSecurityProfile } from "@/lib/matter-sec
 export type WorkspaceTab =
   | "overview"
   | "documents"
-  | "strategy"
   | "studio"
-  | "intelligence"
   | "collaboration"
   | "governance"
   | "finance";
@@ -71,9 +68,7 @@ type MatterSubmitState =
 const workspaceTabs: { id: WorkspaceTab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "documents", label: "Documents" },
-  { id: "strategy", label: "Strategy" },
-  { id: "studio", label: "Case File" },
-  { id: "intelligence", label: "Intelligence" },
+  { id: "studio", label: "Case Studio" },
   { id: "collaboration", label: "Collaboration" },
   { id: "governance", label: "Governance" },
   { id: "finance", label: "Finance" },
@@ -1773,17 +1768,8 @@ export default function MatterWorkspace({
               onSubmitCustodyEvent={() => void submitCustodyEvent()}
             />
           )}
-          {activeTab === "strategy" && <StrategyPanel matter={matter} />}
           {activeTab === "studio" && (
             <CaseFileStudioPanel
-              matter={matter}
-              matterRoom={matterRoom}
-              onRoomChange={setRoom}
-              onError={setRoomError}
-            />
-          )}
-          {activeTab === "intelligence" && (
-            <LegalIntelligencePanel
               matter={matter}
               matterRoom={matterRoom}
               onRoomChange={setRoom}
