@@ -11,7 +11,7 @@ export default function LocaleProvider({children}:{children:React.ReactNode}){
  useEffect(()=>{
   const stored=window.localStorage.getItem("tsid.locale");
   const browser=navigator.languages?.[0]||navigator.language;
-  setLocaleState(normalizeLocale(stored||browser));
+  // Hydrate the user preference after mount; the server intentionally renders the neutral English shell first.\n  // eslint-disable-next-line react-hooks/set-state-in-effect\n  setLocaleState(normalizeLocale(stored||browser));
  },[]);
  const setLocale=useCallback((next:Locale)=>{
   setLocaleState(next);
