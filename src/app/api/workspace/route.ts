@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import { createServerAuthClient } from "@/lib/supabase-auth";
+import { resolveFirmModules } from "@/lib/authorization";
 
 const GOVERNOR_ROLES = new Set(["owner", "partner", "administrator"]);
 const FINANCE_ROLES = new Set(["owner", "partner", "administrator", "finance"]);
@@ -30,7 +31,8 @@ export async function GET(request: Request) {
 
     const role = membershipResult.data?.role_key ?? String(scope.actorRole ?? "lawyer").toLowerCase();
     const isGovernor = GOVERNOR_ROLES.has(role);
-    const canSeeFinance = FINANCE_ROLES.has(role);
+    const modules = await resolveFirmModules(scope);
+    const canSeeFinance = FINANCE_ROLES.has(role) && modules.has("finance");
 
     const matterQuery = supabase.from("matters").select("id,title,client_name,status,risk_level,matter_type,jurisdiction,procedural_stage,confidentiality_level,lead_lawyer_id,opened_at,updated_at").eq("firm_id", scope.firmId).order("updated_at", { ascending: false }).limit(40);
     const [matterResult, prospectResult] = await Promise.all([
@@ -94,7 +96,16 @@ export async function GET(request: Request) {
       capabilities: {
         governor: isGovernor,
         finance: canSeeFinance,
-        studio: isGovernor,
+        intake: modules.has("intake"),
+        workflows: modules.has("workflows"),
+        interactions: modules.has("interactions"),
+        lawBank: modules.has("law_bank"),
+        people: modules.has("people"),
+        clientPortal: modules.has("client_portal"),
+        digitisation: modules.has("digitisation"),
+        institutionalAI: modules.has("institutional_ai"),
+        integrations: modules.has("integrations"),
+        studio: isGovernor && modules.has("firm_studio"),
         ethicalWalls: isGovernor,
         approvals: ["owner", "partner"].includes(role),
         clientAccess: !["intern", "finance"].includes(role),
