@@ -148,12 +148,15 @@ export default function OnboardingPage() {
   return (
     <main className="min-h-screen bg-[#f4f6f3] px-4 py-5 text-slate-900 sm:px-6 sm:py-8">
       <div className="mx-auto max-w-2xl">
-        <div className="mb-5 flex items-center justify-between gap-3 px-1"><div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#082b22] text-[#d9ba78]"><ShieldCheck className="h-5 w-5" /></div>
-          <div>
-            <p className="text-sm font-black tracking-[0.14em] text-[#082b22]">TSIDKENU</p>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">{t("onboarding.secure","Secure firm activation")}</p>
+        <div className="mb-5 flex items-center justify-between gap-3 px-1">
+          <div className="flex items-center gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#082b22] text-[#d9ba78]"><ShieldCheck className="h-5 w-5" /></div>
+            <div>
+              <p className="text-sm font-black tracking-[0.14em] text-[#082b22]">TSIDKENU</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">{t("onboarding.secure","Secure firm activation")}</p>
+            </div>
           </div>
+          <LanguageSwitcher compact />
         </div>
 
         <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
