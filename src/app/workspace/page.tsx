@@ -11,7 +11,7 @@ import { formatDate,formatMoney,normalizeLocale } from "@/lib/i18n";
 
 type QueueItem=Record<string,unknown>;
 type Payload={success:boolean;error?:string;identity?:{actorName?:string|null;actorRole?:string|null;title?:string|null;firmId?:string|null;firmName?:string|null;firmCountry?:string|null;defaultLanguage?:string|null};capabilities?:Record<string,boolean>;metrics?:Record<string,number>;queues?:Record<string,QueueItem[]>};
-type Nav={href:string;label:string;description:string;icon:LucideIcon;finance?:boolean};
+type Nav={href:string;label:string;description:string;icon:LucideIcon;finance?:boolean;capability?:string};
 type NavGroup={key:string;label:string;icon:LucideIcon;items:Nav[]};
 type Row={id:string;title:string;subtitle:string;badge:string;href?:string};
 
@@ -23,22 +23,22 @@ const navGroups:NavGroup[]=[
  ]},
  {key:"clients",label:"Clients",icon:Users,items:[
   {href:"/clients",label:"Client Records",description:"Relationships, KYC and client history",icon:Users},
-  {href:"/intake",label:"New Client & Due Diligence",description:"Intake, conflict, KYC and engagement",icon:Users},
-  {href:"/communications",label:"Communications",description:"Email, WhatsApp, calls and client history",icon:MessageSquareText},
-  {href:"/interactions",label:"Meetings & Notes",description:"Notes, recordings and meetings",icon:MessageSquareText},
-  {href:"/whatsapp",label:"WhatsApp",description:"Messages, secure forms and triggers",icon:MessageSquareText},
+  {href:"/intake",label:"New Client & Due Diligence",description:"Intake, conflict, KYC and engagement",icon:Users,capability:"intake"},
+  {href:"/communications",label:"Communications",description:"Email, WhatsApp, calls and client history",icon:MessageSquareText,capability:"interactions"},
+  {href:"/interactions",label:"Meetings & Notes",description:"Notes, recordings and meetings",icon:MessageSquareText,capability:"interactions"},
+  {href:"/whatsapp",label:"WhatsApp",description:"Messages, secure forms and triggers",icon:MessageSquareText,capability:"interactions"},
  ]},
  {key:"knowledge",label:"Knowledge & Documents",icon:LibraryBig,items:[
   {href:"/document-bank",label:"Documents & Precedents",description:"Precedents and AI-assisted adaptation",icon:FileText},
-  {href:"/law-bank",label:"Legal Sources",description:"Law and verified legal sources",icon:LibraryBig},
-  {href:"/forms",label:"Forms",description:"Reusable firm forms and records",icon:FolderOpen},
-  {href:"/digitisation",label:"Digitisation",description:"Evidence and legacy files",icon:Archive},
+  {href:"/law-bank",label:"Legal Sources",description:"Law and verified legal sources",icon:LibraryBig,capability:"lawBank"},
+  {href:"/forms",label:"Forms",description:"Reusable firm forms and records",icon:FolderOpen,capability:"studio"},
+  {href:"/digitisation",label:"Digitisation",description:"Evidence and legacy files",icon:Archive,capability:"digitisation"},
  ]},
  {key:"office",label:"Office & Finance",icon:Landmark,items:[
   {href:"/business",label:"Office Operations",description:"Suppliers, obligations, spending and evidence",icon:Landmark,finance:true},
   {href:"/finance",label:"Billing & Finance",description:"Invoices, payments, cash and collections",icon:Receipt,finance:true},
-  {href:"/people",label:"People",description:"Teams and performance",icon:CircleUserRound},
-  {href:"/storage",label:"Files & Integrations",description:"File custody and provider health",icon:Archive},
+  {href:"/people",label:"People",description:"Teams and performance",icon:CircleUserRound,capability:"people"},
+  {href:"/storage",label:"Files & Integrations",description:"File custody and provider health",icon:Archive,capability:"integrations"},
  ]},
  {key:"firm",label:"Firm Setup",icon:Building2,items:[
   {href:"/firm-control",label:"Firm Control",description:"Governance, authority and adopted ways of working",icon:ShieldCheck},
@@ -73,7 +73,7 @@ export default function WorkspacePage(){
  const docs=rows("documents","title",i=>[s(i.document_type),s(i.version_label)].filter(Boolean).join(" • "),i=>s(i.matter_id)?`/matters/${s(i.matter_id)}`:undefined);
  const intake=rows("intake","prospect_name",i=>`Conflict ${s(i.conflict_status)||"pending"} • Engagement ${s(i.engagement_status)||"pending"}`,()=>"/intake");
  const aiIntake=rows("documentIntake","original_name",i=>[s(i.document_kind),s(i.counterparty_name),s(i.proposed_action)].filter(Boolean).join(" • "),()=>"/business/documents");
- const visibleGroups=navGroups.filter(group=>group.key!=="firm"||Boolean(data.capabilities?.studio)).map(group=>({...group,label:t(`menu.${group.key}`,group.label),items:group.items.filter(item=>!item.finance||data.capabilities?.finance).map(item=>{const keys=navKeys[item.href];return keys?{...item,label:t(keys[0],item.label),description:t(keys[1],item.description)}:item})})).filter(group=>group.items.length);
+ const visibleGroups=navGroups.filter(group=>group.key!=="firm"||Boolean(data.capabilities?.studio)).map(group=>({...group,label:t(`menu.${group.key}`,group.label),items:group.items.filter(item=>(!item.finance||data.capabilities?.finance)&&(!item.capability||Boolean(data.capabilities?.[item.capability]))).map(item=>{const keys=navKeys[item.href];return keys?{...item,label:t(keys[0],item.label),description:t(keys[1],item.description)}:item})})).filter(group=>group.items.length);
  return <main className="min-h-screen bg-[#eef2ef] text-slate-900">
   <div className="min-h-screen lg:grid lg:grid-cols-[272px_minmax(0,1fr)] 2xl:grid-cols-[292px_minmax(0,1fr)]">
    <aside className="hidden h-screen flex-col border-r border-white/10 bg-[#062f27] text-white lg:sticky lg:top-0 lg:flex"><div className="px-5 pb-4 pt-6"><TsidkenuLogo surface="dark"/><div className="mt-5 rounded-2xl border border-white/10 bg-white/[.055] p-4"><p className="text-[9px] font-black uppercase tracking-[.2em] text-white/35">{t("workspace.activeFirm","Active firm")}</p><p className="mt-2 truncate text-sm font-bold">{firm}</p><p className="mt-1 truncate text-[10px] text-white/40">{[country,role].filter(Boolean).join(" • ")}</p></div><div className="mt-3 rounded-xl border border-white/10 bg-white/[.04] p-2"><LanguageSwitcher compact surface="dark" className="w-full [&>button]:w-full"/></div></div><nav className="flex-1 overflow-y-auto px-3 pb-5"><NavLink item={{href:"/workspace",label:t("menu.home","Home"),description:t("nav.command.desc","Today, risk and priority"),icon:Gauge}}/>{visibleGroups.map(group=><NavGroupSection key={group.key} group={group}/>)}</nav><div className="border-t border-white/10 p-4"><div className="rounded-xl bg-black/10 p-3"><p className="truncate text-xs font-bold">{data.identity?.actorName||"Firm member"}</p><p className="mt-1 text-[9px] font-black uppercase tracking-[.14em] text-white/35">{role}</p></div></div></aside>
