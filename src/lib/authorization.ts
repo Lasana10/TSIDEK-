@@ -204,7 +204,7 @@ export async function resolveFirmModules(scope: RequestScope) {
   for (const result of [subscriptionResult, overridesResult, modulesResult]) if (result.error) throw new Error(result.error.message);
 
   const enabled = new Set<ProductModuleKey>();
-  for (const module of modulesResult.data ?? []) if (module.core_security) enabled.add(module.module_key as ProductModuleKey);
+  for (const productModule of modulesResult.data ?? []) if (productModule.core_security) enabled.add(productModule.module_key as ProductModuleKey);
 
   const subscription = subscriptionResult.data;
   if (subscription && ["trial","active"].includes(subscription.status)) {
