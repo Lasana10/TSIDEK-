@@ -31,6 +31,7 @@ export default function CaseFileStudioPanel({
   onRoomChange: (room: MatterRoomData) => void;
   onError: (message: string | null) => void;
 }) {
+  const {t}=useLocale();
   const [submitState, setSubmitState] = useState<SubmitState>(null);
   const [draftPreview, setDraftPreview] = useState<DraftPreview>(matterRoom.templateGenerations[0] ?? null);
 
