@@ -11,15 +11,34 @@ async function assertLinkedMatter(input:{scope:Awaited<ReturnType<typeof resolve
 
 export async function GET(request:Request){
  try{const scope=await resolveRequestScope(request);if(!scope.authenticated||!scope.firmId)throw new Error("Authenticated firm context is required.");const supabase=createServerSupabaseClient();if(!supabase)throw new Error("Supabase server configuration is required.");
- const[work,matters,comments,lawyers,threads,messages]=await Promise.all([
+ const matterCandidates=await supabase.from("matters").select("id,title,client_name,status,case_reference,lead_lawyer_id,confidentiality_level").eq("firm_id",scope.firmId).neq("record_state","deleted").order("updated_at",{ascending:false}).limit(300);
+ if(matterCandidates.error)throw new Error(matterCandidates.error.message);
+ const candidateIds=(matterCandidates.data??[]).map(m=>m.id);
+ const now=new Date().toISOString();
+ const[memberships,overrides,firmMembership]=candidateIds.length?await Promise.all([
+  supabase.from("matter_members").select("matter_id").eq("lawyer_id",scope.actorLawyerId).in("matter_id",candidateIds),
+  supabase.from("matter_access_overrides").select("matter_id,access_type,expires_at,created_at").eq("lawyer_id",scope.actorLawyerId).in("matter_id",candidateIds).or(`expires_at.is.null,expires_at.gt.${now}`).order("created_at",{ascending:false}),
+  supabase.from("firm_memberships").select("role_key,governance_role_key,status").eq("firm_id",scope.firmId).eq("user_id",scope.actorLawyerId).eq("status","active").maybeSingle(),
+ ]):[{data:[],error:null},{data:[],error:null},{data:null,error:null}];
+ for(const result of[memberships,overrides,firmMembership])if(result.error)throw new Error(result.error.message);
+ const memberIds=new Set((memberships.data??[]).map(x=>x.matter_id));
+ const overrideByMatter=new Map<string,{access_type:string}>();for(const item of overrides.data??[])if(!overrideByMatter.has(item.matter_id))overrideByMatter.set(item.matter_id,item);
+ const professionalRole=firmMembership.data?.role_key??"",governanceRole=firmMembership.data?.governance_role_key??"member";
+ const governor=["founder","firm_head","managing_partner","administrator"].includes(governanceRole)||["owner","managing_partner","partner","administrator"].includes(professionalRole);
+ const matters=(matterCandidates.data??[]).filter(matter=>{const override=overrideByMatter.get(matter.id);if(override?.access_type==="deny")return false;const explicitAllow=override?.access_type==="allow",isLead=matter.lead_lawyer_id===scope.actorLawyerId,isMember=memberIds.has(matter.id)||isLead||explicitAllow;if(!isMember)return false;const restricted=["partner-only","restricted"].includes(String(matter.confidentiality_level??"").toLowerCase());return !restricted||isLead||governor||explicitAllow;});
+ const allowedMatterIds=new Set(matters.map(m=>m.id));
+ const[work,comments,lawyers,threads,messages]=await Promise.all([
   supabase.from("firm_work_items").select("id,matter_id,party_id,work_scope,title,description,status,priority,assigned_to,due_at,completed_at,tags,metadata,created_at,updated_at").eq("firm_id",scope.firmId).order("updated_at",{ascending:false}).limit(400),
-  supabase.from("matters").select("id,title,client_name,status,case_reference").eq("firm_id",scope.firmId).order("updated_at",{ascending:false}).limit(300),
   supabase.from("firm_work_comments").select("id,work_item_id,author_id,body,mentions,created_at").eq("firm_id",scope.firmId).order("created_at",{ascending:true}).limit(1200),
   supabase.from("lawyers").select("id,full_name,role").eq("firm_id",scope.firmId).order("full_name").limit(300),
   supabase.from("workroom_threads").select("*").eq("firm_id",scope.firmId).order("is_pinned",{ascending:false}).order("updated_at",{ascending:false}).limit(250),
   supabase.from("workroom_messages").select("*").eq("firm_id",scope.firmId).order("created_at",{ascending:true}).limit(2000)]);
- for(const result of[work,matters,comments,lawyers,threads,messages])if(result.error)throw new Error(result.error.message);
- return NextResponse.json({success:true,items:work.data??[],matters:matters.data??[],comments:comments.data??[],lawyers:lawyers.data??[],threads:threads.data??[],messages:messages.data??[]});
+ for(const result of[work,comments,lawyers,threads,messages])if(result.error)throw new Error(result.error.message);
+ const visibleItems=(work.data??[]).filter(item=>!item.matter_id||allowedMatterIds.has(item.matter_id));
+ const visibleItemIds=new Set(visibleItems.map(item=>item.id));
+ const visibleThreads=(threads.data??[]).filter(thread=>!thread.matter_id||allowedMatterIds.has(thread.matter_id));
+ const visibleThreadIds=new Set(visibleThreads.map(thread=>thread.id));
+ return NextResponse.json({success:true,items:visibleItems,matters:matters.map(({lead_lawyer_id:_,confidentiality_level:__,...m})=>m),comments:(comments.data??[]).filter(comment=>visibleItemIds.has(comment.work_item_id)),lawyers:lawyers.data??[],threads:visibleThreads,messages:(messages.data??[]).filter(message=>visibleThreadIds.has(message.thread_id))});
  }catch(error){return NextResponse.json({success:false,error:error instanceof Error?error.message:"Unable to load workroom."},{status:403});}}
 
 export async function POST(request:Request){

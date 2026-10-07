@@ -4,6 +4,8 @@ import { resolveAdaptiveRoom } from "@/lib/matter-adaptive-runtime";
 import { getMatterOperatingSystem } from "@/lib/matter-operating-system.server";
 import MatterIntelligencePanel from "@/components/MatterIntelligencePanel";
 import type { RequestScope } from "@/lib/request-scope";
+import { getServerLocale } from "@/lib/locale-server";
+import { t } from "@/lib/i18n";
 
 type Focus={label:string;value:string};
 
@@ -20,6 +22,8 @@ function roomFocus(matter:MatterWorkspaceData,input:{active:string;milestone:str
 }
 
 export default async function AdaptiveMatterLayer({matter,scope}:{matter:MatterWorkspaceData;scope:RequestScope}){
+ const locale=await getServerLocale();
+ const tr=(key:string,fallback:string)=>t(locale,key,fallback);
  const room=resolveAdaptiveRoom(matter);
  const operating=await getMatterOperatingSystem({matterId:matter.id,scope});
  const runtime=operating.adaptive;
@@ -44,20 +48,20 @@ export default async function AdaptiveMatterLayer({matter,scope}:{matter:MatterW
  return <section id="room" className="space-y-4 scroll-mt-6">
   <div className="overflow-hidden rounded-[1.7rem] border border-[#17483c]/15 bg-white shadow-sm">
    <div className="grid gap-0 xl:grid-cols-[320px_1fr]">
-    <div className="bg-[#0b493b] p-6 text-white"><p className="text-[9px] font-black uppercase tracking-[.2em] text-[#dfc47f]">Canonical matter room</p><h2 className="mt-2 text-2xl font-semibold">{room.kind}</h2><p className="mt-3 text-sm leading-6 text-white/65">{room.purpose}</p><p className="mt-4 text-xs leading-5 text-white/55">Strategy, legal intelligence, evidence posture and professional judgment live here. Firm process gates and procedure guidance remain supporting layers, not competing plans.</p><div className="mt-5 rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-[9px] font-black uppercase tracking-[.13em] text-white/35">Professional control</p><p className="mt-1 text-xs leading-5 text-white/70">{matter.aiUsageRule}</p></div></div>
+    <div className="bg-[#0b493b] p-6 text-white"><p className="text-[9px] font-black uppercase tracking-[.2em] text-[#dfc47f]">{tr("room.canonical","Canonical matter room")}</p><h2 className="mt-2 text-2xl font-semibold">{room.kind}</h2><p className="mt-3 text-sm leading-6 text-white/65">{room.purpose}</p><p className="mt-4 text-xs leading-5 text-white/55">Strategy, legal intelligence, evidence posture and professional judgment live here. Firm process gates and procedure guidance remain supporting layers, not competing plans.</p><div className="mt-5 rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-[9px] font-black uppercase tracking-[.13em] text-white/35">{tr("room.control","Professional control")}</p><p className="mt-1 text-xs leading-5 text-white/70">{matter.aiUsageRule}</p></div></div>
     <div className="grid gap-3 p-5 md:grid-cols-3">{focuses.map(focus=><Cell key={focus.label} label={focus.label} value={focus.value}/>)}</div>
    </div>
   </div>
   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-   <Lane icon={<Target className="h-4 w-4"/>} title="Reasoning & issues" count={intelligence.claims.length} text={intelligence.claims[0]?.statement??"No governed factual or legal proposition recorded yet."}/>
-   <Lane icon={<FileCheck2 className="h-4 w-4"/>} title="Evidence & provenance" count={runtime.evidence.length} text={runtime.evidence[0]?.title??"No provenance record captured yet."}/>
-   <Lane icon={<Scale className="h-4 w-4"/>} title="Professional decisions" count={runtime.decisions.length} text={runtime.decisions[0]?.title??"No governed decision recorded yet."}/>
-   <Lane icon={<MessagesSquare className="h-4 w-4"/>} title="Client position" count={runtime.instructions.length} text={runtime.instructions[0]?.instruction??"No material client instruction recorded yet."}/>
-   <Lane icon={<Sparkles className="h-4 w-4"/>} title="Execution" count={operating.executions.length} text={execution?.title??"No governed execution action open."}/>
-   <Lane icon={<Handshake className="h-4 w-4"/>} title="Professional handoffs" count={runtime.handoffs.length} text={runtime.handoffs[0]?.purpose??"No professional handoff open."}/>
+   <Lane icon={<Target className="h-4 w-4"/>} title={tr("room.reasoning","Reasoning & issues")} count={intelligence.claims.length} text={intelligence.claims[0]?.statement??"No governed factual or legal proposition recorded yet."}/>
+   <Lane icon={<FileCheck2 className="h-4 w-4"/>} title={tr("room.evidence","Evidence & provenance")} count={runtime.evidence.length} text={runtime.evidence[0]?.title??"No provenance record captured yet."}/>
+   <Lane icon={<Scale className="h-4 w-4"/>} title={tr("room.decisions","Professional decisions")} count={runtime.decisions.length} text={runtime.decisions[0]?.title??"No governed decision recorded yet."}/>
+   <Lane icon={<MessagesSquare className="h-4 w-4"/>} title={tr("room.client","Client position")} count={runtime.instructions.length} text={runtime.instructions[0]?.instruction??"No material client instruction recorded yet."}/>
+   <Lane icon={<Sparkles className="h-4 w-4"/>} title={tr("room.execution","Execution")} count={operating.executions.length} text={execution?.title??"No governed execution action open."}/>
+   <Lane icon={<Handshake className="h-4 w-4"/>} title={tr("room.handoffs","Professional handoffs")} count={runtime.handoffs.length} text={runtime.handoffs[0]?.purpose??"No professional handoff open."}/>
   </div>
   <details className="rounded-[1.5rem] border border-slate-200 bg-white shadow-sm">
-   <summary className="cursor-pointer list-none px-5 py-4 text-sm font-bold text-[#0b493b]">Strategy intelligence, sources & institutional memory</summary>
+   <summary className="cursor-pointer list-none px-5 py-4 text-sm font-bold text-[#0b493b]">{tr("room.deep","Strategy intelligence, sources & institutional memory")}</summary>
    <div className="border-t border-slate-100 p-4"><MatterIntelligencePanel matterId={matter.id} claims={intelligence.claims} communications={intelligence.communications} jurisdictionPacks={intelligence.jurisdictionPacks} knowledge={intelligence.knowledge} outcomes={operating.outcomes}/></div>
   </details>
  </section>

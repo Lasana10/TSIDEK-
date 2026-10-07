@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Building2, Check, ChevronRight, RefreshCw, Save, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Building2, Check, ChevronRight, Globe2, RefreshCw, Save, Sparkles, X } from "lucide-react";
+import { localeLabels,supportedLocales } from "@/lib/i18n";
 
 type Profile = {
   practice_model:string; professional_count_band:string; practice_areas:string[]; office_count:number;
   approval_model:string; billing_models:string[]; client_types:string[]; litigation_mix:string;
-  support_staff_model:string; confidentiality_mode:string; profile_notes?:string|null;
+  support_staff_model:string; confidentiality_mode:string; profile_notes?:string|null; configuration?:{operating_countries?:string[];working_languages?:string[];cross_border_clients?:boolean};
 };
 type Recommendation = { id:string; category:string; title:string; description?:string; rationale?:string; status:string; suggested_configuration:Record<string,unknown> };
 type Rule = { id:string; category:string; title:string; description?:string; status:string; configuration:Record<string,unknown> };
@@ -15,7 +16,7 @@ type Rule = { id:string; category:string; title:string; description?:string; sta
 const DEFAULT: Profile = {
   practice_model:"general_practice", professional_count_band:"5_14", practice_areas:["litigation"],
   office_count:1, approval_model:"partner_review", billing_models:["fixed_fee","hourly"], client_types:["individuals","businesses"],
-  litigation_mix:"litigation_heavy", support_staff_model:"mixed", confidentiality_mode:"standard", profile_notes:""
+  litigation_mix:"litigation_heavy", support_staff_model:"mixed", confidentiality_mode:"standard", profile_notes:"", configuration:{operating_countries:["CM"],working_languages:["en","fr"],cross_border_clients:false}
 };
 
 const PRACTICE_AREAS = [
@@ -24,6 +25,7 @@ const PRACTICE_AREAS = [
 ] as const;
 
 function toggleValue(values:string[], value:string){ return values.includes(value) ? values.filter(v=>v!==value) : [...values,value]; }
+const COUNTRY_OPTIONS=[["CM","Cameroon"],["NG","Nigeria"],["CI","Côte d’Ivoire"],["GH","Ghana"],["KE","Kenya"],["ZA","South Africa"],["GB","United Kingdom"],["FR","France"],["AE","United Arab Emirates"],["US","United States"]] as const;
 
 export default function WaysOfWorkingPage(){
   const [profile,setProfile]=useState<Profile>(DEFAULT);
@@ -87,6 +89,7 @@ export default function WaysOfWorkingPage(){
             <label className="block text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Offices<input type="number" min={1} value={profile.office_count} onChange={e=>setProfile({...profile,office_count:Math.max(1,Number(e.target.value))})} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"/></label>
           </div>
           <div className="mt-5"><p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Practice areas</p><div className="mt-3 flex flex-wrap gap-2">{PRACTICE_AREAS.map(([value,label])=><button key={value} onClick={()=>setProfile({...profile,practice_areas:toggleValue(profile.practice_areas,value)})} className={`rounded-full px-3 py-2 text-xs font-bold ${profile.practice_areas.includes(value)?"bg-[#082b22] text-white":"bg-slate-100 text-slate-600"}`}>{label}</button>)}</div></div>
+          <div className="mt-5 rounded-[1.4rem] border border-emerald-100 bg-emerald-50/50 p-4"><div className="flex items-center gap-2"><Globe2 className="h-4 w-4 text-emerald-800"/><p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-800">International practice context</p></div><p className="mt-2 text-xs leading-5 text-emerald-900/70">This guides interface localisation, matter jurisdiction requirements and document-language controls without changing legal content automatically.</p><p className="mt-4 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Operating countries</p><div className="mt-2 flex flex-wrap gap-2">{COUNTRY_OPTIONS.map(([value,label])=>{const values=profile.configuration?.operating_countries??[];return <button type="button" key={value} onClick={()=>setProfile({...profile,configuration:{...profile.configuration,operating_countries:toggleValue(values,value)}})} className={`rounded-full px-3 py-2 text-xs font-bold ${values.includes(value)?"bg-[#082b22] text-white":"bg-white text-slate-600 ring-1 ring-slate-200"}`}>{label}</button>})}</div><p className="mt-4 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Working languages</p><div className="mt-2 flex flex-wrap gap-2">{supportedLocales.map(value=>{const values=profile.configuration?.working_languages??[];return <button type="button" key={value} onClick={()=>setProfile({...profile,configuration:{...profile.configuration,working_languages:toggleValue(values,value)}})} className={`rounded-full px-3 py-2 text-xs font-bold ${values.includes(value)?"bg-[#082b22] text-white":"bg-white text-slate-600 ring-1 ring-slate-200"}`}>{localeLabels[value]}</button>})}</div><label className="mt-4 flex items-center gap-3 rounded-xl bg-white p-3 text-sm font-semibold text-slate-700"><input type="checkbox" checked={Boolean(profile.configuration?.cross_border_clients)} onChange={e=>setProfile({...profile,configuration:{...profile.configuration,cross_border_clients:e.target.checked}})} className="h-4 w-4"/>Cross-border clients / matters are part of our practice</label></div>
         </div>
 
         <div className="space-y-5">
