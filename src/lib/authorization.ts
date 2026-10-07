@@ -189,3 +189,36 @@ export async function assertFirmModule(input: { scope: RequestScope; module: Pro
   if (!included.data) throw new Error(`${moduleResult.data?.name || module} is not included in this firm's TSIDK edition.`);
   return scope;
 }
+
+
+export async function resolveFirmModules(scope: RequestScope) {
+  if (!scope.firmId) return new Set<ProductModuleKey>();
+  const supabase = createServerSupabaseClient();
+  if (!supabase) throw new Error("Supabase server client is unavailable.");
+
+  const [subscriptionResult, overridesResult, modulesResult] = await Promise.all([
+    supabase.from("firm_subscriptions").select("plan_key,status").eq("firm_id", scope.firmId).maybeSingle(),
+    supabase.from("firm_module_overrides").select("module_key,enabled,expires_at").eq("firm_id", scope.firmId),
+    supabase.from("product_modules").select("module_key,core_security").eq("active", true),
+  ]);
+  for (const result of [subscriptionResult, overridesResult, modulesResult]) if (result.error) throw new Error(result.error.message);
+
+  const enabled = new Set<ProductModuleKey>();
+  for (const module of modulesResult.data ?? []) if (module.core_security) enabled.add(module.module_key as ProductModuleKey);
+
+  const subscription = subscriptionResult.data;
+  if (subscription && ["trial","active"].includes(subscription.status)) {
+    const planModules = await supabase.from("plan_modules").select("module_key").eq("plan_key", subscription.plan_key);
+    if (planModules.error) throw new Error(planModules.error.message);
+    for (const row of planModules.data ?? []) enabled.add(row.module_key as ProductModuleKey);
+  }
+
+  const now = Date.now();
+  for (const override of overridesResult.data ?? []) {
+    const active = !override.expires_at || new Date(override.expires_at).getTime() > now;
+    if (!active) continue;
+    const key = override.module_key as ProductModuleKey;
+    if (override.enabled) enabled.add(key); else enabled.delete(key);
+  }
+  return enabled;
+}
