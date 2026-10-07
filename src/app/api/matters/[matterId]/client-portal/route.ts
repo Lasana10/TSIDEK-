@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { assertMatterScopeAccess } from "@/lib/request-scope";
-import { assertMatterPermission } from "@/lib/authorization";
+import { assertFirmModule, assertMatterPermission } from "@/lib/authorization";
 import { statusForApiError } from "@/lib/api-errors";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { revokeClientGrant, setClientGrant } from "@/lib/client-portal.server";
@@ -9,6 +9,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ matt
   try {
     const { matterId } = await params;
     const scope = await assertMatterScopeAccess(request, matterId);
+    await assertFirmModule({ scope, module: "client_portal" });
+
     await assertMatterPermission({ scope, matterId, permission: "inviteCollaborators" });
     const s = createServerSupabaseClient();
     if (!s) throw new Error("Supabase configuration is required.");
@@ -24,6 +26,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ mat
   try {
     const { matterId } = await params;
     const scope = await assertMatterScopeAccess(request, matterId);
+    await assertFirmModule({ scope, module: "client_portal" });
+
     await assertMatterPermission({ scope, matterId, permission: "inviteCollaborators" });
     const b = await request.json();
 
