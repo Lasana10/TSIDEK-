@@ -165,11 +165,11 @@ export async function POST(request: Request) {
       if (checklistResult.error || !checklistResult.data) throw new Error("Matter opening controls are missing.");
       if (conflictResult.data?.status !== "Cleared" && conflictResult.data?.status !== "Waived") throw new Error("Conflict review must be cleared or formally waived before opening the matter.");
       if (kycResult.error) throw new Error(kycResult.error.message);
-      if (kycResult.data?.status !== "cleared") throw new Error("KYC/compliance review must be cleared before opening the matter.");
+      if (kycResult.data?.status !== "cleared") throw new Error("KYC/compliance review must be cleared before opening the matter. Open the KYC review, complete the checks, and record a clearance decision.");
       if (engagementResult.data?.approval_status !== "Approved") throw new Error("Engagement approval is required before opening the matter.");
-      if (!checklistResult.data.responsible_lawyer_assigned || !checklistResult.data.responsible_lawyer_id) throw new Error("Assign the responsible lawyer before opening the matter.");
-      if (!checklistResult.data.initial_deadline_reviewed) throw new Error("Initial deadline review must be confirmed before opening the matter.");
-      if (!checklistResult.data.opening_documents_ready) throw new Error("Opening document structure must be confirmed before opening the matter.");
+      if (!checklistResult.data.responsible_lawyer_assigned || !checklistResult.data.responsible_lawyer_id) throw new Error("Assign the responsible lawyer in Opening controls before opening the matter.");
+      if (!checklistResult.data.initial_deadline_reviewed) throw new Error("Record the initial deadline or timing review in Opening controls before opening the matter.");
+      if (!checklistResult.data.opening_documents_ready) throw new Error("Confirm that the opening file/document structure is ready before opening the matter.");
       if (prospectResult.data.matter_id) return NextResponse.json({ success: true, matterId: prospectResult.data.matter_id }, { status: 200 });
 
       const matter = await createMatterWorkspaceServer({
