@@ -3,6 +3,7 @@ import "./globals.css";
 import FirmBrandRuntime from "@/components/FirmBrandRuntime";
 import FirmIdentityShell from "@/components/FirmIdentityShell";
 import TsidkenuProductBrand from "@/components/TsidkenuProductBrand";
+import LocaleProvider from "@/components/LocaleProvider";
 
 export const metadata: Metadata = {
   title: "TSIDKENU · Legal Operating System",
@@ -17,10 +18,12 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full">
-        <FirmBrandRuntime />
-        <FirmIdentityShell />
-        <TsidkenuProductBrand />
-        {children}
+        <LocaleProvider>
+          <FirmBrandRuntime />
+          <FirmIdentityShell />
+          <TsidkenuProductBrand />
+          {children}
+        </LocaleProvider>
       </body>
     </html>
   );
