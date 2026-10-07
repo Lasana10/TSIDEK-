@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { assertFirmPermission } from "@/lib/authorization";
+import { assertFirmModule, assertFirmPermission } from "@/lib/authorization";
 import { statusForApiError } from "@/lib/api-errors";
 import { recordMatterEvent } from "@/lib/matter-events.server";
 import { createMatterWorkspaceServer } from "@/lib/matters.server";
@@ -30,6 +30,8 @@ function parseMatches(value: unknown) {
 export async function GET(request: Request) {
   try {
     const scope = await resolveRequestScope(request);
+    await assertFirmModule({ scope, module: "intake" });
+
     await assertFirmPermission({ scope, permission: "openMatters" });
     const supabase = createServerSupabaseClient();
     const firmId = requireFirm(scope);
@@ -87,6 +89,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const scope = await resolveRequestScope(request);
+    await assertFirmModule({ scope, module: "intake" });
+
     const body = await request.json();
     const action = String(body.action ?? "");
     const firmId = requireFirm(scope);

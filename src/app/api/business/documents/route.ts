@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
-import { assertFirmPermission, assertMatterPermission } from "@/lib/authorization";
+import { assertFirmModule, assertFirmPermission, assertMatterPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { createVaultSignedReadUrl, persistUploadedFile, readVaultFile } from "@/lib/file-vault";
 
@@ -70,7 +70,7 @@ async function extractFinancialDocument(input:{bytes:Buffer;mimeType:string;name
 
 export async function GET(request:Request){
   try{
-    const scope=await resolveRequestScope(request);
+    const scope=await resolveRequestScope(request);await assertFirmModule({scope,module:"finance"});
     await assertFirmPermission({scope,permission:"viewBilling"});
     if(!scope.firmId) throw new Error("Authenticated firm context is required.");
     const supabase=createServerSupabaseClient(); if(!supabase) throw new Error("Supabase server configuration is required.");
@@ -92,7 +92,7 @@ export async function GET(request:Request){
 
 export async function POST(request:Request){
   try{
-    const scope=await resolveRequestScope(request);
+    const scope=await resolveRequestScope(request);await assertFirmModule({scope,module:"finance"});
     await assertFirmPermission({scope,permission:"viewBilling"});
     if(!scope.firmId||!scope.actorLawyerId) throw new Error("Authenticated firm context is required.");
     const form=await request.formData();
@@ -128,7 +128,7 @@ export async function POST(request:Request){
 
 export async function PATCH(request:Request){
   try{
-    const scope=await resolveRequestScope(request);
+    const scope=await resolveRequestScope(request);await assertFirmModule({scope,module:"finance"});
     await assertFirmPermission({scope,permission:"viewBilling"});
     if(!scope.firmId||!scope.actorLawyerId) throw new Error("Authenticated firm context is required.");
     const body=await request.json(); const id=String(body.id??"").trim(), action=String(body.action??"");

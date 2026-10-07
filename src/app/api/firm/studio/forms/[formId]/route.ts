@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
-import { assertFirmPermission } from "@/lib/authorization";
+import { assertFirmModule, assertFirmPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 type Context = { params: Promise<{ formId: string }> };
@@ -8,6 +8,7 @@ type Context = { params: Promise<{ formId: string }> };
 export async function GET(request: Request, context: Context) {
   try {
     const scope = await resolveRequestScope(request);
+    await assertFirmModule({ scope, module: "firm_studio" });
     if (!scope.firmId) throw new Error("Authenticated firm context is required.");
     const { formId } = await context.params;
     const supabase = createServerSupabaseClient();
@@ -24,6 +25,7 @@ export async function GET(request: Request, context: Context) {
 export async function PATCH(request: Request, context: Context) {
   try {
     const scope = await resolveRequestScope(request);
+    await assertFirmModule({ scope, module: "firm_studio" });
     await assertFirmPermission({ scope, permission: "manageFirm" });
     if (!scope.firmId || !scope.actorLawyerId) throw new Error("Authenticated firm context is required.");
     const { formId } = await context.params;
@@ -59,6 +61,7 @@ export async function PATCH(request: Request, context: Context) {
 export async function POST(request: Request, context: Context) {
   try {
     const scope = await resolveRequestScope(request);
+    await assertFirmModule({ scope, module: "firm_studio" });
     await assertFirmPermission({ scope, permission: "manageFirm" });
     if (!scope.firmId || !scope.actorLawyerId) throw new Error("Authenticated firm context is required.");
     const { formId } = await context.params;

@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
-import { assertFirmPermission } from "@/lib/authorization";
+import { assertFirmModule, assertFirmPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 export async function GET(request:Request){
   try{
-    const scope=await resolveRequestScope(request);await assertFirmPermission({scope,permission:"viewBilling"});
+    const scope=await resolveRequestScope(request);await assertFirmModule({scope,module:"finance"});await assertFirmPermission({scope,permission:"viewBilling"});
     if(!scope.firmId) throw new Error("Authenticated firm context is required.");
     const supabase=createServerSupabaseClient();if(!supabase) throw new Error("Supabase server configuration is required.");
     const [suppliers,obligations,lawyers,bills,expenses]=await Promise.all([
@@ -22,7 +22,7 @@ export async function GET(request:Request){
 
 export async function POST(request:Request){
   try{
-    const scope=await resolveRequestScope(request);await assertFirmPermission({scope,permission:"viewBilling"});
+    const scope=await resolveRequestScope(request);await assertFirmModule({scope,module:"finance"});await assertFirmPermission({scope,permission:"viewBilling"});
     if(!scope.firmId||!scope.actorLawyerId) throw new Error("Authenticated firm context is required.");
     const supabase=createServerSupabaseClient();if(!supabase) throw new Error("Supabase server configuration is required.");
     const body=await request.json();const action=String(body.action??"");

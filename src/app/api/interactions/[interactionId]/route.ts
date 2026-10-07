@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
-import { assertFirmPermission, assertMatterPermission } from "@/lib/authorization";
+import { assertFirmModule, assertFirmPermission, assertMatterPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { recordMatterEvent } from "@/lib/matter-events.server";
 
@@ -10,7 +10,7 @@ const cycleStages=new Set(["enquiry","intake","preliminary_discussion","consulta
 const consultationStatuses=new Set(["not_required","suggested","scheduled","paid","waived","credited","completed"]);
 
 async function loadContext(request:Request,interactionId:string){
- const scope=await resolveRequestScope(request);if(!scope.firmId||!scope.actorLawyerId)throw new Error("Authenticated firm context is required.");
+ const scope=await resolveRequestScope(request);await assertFirmModule({scope,module:"interactions"});if(!scope.firmId||!scope.actorLawyerId)throw new Error("Authenticated firm context is required.");
  const supabase=createServerSupabaseClient();if(!supabase)throw new Error("Supabase server configuration is required.");
  const result=await supabase.from("legal_interactions").select("*").eq("id",interactionId).eq("firm_id",scope.firmId).maybeSingle();if(result.error)throw new Error(result.error.message);if(!result.data)throw new Error("Interaction not found.");
  if(result.data.matter_id)await assertMatterPermission({scope,matterId:result.data.matter_id,allowAnyMember:true});

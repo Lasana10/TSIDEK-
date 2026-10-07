@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { assertMatterPermission } from "@/lib/authorization";
+import { assertFirmModule, assertMatterPermission } from "@/lib/authorization";
 import { runGovernedAi, type AiUserMode } from "@/lib/ai-runtime.server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
@@ -20,6 +20,8 @@ function extractJson(value:string){
 export async function POST(request:Request,context:Context){
  try{
   const scope=await resolveRequestScope(request);
+  await assertFirmModule({scope,module:"interactions"});
+  await assertFirmModule({scope,module:"institutional_ai"});
   if(!scope.authenticated||!scope.firmId||!scope.actorLawyerId)throw new Error("Authenticated firm context is required.");
   const supabase=createServerSupabaseClient();if(!supabase)throw new Error("Supabase server configuration is required.");
   const {interactionId}=await context.params;

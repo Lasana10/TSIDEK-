@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
-import { assertFirmPermission } from "@/lib/authorization";
+import { assertFirmModule, assertFirmPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 type Context={params:Promise<{prospectId:string}>};
@@ -9,7 +9,7 @@ const riskRatings=new Set(["low","medium","high","prohibited"]);
 const screening=new Set(["unchecked","clear","potential_match","confirmed"]);
 
 async function contextFor(request:Request,prospectId:string){
- const scope=await resolveRequestScope(request);
+ const scope=await resolveRequestScope(request);await assertFirmModule({scope,module:"intake"});
  if(!scope.authenticated||!scope.firmId||!scope.actorLawyerId)throw new Error("Authenticated firm context is required.");
  const supabase=createServerSupabaseClient();if(!supabase)throw new Error("Supabase server configuration is required.");
  const {data:prospect,error}=await supabase.from("prospects").select("id,firm_id,prospect_name,status,primary_party_id").eq("id",prospectId).eq("firm_id",scope.firmId).maybeSingle();
