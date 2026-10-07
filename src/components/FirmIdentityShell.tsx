@@ -44,9 +44,9 @@ export default function FirmIdentityShell() {
           </div>
         </Link>
         <div className="flex items-center gap-2">
-          <LanguageSwitcher compact className="hidden sm:inline-flex" />
+          <LanguageSwitcher compact className="hidden sm:block" />
           <span className="hidden h-2 w-2 rounded-full sm:inline-block" style={{ background: brand.accent_color || "#c5a059" }} />
-          <span className="hidden text-[9px] font-black uppercase tracking-[.16em] text-slate-400 md:inline">Powered by TSIDKENU</span>
+          <span className="hidden items-center gap-2 md:inline-flex"><span className="text-[9px] font-black uppercase tracking-[.16em] text-slate-400">Powered by</span><span className="font-serif text-xs font-semibold text-[#07372D]">Tsidkenu</span></span>
         </div>
       </div>
     </div>
