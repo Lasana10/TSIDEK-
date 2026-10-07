@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import { resolveRequestScope } from "@/lib/request-scope";
-import { assertFirmPermission } from "@/lib/authorization";
+import { assertFirmModule, assertFirmPermission } from "@/lib/authorization";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { createVaultSignedReadUrl, persistUploadedFile, readVaultFile } from "@/lib/file-vault";
 
@@ -17,7 +17,7 @@ function numberOrNull(value:unknown){const n=Number(value);return Number.isFinit
 
 export async function GET(request:Request){
   try{
-    const scope=await resolveRequestScope(request);
+    const scope=await resolveRequestScope(request);await assertFirmModule({scope,module:"finance"});
     if(!scope.authenticated||!scope.firmId) throw new Error("Authenticated firm context is required.");
     const supabase=createServerSupabaseClient(); if(!supabase) throw new Error("Supabase server configuration is required.");
     const url=new URL(request.url); const expenseId=url.searchParams.get("expenseId")||"";
@@ -35,7 +35,7 @@ export async function GET(request:Request){
 
 export async function POST(request:Request){
   try{
-    const scope=await resolveRequestScope(request);
+    const scope=await resolveRequestScope(request);await assertFirmModule({scope,module:"finance"});
     await assertFirmPermission({scope,permission:"viewBilling"});
     if(!scope.firmId||!scope.actorLawyerId) throw new Error("Authenticated firm context is required.");
     const form=await request.formData();
