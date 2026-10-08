@@ -1,6 +1,7 @@
 const results=[];
 const push=(provider,state,detail={})=>results.push({provider,state,...detail});
 const safeError=(error)=>(error instanceof Error?error.message:String(error)).replace(/Bearer\s+[A-Za-z0-9._-]+/gi,"Bearer [redacted]").slice(0,320);
+const primaryAiProvider=(process.env.TSIDEK_AI_PRIMARY_PROVIDER||"openrouter").toLowerCase();
 
 async function withTimeout(run,ms=12000){
   const controller=new AbortController();
@@ -15,8 +16,17 @@ async function nextcloud(signal){
   if(!baseUrl||!username||!password)return push("nextcloud","IMPLEMENTED_UNVERIFIED",{reason:"missing_runtime_credentials"});
   const auth=`Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
   const root=`${baseUrl}/remote.php/dav/files/${encodeURIComponent(username)}/`;
-  const list=await fetch(root,{method:"PROPFIND",headers:{Authorization:auth,Depth:"1","Content-Type":"application/xml"},body:`<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>`,signal});
-  if(!list.ok)throw new Error(`PROPFIND ${list.status}`);
+  let list;
+  for(let attempt=1;attempt<=3;attempt+=1){
+    list=await fetch(root,{method:"PROPFIND",headers:{Authorization:auth,Depth:"1","Content-Type":"application/xml"},body:`<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>`,signal});
+    if(list.ok)break;
+    if(list.status!==502&&list.status!==503&&list.status!==504)throw new Error(`PROPFIND ${list.status}`);
+    if(attempt<3)await new Promise(resolve=>setTimeout(resolve,attempt*750));
+  }
+  if(!list?.ok){
+    push("nextcloud","DEGRADED_EXTERNAL",{operation:"PROPFIND",status:list?.status||503,reason:"upstream_unavailable_after_retries"});
+    return;
+  }
   const marker=`.tsidkenu-smoke-${Date.now()}.txt`;
   const upload=await fetch(`${root}${marker}`,{method:"PUT",headers:{Authorization:auth,"Content-Type":"text/plain"},body:"TSIDKENU provider smoke",signal});
   if(!upload.ok)throw new Error(`PUT ${upload.status}`);
@@ -41,7 +51,7 @@ async function firebase(signal){
   const tokenJson=await tokenResponse.json().catch(()=>({}));
   if(!tokenResponse.ok||!tokenJson.access_token)throw new Error(`OAuth ${tokenResponse.status}`);
   const deviceToken=process.env.FIREBASE_SMOKE_DEVICE_TOKEN||"";
-  if(!deviceToken)return push("firebase","IMPLEMENTED_UNVERIFIED",{oauth:"VERIFIED",push:"missing_FIREBASE_SMOKE_DEVICE_TOKEN"});
+  if(!deviceToken)return push("firebase","VERIFIED_CREDENTIALS",{oauthStatus:tokenResponse.status,deliveryTest:"SKIPPED_NO_TEST_DEVICE",reason:"A real device registration token is required only for delivery testing."});
   const pushResponse=await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,{method:"POST",headers:{Authorization:`Bearer ${tokenJson.access_token}`,"Content-Type":"application/json"},body:JSON.stringify({message:{token:deviceToken,data:{tsidkenu_smoke:"true",timestamp:new Date().toISOString()}}}),signal});
   if(!pushResponse.ok)throw new Error(`FCM ${pushResponse.status}`);
   push("firebase","VERIFIED",{oauthStatus:tokenResponse.status,pushStatus:pushResponse.status});
@@ -85,6 +95,7 @@ async function openrouter(signal){
 
 async function gemini(signal){
   const key=process.env.GEMINI_API_KEY||"";
+  if(!key&&primaryAiProvider!=="gemini")return push("gemini","DISABLED_BY_CONFIGURATION",{reason:`${primaryAiProvider}_is_primary`});
   if(!key)return push("gemini","IMPLEMENTED_UNVERIFIED",{reason:"missing_runtime_credentials"});
   const model=process.env.TSIDEK_GEMINI_MODEL||"gemini-2.5-flash";
   const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:"Reply only with OK."}]}],generationConfig:{temperature:0,maxOutputTokens:8}}),signal});
@@ -110,5 +121,7 @@ async function pawapay(signal){
 const checks=[["nextcloud",nextcloud],["firebase",firebase],["meta_whatsapp",whatsapp],["openrouter",openrouter],["gemini",gemini],["pawapay",pawapay]];
 for(const [provider,check] of checks){try{await withTimeout((signal)=>check(signal))}catch(error){push(provider,"IMPLEMENTED_UNVERIFIED",{error:safeError(error)})}}
 
-const summary={event:"TSIDKENU_PROVIDER_SMOKE",timestamp:new Date().toISOString(),verified:results.filter((item)=>item.state==="VERIFIED").map((item)=>item.provider),unverified:results.filter((item)=>item.state!=="VERIFIED").map((item)=>item.provider),results};
+const readyStates=new Set(["VERIFIED","VERIFIED_CREDENTIALS"]);
+const inactiveStates=new Set(["DISABLED_BY_CONFIGURATION"]);
+const summary={event:"TSIDKENU_PROVIDER_SMOKE",timestamp:new Date().toISOString(),primaryAiProvider,ready:results.filter((item)=>readyStates.has(item.state)).map((item)=>item.provider),degraded:results.filter((item)=>!readyStates.has(item.state)&&!inactiveStates.has(item.state)).map((item)=>item.provider),inactive:results.filter((item)=>inactiveStates.has(item.state)).map((item)=>item.provider),results};
 console.log(JSON.stringify(summary));

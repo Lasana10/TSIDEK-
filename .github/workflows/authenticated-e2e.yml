@@ -1,0 +1,24 @@
+name: Authenticated production journey
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * 1-5"
+
+permissions:
+  contents: read
+
+jobs:
+  authenticated-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify authenticated firm journey
+        env:
+          TSIDEK_E2E_BASE_URL: ${{ secrets.TSIDEK_E2E_BASE_URL }}
+          TSIDEK_E2E_ACCESS_TOKEN: ${{ secrets.TSIDEK_E2E_ACCESS_TOKEN }}
+        run: npm run test:e2e:auth

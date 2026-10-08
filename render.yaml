@@ -29,6 +29,8 @@ services:
         sync: false
       - key: TSIDEK_GEMINI_MODEL
         value: "gemini-2.5-flash"
+      - key: TSIDEK_AI_PRIMARY_PROVIDER
+        value: "openrouter"
       - key: OPENROUTER_API_KEY
         sync: false
       - key: TSIDEK_OPENROUTER_MODEL
