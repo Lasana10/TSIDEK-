@@ -67,6 +67,8 @@ export async function POST(request:Request,{params}:{params:Promise<{matterId:st
    const current=await supabase.from("matter_execution_actions").select("id,execution_mode,target_system,status").eq("id",id).eq("matter_id",matterId).single();if(current.error)throw new Error(current.error.message);
    const currentStatus=String(current.data.status??"");
    if(!executionTransitions[currentStatus]?.includes(status))throw new Error(`Invalid execution transition: ${currentStatus} → ${status}. Refresh the Matter and use the next permitted action.`);
+   // Leaving an approval gate requires filing-approval authority; assignment rights alone are insufficient.
+   if(currentStatus==="awaiting_approval"&&status==="in_progress")await assertMatterPermission({scope,matterId,permission:"approveFilings"});
    await assertExecutionProviderReady({firmId:scope.firmId,mode:String(current.data.execution_mode),targetSystem:current.data.target_system?String(current.data.target_system):null,status});
    if(["submitted","acknowledged","completed"].includes(status)&&["direct_api","partner_api"].includes(String(current.data.execution_mode))&&!String(body.externalReference??"").trim()&&!String(body.evidenceReference??"").trim())throw new Error("API/partner execution requires an external or evidence reference before submission/acknowledgement/completion can be recorded.");
    const patch:Record<string,unknown>={status,updated_at:new Date().toISOString()};
