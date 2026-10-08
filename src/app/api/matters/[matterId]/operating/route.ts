@@ -5,6 +5,17 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { statusForApiError } from "@/lib/api-errors";
 
 const executionStatuses = new Set(["ready","awaiting_approval","in_progress","submitted","acknowledged","completed","failed","cancelled"]);
+const executionTransitions: Record<string, readonly string[]> = {
+  planned: ["ready","cancelled"],
+  ready: ["awaiting_approval","in_progress"],
+  awaiting_approval: ["in_progress","cancelled"],
+  in_progress: ["submitted","failed"],
+  submitted: ["acknowledged","failed"],
+  acknowledged: ["completed","failed"],
+  failed: ["ready","cancelled"],
+  completed: [],
+  cancelled: [],
+};
 const knowledgeStatuses = new Set(["reviewed","approved_internal","restricted","not_reusable"]);
 const providerBoundStatuses = new Set(["ready","awaiting_approval","in_progress","submitted","acknowledged","completed"]);
 
@@ -54,6 +65,8 @@ export async function POST(request:Request,{params}:{params:Promise<{matterId:st
    const id=String(body.id??"");const status=String(body.status??"");if(!id||!executionStatuses.has(status))throw new Error("Valid execution action and status are required.");
    await assertMatterPermission({scope,matterId,permission:["awaiting_approval","submitted","acknowledged","completed"].includes(status)?"approveFilings":"assignWork"});
    const current=await supabase.from("matter_execution_actions").select("id,execution_mode,target_system,status").eq("id",id).eq("matter_id",matterId).single();if(current.error)throw new Error(current.error.message);
+   const currentStatus=String(current.data.status??"");
+   if(!executionTransitions[currentStatus]?.includes(status))throw new Error(`Invalid execution transition: ${currentStatus} → ${status}. Refresh the Matter and use the next permitted action.`);
    await assertExecutionProviderReady({firmId:scope.firmId,mode:String(current.data.execution_mode),targetSystem:current.data.target_system?String(current.data.target_system):null,status});
    if(["submitted","acknowledged","completed"].includes(status)&&["direct_api","partner_api"].includes(String(current.data.execution_mode))&&!String(body.externalReference??"").trim()&&!String(body.evidenceReference??"").trim())throw new Error("API/partner execution requires an external or evidence reference before submission/acknowledgement/completion can be recorded.");
    const patch:Record<string,unknown>={status,updated_at:new Date().toISOString()};
@@ -61,7 +74,8 @@ export async function POST(request:Request,{params}:{params:Promise<{matterId:st
    if(body.externalReference!==undefined)patch.external_reference=String(body.externalReference??"").trim()||null;
    if(body.evidenceReference!==undefined)patch.evidence_reference=String(body.evidenceReference??"").trim()||null;
    if(status==="submitted")patch.executed_at=new Date().toISOString();if(status==="acknowledged")patch.acknowledged_at=new Date().toISOString();if(status==="completed")patch.completed_at=new Date().toISOString();
-   const result=await supabase.from("matter_execution_actions").update(patch).eq("id",id).eq("matter_id",matterId).select("*").single();if(result.error)throw new Error(result.error.message);record=result.data;eventType=`MATTER_EXECUTION_${status.toUpperCase()}`;
+   // Optimistic concurrency prevents stale clients from overwriting a more recent transition.
+   const result=await supabase.from("matter_execution_actions").update(patch).eq("id",id).eq("matter_id",matterId).eq("status",currentStatus).select("*").maybeSingle();if(result.error)throw new Error(result.error.message);if(!result.data)throw new Error("The execution status changed while you were working. Refresh and try again.");record=result.data;eventType=`MATTER_EXECUTION_${status.toUpperCase()}`;
   } else if(action==="record_outcome"){
    await assertMatterPermission({scope,matterId,permission:"archiveMatters"});
    const title=String(body.title??"").trim();const summary=String(body.resultSummary??"").trim();if(!title||!summary)throw new Error("Outcome title and result summary are required.");
