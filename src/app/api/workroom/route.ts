@@ -38,7 +38,14 @@ export async function GET(request:Request){
  const visibleItemIds=new Set(visibleItems.map(item=>item.id));
  const visibleThreads=(threads.data??[]).filter(thread=>!thread.matter_id||allowedMatterIds.has(thread.matter_id));
  const visibleThreadIds=new Set(visibleThreads.map(thread=>thread.id));
- return NextResponse.json({success:true,items:visibleItems,matters:matters.map(({lead_lawyer_id:_,confidentiality_level:__,...m})=>m),comments:(comments.data??[]).filter(comment=>visibleItemIds.has(comment.work_item_id)),lawyers:lawyers.data??[],threads:visibleThreads,messages:(messages.data??[]).filter(message=>visibleThreadIds.has(message.thread_id))});
+	 const visibleMatters=matters.map(matter=>({
+	  id:matter.id,
+	  title:matter.title,
+	  client_name:matter.client_name,
+	  status:matter.status,
+	  case_reference:matter.case_reference,
+	 }));
+	 return NextResponse.json({success:true,items:visibleItems,matters:visibleMatters,comments:(comments.data??[]).filter(comment=>visibleItemIds.has(comment.work_item_id)),lawyers:lawyers.data??[],threads:visibleThreads,messages:(messages.data??[]).filter(message=>visibleThreadIds.has(message.thread_id))});
  }catch(error){return NextResponse.json({success:false,error:error instanceof Error?error.message:"Unable to load workroom."},{status:403});}}
 
 export async function POST(request:Request){
