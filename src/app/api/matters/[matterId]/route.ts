@@ -159,7 +159,7 @@ export async function POST(
       case "createComment": {
         const room = await createMatterComment({
           matterId,
-          authorId: body.authorId,
+          authorId: scope.actorLawyerId,
           body: body.body,
           commentType: body.commentType,
         });
