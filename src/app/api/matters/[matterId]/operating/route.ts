@@ -74,7 +74,10 @@ export async function POST(request:Request,{params}:{params:Promise<{matterId:st
    const result=await supabase.from("matter_outcomes").update(patch).eq("id",id).eq("matter_id",matterId).select("*").single();if(result.error)throw new Error(result.error.message);record=result.data;eventType=`MATTER_OUTCOME_${status.toUpperCase()}`;
   } else return NextResponse.json({success:false,error:"Unsupported operating action."},{status:400});
 
-  const event=await supabase.from("matter_events").insert({matter_id:matterId,event_type:eventType,actor_name:scope.actorName,metadata:{operatingAction:action,record}});if(event.error)throw new Error(event.error.message);
+  // Do not copy privileged client narratives, legal reasoning, provider references or AI content into the event ledger.
+  // The event links to the governed record, whose own access controls remain authoritative.
+  const recordId=record&&typeof record==="object"&&"id" in record?String(record.id):null;
+  const event=await supabase.from("matter_events").insert({matter_id:matterId,event_type:eventType,actor_name:scope.actorName,metadata:{operatingAction:action,recordId}});if(event.error)throw new Error(event.error.message);
   return NextResponse.json({success:true,record});
  }catch(error){return NextResponse.json({success:false,error:error instanceof Error?error.message:"Unable to update matter operating record."},{status:statusForApiError(error)});}
 }
