@@ -38,15 +38,16 @@ export default function Workroom(){
  async function load(){
   setMessage("");
   try{
-   const [legacyResponse,governedResponse]=await Promise.all([
-    fetch("/api/workroom",{cache:"no-store",credentials:"include"}),
-    fetch("/api/workroom/governed",{cache:"no-store",credentials:"include"}),
+   const results=await Promise.allSettled([
+    fetch("/api/workroom",{cache:"no-store",credentials:"include"}).then(async response=>{const body=await response.json();if(!response.ok||!body.success)throw new Error(body.error||"Unable to load collaboration Workroom.");return body as LegacyPayload;}),
+    fetch("/api/workroom/governed",{cache:"no-store",credentials:"include"}).then(async response=>{const body=await response.json();if(!response.ok||!body.success)throw new Error(body.error||"Unable to load governed Matter flow.");return body as GovernedPayload;}),
    ]);
-   const legacy=await legacyResponse.json();
-   const canonical=await governedResponse.json();
-   if(!legacyResponse.ok||!legacy.success)throw new Error(legacy.error||"Unable to load collaboration Workroom.");
-   if(!governedResponse.ok||!canonical.success)throw new Error(canonical.error||"Unable to load governed Matter flow.");
-   setData(legacy);setGoverned(canonical);
+   const [legacy,canonical]=results;
+   setData(legacy.status==="fulfilled"?legacy.value:{success:false,items:[],matters:[],lawyers:[],threads:[],messages:[]});
+   setGoverned(canonical.status==="fulfilled"?canonical.value:{success:false,matters:[],decisions:[],executions:[],instructions:[],handoffs:[],milestones:[]});
+   if(legacy.status==="rejected"&&canonical.status==="rejected")throw new Error("Workroom unavailable. Neither collaboration nor governed matter operations could be loaded.");
+   if(legacy.status==="rejected")setMessage("Conversations and assignments could not load. Governed matter operations remain available.");
+   if(canonical.status==="rejected")setMessage("Governed matter operations could not load. Conversations and assignments remain available.");
   }catch(error){setMessage(error instanceof Error?error.message:"Unable to load Workroom.")}
  }
  useEffect(()=>{void load()},[]);
