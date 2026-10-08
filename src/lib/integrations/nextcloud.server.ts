@@ -31,30 +31,50 @@ function target(path: string, credentials?: NextcloudCredentials) {
   return `${value.baseUrl}/remote.php/dav/files/${user}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+const TRANSIENT_UPSTREAM_STATUSES = new Set([502, 503, 504]);
+
+async function nextcloudFetch(path: string, init: RequestInit, credentials?: NextcloudCredentials) {
+  const attempts = 3;
+  let response: Response | undefined;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    response = await fetch(target(path, credentials), { ...init, cache: "no-store" });
+    if (!TRANSIENT_UPSTREAM_STATUSES.has(response.status) || attempt === attempts) return response;
+    await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
+  }
+  throw new Error("Nextcloud request did not produce a response.");
+}
+
+function assertNextcloudResponse(response: Response, operation: string, allowedStatuses: number[] = []) {
+  if (response.ok || allowedStatuses.includes(response.status)) return;
+  if (TRANSIENT_UPSTREAM_STATUSES.has(response.status)) {
+    throw new Error(`Nextcloud upstream unavailable after retries during ${operation} (${response.status})`);
+  }
+  throw new Error(`Nextcloud ${operation} failed (${response.status})`);
+}
+
 export async function nextcloudList(path = "/", credentials?: NextcloudCredentials) {
-  const response = await fetch(target(path, credentials), {
+  const response = await nextcloudFetch(path, {
     method: "PROPFIND",
     headers: { Authorization: authHeader(credentials), Depth: "1", "Content-Type": "application/xml; charset=utf-8" },
     body: `<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/><d:getcontentlength/><d:getlastmodified/><d:resourcetype/></d:prop></d:propfind>`,
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error(`Nextcloud PROPFIND failed (${response.status})`);
+  }, credentials);
+  assertNextcloudResponse(response, "PROPFIND");
   return response.text();
 }
 
 export async function nextcloudPut(path: string, data: BodyInit, contentType = "application/octet-stream", credentials?: NextcloudCredentials) {
-  const response = await fetch(target(path, credentials), {
+  const response = await nextcloudFetch(path, {
     method: "PUT",
     headers: { Authorization: authHeader(credentials), "Content-Type": contentType },
     body: data,
-  });
-  if (!response.ok) throw new Error(`Nextcloud upload failed (${response.status})`);
+  }, credentials);
+  assertNextcloudResponse(response, "upload");
   return { ok: true, status: response.status, path };
 }
 
 export async function nextcloudDelete(path: string, credentials?: NextcloudCredentials) {
-  const response = await fetch(target(path, credentials), { method: "DELETE", headers: { Authorization: authHeader(credentials) } });
-  if (!response.ok && response.status !== 404) throw new Error(`Nextcloud cleanup failed (${response.status})`);
+  const response = await nextcloudFetch(path, { method: "DELETE", headers: { Authorization: authHeader(credentials) } }, credentials);
+  assertNextcloudResponse(response, "cleanup", [404]);
   return { ok: true, status: response.status };
 }
 

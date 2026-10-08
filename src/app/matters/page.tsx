@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -63,6 +64,7 @@ const EMPTY_FORM: CreateMatterForm = {
 };
 
 export default function MattersPage() {
+  const router = useRouter();
   const [matters, setMatters] = useState<Matter[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -126,7 +128,7 @@ export default function MattersPage() {
       if (!response.ok || !payload.matterId) throw new Error(payload.error || "Unable to create matter.");
       setForm(EMPTY_FORM);
       setCreateOpen(false);
-      window.location.assign(`/matters/${payload.matterId}`);
+      router.push(`/matters/${payload.matterId}`);
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Unable to create matter.");
     } finally {

@@ -1,11 +1,9 @@
 "use client"
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { ShieldCheck, FileText, Scale, Landmark, HardHat, Music, Briefcase, ChevronRight } from 'lucide-react';
 
 export default function ComplianceVault() {
-  const [analyzing, setAnalyzing] = useState(false);
-  
   const fields = [
     { id: 'corporate', label: 'Corporate & OHADA', icon: Scale, color: 'text-blue-400' },
     { id: 'fintech', label: 'Fintech (COBAC)', icon: Landmark, color: 'text-emerald-400' },
@@ -25,11 +23,11 @@ export default function ComplianceVault() {
       <div className="flex justify-between items-end">
         <div className="space-y-2">
           <h1 className="text-3xl font-black text-white uppercase tracking-tighter italic border-l-4 border-teal-accent pl-4">Compliance Guardian</h1>
-          <p className="text-xs text-slate-500 font-mono">POWERED BY GEMINI 3.0 FLASH • REAL-TIME AUDITING</p>
+          <p className="text-xs text-slate-500 font-mono">GOVERNED AI REVIEW • PROVIDER RECORDED IN THE AUDIT LEDGER</p>
         </div>
         <div className="flex gap-2">
-           <div className="h-2 w-2 rounded-full bg-teal-accent animate-pulse" />
-           <span className="text-[10px] font-bold text-teal-accent uppercase tracking-widest">OneDrive Sync Active</span>
+           <div className="h-2 w-2 rounded-full bg-amber-300" />
+           <span className="text-[10px] font-bold text-amber-300 uppercase tracking-widest">Evidence required before sync claims</span>
         </div>
       </div>
 
@@ -47,7 +45,7 @@ export default function ComplianceVault() {
           <div className="glass p-8 rounded-3xl space-y-6 relative overflow-hidden">
             <div className="flex items-center gap-4 border-b border-slate-800 pb-4">
               <FileText className="text-teal-accent w-6 h-6" />
-              <h3 className="font-bold uppercase text-sm tracking-widest">OneDrive Corporate Guidance</h3>
+              <h3 className="font-bold uppercase text-sm tracking-widest">Corporate compliance guidance</h3>
             </div>
             
             <div className="space-y-4">
@@ -72,14 +70,14 @@ export default function ComplianceVault() {
               System Integrity
             </div>
             <p className="text-xs text-slate-300 leading-relaxed mb-6">
-              Gemini 3.0 Flash is currently scanning your **OneDrive Legal Folder**. All document variations are cross-referenced with the latest 2026 CEMAC regulations.
+              Compliance review must be grounded in uploaded matter records, connected storage evidence, and provider logs before the system reports scanning progress or regulatory coverage.
             </p>
             <div className="space-y-2">
-              <p className="text-[10px] text-slate-500 uppercase tracking-widest">Current Audit Status</p>
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest">Current audit status</p>
               <div className="h-1.5 w-full bg-navy-800 rounded-full overflow-hidden">
-                <motion.div initial={{ width: 0 }} animate={{ width: '65%' }} className="h-full bg-teal-accent" />
+                <motion.div initial={{ width: 0 }} animate={{ width: "12%" }} className="h-full bg-amber-300" />
               </div>
-              <p className="text-[10px] text-right text-teal-accent font-bold">65% Scanned</p>
+              <p className="text-[10px] text-right text-amber-300 font-bold">Pending verified ingestion</p>
             </div>
           </div>
 
@@ -88,7 +86,7 @@ export default function ComplianceVault() {
                <FileText className="text-slate-600 group-hover:text-teal-accent" />
              </div>
              <p className="text-[10px] font-bold uppercase text-slate-500 mb-1">New Matter Onboarding</p>
-             <p className="text-[11px] text-slate-700">Drag & Drop files for instant compliance verify</p>
+             <p className="text-[11px] text-slate-700">Upload files through the governed intake flow to start a recorded compliance review.</p>
           </div>
         </div>
       </div>
