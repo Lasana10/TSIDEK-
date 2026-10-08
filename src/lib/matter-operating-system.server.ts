@@ -22,7 +22,8 @@ export async function getMatterOperatingSystem(input:{matterId:string;scope:Requ
  for(const result of [workstreams,milestones,executions,outcomes,timeEntries,expenses])if(result.error)throw new Error(result.error.message);
  const ws=workstreams.data??[],ms=milestones.data??[],ex=executions.data??[],oc=outcomes.data??[];
  const time=timeEntries.data??[],expenseRows=expenses.data??[];
- const openWork=ws.filter(x=>x.status!=="completed"&&x.status!=="cancelled");
+ const activePlan=ws.filter(x=>x.status!=="cancelled");
+ const openWork=activePlan.filter(x=>x.status!=="completed");
  const verifiedEvidence=adaptive.evidence.filter((x:{verification_status:string})=>x.verification_status==="verified"||x.verification_status==="corroborated");
  const approvedDecisions=adaptive.decisions.filter((x:{status:string})=>x.status==="approved");
  const confirmedInstructions=adaptive.instructions.filter((x:{confirmation_status:string})=>x.confirmation_status==="confirmed");
@@ -45,8 +46,8 @@ export async function getMatterOperatingSystem(input:{matterId:string;scope:Requ
   {key:"matter",label:"Matter",state:"complete",detail:command.matter.title},
   {key:"understanding",label:"Understanding",state:verifiedClaims||verifiedEvidence.length?"complete":(intelligence.claims.length||adaptive.evidence.length)?"attention":"active",detail:verifiedClaims?`${verifiedClaims} verified legal/factual claim(s)`:verifiedEvidence.length?`${verifiedEvidence.length} verified/corroborated evidence item(s)`:"Build and verify the factual, evidential and legal record",count:intelligence.claims.length+adaptive.evidence.length},
   {key:"jurisdiction",label:"Jurisdiction",state:hasJurisdictionPack?"complete":"attention",detail:hasJurisdictionPack?`${intelligence.jurisdictionPacks.length} active jurisdiction pack(s) matched`:"No active reviewed jurisdiction pack matched this matter",count:intelligence.jurisdictionPacks.length},
-  {key:"plan",label:"Plan",state:ws.length?"complete":"attention",detail:ws.length?`${ws.length} governed workstream(s)`:"Matter plan needs workstreams",count:ws.length},
-  {key:"work",label:"Work",state:openWork.length?"active":"complete",detail:openWork.length?`${openWork.length} open workstream(s)`:"Planned workstreams completed",count:openWork.length},
+  {key:"plan",label:"Plan",state:activePlan.length?"complete":"attention",detail:activePlan.length?`${activePlan.length} governed workstream(s)`:"Matter plan needs workstreams",count:activePlan.length},
+  {key:"work",label:"Work",state:openWork.length?"active":activePlan.length?"complete":"waiting",detail:openWork.length?`${openWork.length} open workstream(s)`:activePlan.length?"Planned workstreams completed":"No governed workstreams planned yet",count:openWork.length},
   {key:"judgment",label:"Judgment",state:approvedDecisions.length?"complete":adaptive.decisions.length?"attention":"active",detail:approvedDecisions.length?`${approvedDecisions.length} approved decision(s)`:"Record and approve material professional decisions",count:adaptive.decisions.length},
   {key:"approval",label:"Approval",state:command.summary.pendingApprovals?"attention":"complete",detail:command.summary.pendingApprovals?`${command.summary.pendingApprovals} approval(s) waiting`:"No pending approval bottleneck",count:command.summary.pendingApprovals},
   {key:"execution",label:"Execution",state:activeExecutions.length?"active":completedExecutions.length?"complete":"waiting",detail:activeExecutions.length?`${activeExecutions.length} execution action(s) open`:completedExecutions.length?`${completedExecutions.length} execution action(s) completed`:"No governed execution action yet",count:ex.length},
