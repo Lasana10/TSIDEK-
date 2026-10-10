@@ -1,0 +1,23 @@
+name: AI Core Policy Tests
+on:
+  push:
+    branches:
+      - feat/ai-core-openrouter-transport-tests-20261010
+  pull_request:
+    paths:
+      - "src/lib/ai-core/**"
+      - "scripts/ai-core-policy.test.mjs"
+      - ".github/workflows/ai-core-policy.yml"
+permissions:
+  contents: read
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - run: node --test scripts/ai-core-policy.test.mjs
+      - run: npx tsc --noEmit
