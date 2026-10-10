@@ -13,3 +13,5 @@ test("public requests use configured route",()=>assert.equal(selectAiRoute({prod
 test("rejects malformed JSON",()=>assert.throws(()=>parseStructuredOutput("{",()=>true),/AI_INVALID_JSON/));
 test("rejects schema mismatch",()=>assert.throws(()=>parseStructuredOutput('{"ok":false}',v=>v?.ok===true),/AI_SCHEMA_VALIDATION_FAILED/));
 test("accepts valid structured output",()=>assert.deepEqual(parseStructuredOutput('{"ok":true}',v=>v?.ok===true),{ok:true}));
+
+test("internal data cannot silently use cloud",()=>assert.throws(()=>selectAiRoute({product:"DREEM",task:"education",sensitivity:"internal",approvedExternalProcessing:false,availableProviders:["openrouter"]}),/PRIVATE_AI_REQUIRED/));
