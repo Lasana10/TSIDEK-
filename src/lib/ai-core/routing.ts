@@ -21,6 +21,7 @@ const candidates: Record<Task, string> = {
   vision: "google/gemini-2.5-flash",
 };
 /** Fail closed: confidential data must never silently fall back to a cloud provider. */
+export function recommendedModelForTask(task: Task): string { return candidates[task]; }
 export function selectAiRoute(req: RouteRequest): RouteDecision {
   if (req.sensitivity === "restricted" || (req.sensitivity !== "public" && !req.approvedExternalProcessing)) {
     if (!req.availableProviders.includes("private")) throw new Error("PRIVATE_AI_REQUIRED");
