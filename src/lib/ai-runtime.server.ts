@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { selectAiRoute, type Task } from "@/lib/ai-core/routing";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import type { RequestScope } from "@/lib/request-scope";
@@ -169,7 +170,17 @@ async function runGemini(prompt: string, modelOverride?: string | null) {
 async function runOpenRouter(prompt: string, modelOverride?: string | null) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OpenRouter is not configured.");
-  const model = modelOverride || process.env.TSIDEK_OPENROUTER_MODEL || "openrouter/free";
+  // Opt-in benchmark routing; preserves explicitly chosen tenant/user model first.
+  // This does not alter provider selection or weaken existing firm privacy policy.
+  let benchmarkModel: string | null = null;
+  if (process.env.TSIDEK_AI_BENCHMARK_ROUTING_ENABLED === "true" && !modelOverride) {
+    const task: Task = /legal|matter|plead|contract|research|citation|ohada/i.test(prompt.slice(0,300)) ? "legal" : "general";
+    benchmarkModel = selectAiRoute({
+      product: "TSIDKENU", task, sensitivity: "public",
+      approvedExternalProcessing: true, availableProviders: ["openrouter"],
+    }).model;
+  }
+  const model = modelOverride || process.env.TSIDEK_OPENROUTER_MODEL || benchmarkModel || "openrouter/free";
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
