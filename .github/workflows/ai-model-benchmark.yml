@@ -14,7 +14,7 @@ jobs:
       - name: Checkout benchmark script commit
         uses: actions/checkout@v4
         with:
-          ref: 7861bdf629581b0cd58fe25b15bd6445840e455d
+          ref: 2dd466aa289b398fa50d0edfd4d76bf8424095ba
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -24,14 +24,14 @@ jobs:
       - name: Run benchmark
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          BENCHMARK_MODELS: deepseek/deepseek-v4.1-flash,z-ai/glm-5.3-flash,xiaomi/mimo-v2.6-flash,anthropic/claude-haiku-5.5,openai/gpt-6.1-sol
-          BENCHMARK_OUTPUT: ai-model-benchmark.json
-        run: node scripts/ai-model-benchmark.mjs
+          BENCHMARK_MODELS: z-ai/glm-5.3-flash,anthropic/claude-haiku-5.5,deepseek/deepseek-v4.1-flash
+          BENCHMARK_OUTPUT: ai-benchmark-v2.json
+        run: node scripts/ai-benchmark-v2.mjs
 
       - name: Upload benchmark report
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ai-model-benchmark-report
-          path: ai-model-benchmark.json
+          name: ai-benchmark-v2-report
+          path: ai-benchmark-v2.json
           if-no-files-found: ignore
