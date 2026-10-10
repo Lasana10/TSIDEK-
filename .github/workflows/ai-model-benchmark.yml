@@ -1,0 +1,44 @@
+name: Controlled AI Model Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      models:
+        description: "Comma-separated OpenRouter model IDs, max 5"
+        required: true
+        default: "deepseek/deepseek-v4.1-flash,z-ai/glm-5.3-flash,xiaomi/mimo-v2.6-flash,anthropic/claude-haiku-5.5,openai/gpt-6.1-sol"
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run benchmark
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          BENCHMARK_MODELS: ${{ inputs.models }}
+          BENCHMARK_OUTPUT: ai-model-benchmark.json
+        run: node scripts/ai-model-benchmark.mjs
+
+      - name: Upload benchmark report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai-model-benchmark-report
+          path: ai-model-benchmark.json
+          if-no-files-found: ignore
