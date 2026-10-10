@@ -1,0 +1,15 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { readFileSync } from "node:fs";
+import ts from "typescript";
+const source=readFileSync(new URL("../src/lib/ai-core/routing.ts",import.meta.url),"utf8");
+const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+const module={exports:{}};new Function("module","exports",compiled)(module,module.exports);
+const {selectAiRoute,parseStructuredOutput}=module.exports;
+test("restricted requests never go to cloud",()=>assert.throws(()=>selectAiRoute({product:"TSIDKENU",task:"legal",sensitivity:"restricted",approvedExternalProcessing:false,availableProviders:["openrouter"]}),/PRIVATE_AI_REQUIRED/));
+test("confidential requests require explicit approval",()=>assert.throws(()=>selectAiRoute({product:"BE0N",task:"finance",sensitivity:"confidential",approvedExternalProcessing:false,availableProviders:["openrouter"]}),/PRIVATE_AI_REQUIRED/));
+test("private requests use private route",()=>assert.equal(selectAiRoute({product:"DREEM",task:"education",sensitivity:"restricted",approvedExternalProcessing:false,availableProviders:["private","openrouter"]}).provider,"private"));
+test("public requests use configured route",()=>assert.equal(selectAiRoute({product:"AFAT",task:"mobility",sensitivity:"public",approvedExternalProcessing:false,availableProviders:["openrouter"]}).provider,"openrouter"));
+test("rejects malformed JSON",()=>assert.throws(()=>parseStructuredOutput("{",()=>true),/AI_INVALID_JSON/));
+test("rejects schema mismatch",()=>assert.throws(()=>parseStructuredOutput('{"ok":false}',v=>v?.ok===true),/AI_SCHEMA_VALIDATION_FAILED/));
+test("accepts valid structured output",()=>assert.deepEqual(parseStructuredOutput('{"ok":true}',v=>v?.ok===true),{ok:true}));
