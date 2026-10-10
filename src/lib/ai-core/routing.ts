@@ -22,7 +22,7 @@ const candidates: Record<Task, string> = {
 };
 /** Fail closed: confidential data must never silently fall back to a cloud provider. */
 export function selectAiRoute(req: RouteRequest): RouteDecision {
-  if (req.sensitivity === "restricted" || (req.sensitivity === "confidential" && !req.approvedExternalProcessing)) {
+  if (req.sensitivity === "restricted" || (req.sensitivity !== "public" && !req.approvedExternalProcessing)) {
     if (!req.availableProviders.includes("private")) throw new Error("PRIVATE_AI_REQUIRED");
     return {provider:"private", model:"private/default", requiresHumanReview:true, reason:"sensitive_data_boundary"};
   }
