@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { selectAiRoute } from "@/lib/ai-core/routing";
+import { recommendedModelForTask } from "@/lib/ai-core/routing";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import type { RequestScope } from "@/lib/request-scope";
@@ -174,10 +174,7 @@ async function runOpenRouter(prompt: string, modelOverride?: string | null) {
   // This does not alter provider selection or weaken existing firm privacy policy.
   let benchmarkModel: string | null = null;
   if (process.env.TSIDEK_AI_BENCHMARK_ROUTING_ENABLED === "true" && !modelOverride) {
-    benchmarkModel = selectAiRoute({
-      product: "TSIDKENU", task: "legal", sensitivity: "public",
-      approvedExternalProcessing: true, availableProviders: ["openrouter"],
-    }).model;
+    benchmarkModel = recommendedModelForTask("legal");
   }
   const model = modelOverride || process.env.TSIDEK_OPENROUTER_MODEL || benchmarkModel || "openrouter/free";
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
