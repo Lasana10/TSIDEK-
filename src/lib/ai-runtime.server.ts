@@ -246,7 +246,7 @@ export async function runGovernedAi(input: AiRuntimeRequest): Promise<AiRuntimeR
           && input.taskType === "public_legal_research"
           && !input.matterId
           && !(input.sourceDocumentIds?.length)
-          ? await (async () => { const shared = await callSharedAiCoreForFirm({firmId:input.scope.firmId,task:"legal",sensitivity:"public",prompt:input.prompt});return {output:shared.output,model:shared.model}; })()
+          ? await (async () => { const shared = await callSharedAiCoreForFirm({firmId:input.scope.firmId!,task:"legal",sensitivity:"public",prompt:input.prompt});return {output:shared.output,model:shared.model}; })()
           : await runOpenRouter(input.prompt, route.model)
         : await runLocal(input.prompt, profile?.local_ai_base_url ?? null, route.model);
     model = response.model;
