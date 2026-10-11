@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import {callSharedAiCoreForFirm} from "@/lib/ai-core/shared-gateway.server";
 import { recommendedModelForTask } from "@/lib/ai-core/routing";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
@@ -240,7 +241,13 @@ export async function runGovernedAi(input: AiRuntimeRequest): Promise<AiRuntimeR
     const response = provider === "gemini"
       ? await runGemini(input.prompt, route.model)
       : provider === "openrouter"
-        ? await runOpenRouter(input.prompt, route.model)
+        ? process.env.TSIDEK_AI_CORE_ENABLED === "true"
+          && profile?.ai_privacy_mode === "cloud_allowed"
+          && input.taskType === "public_legal_research"
+          && !input.matterId
+          && !(input.sourceDocumentIds?.length)
+          ? await (async () => { const shared = await callSharedAiCoreForFirm({firmId:input.scope.firmId!,task:"legal",sensitivity:"public",prompt:input.prompt});return {output:shared.output,model:shared.model}; })()
+          : await runOpenRouter(input.prompt, route.model)
         : await runLocal(input.prompt, profile?.local_ai_base_url ?? null, route.model);
     model = response.model;
     const responseHash = sha256(response.output);
