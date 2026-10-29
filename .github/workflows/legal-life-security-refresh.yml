@@ -1,0 +1,47 @@
+name: TSIDEK Branch Security Refresh
+
+on:
+  push:
+    branches:
+      - feat/personal-legal-life-workspace-20261029
+    paths:
+      - .github/workflows/legal-life-security-refresh.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/personal-legal-life-workspace-20261029
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Refresh patched Next.js and production transitive dependencies
+        run: |
+          npm install next@16.4.3 --save-exact
+          npm install eslint-config-next@16.4.3 --save-dev --save-exact
+          npm audit fix --omit=dev
+          npm install
+      - name: Verify lockfile and production vulnerability gate
+        run: |
+          npm ci
+          npm audit --omit=dev --audit-level=high
+      - name: Verify lint and build
+        run: |
+          npm run lint
+          npm run build
+      - name: Commit verified dependency files to feature branch
+        run: |
+          if git diff --quiet -- package.json package-lock.json; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "Refresh security-patched Next.js dependencies"
+          git push origin HEAD:feat/personal-legal-life-workspace-20261029
