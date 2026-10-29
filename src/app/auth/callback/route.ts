@@ -4,7 +4,8 @@ import { createServerAuthClient, getLawyerProfileByUserId } from "@/lib/supabase
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const redirectTo = url.searchParams.get("next") ?? "/";
+  const next = url.searchParams.get("next");
+  const redirectTo = next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/auth") && !next.includes("\\") ? next : "/workspace";
 
   if (!code) {
     return NextResponse.redirect(new URL("/auth?error=missing_code", url.origin));
@@ -28,7 +29,7 @@ export async function GET(request: Request) {
 
   if (user) {
     const lawyer = await getLawyerProfileByUserId(user.id);
-    if (!lawyer) {
+    if (!lawyer && redirectTo !== "/me") {
       return NextResponse.redirect(new URL("/onboarding", url.origin));
     }
   }
