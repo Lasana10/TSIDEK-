@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { LogOut, ShieldCheck, UserRound } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 
@@ -99,6 +100,7 @@ export default function AuthSessionPill() {
           {session.actorRole} {session.userEmail ? `• ${session.userEmail}` : ""}
         </p>
       </div>
+      <Link href="/me" className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-900 hover:bg-emerald-100">My Legal Life</Link>
       <button
         onClick={() => void signOut()}
         disabled={busy}
