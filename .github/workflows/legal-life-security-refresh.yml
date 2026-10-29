@@ -26,7 +26,6 @@ jobs:
       - name: Refresh patched Next.js and production transitive dependencies
         run: |
           npm install next@16.4.3 --save-exact
-          npm install eslint-config-next@16.4.3 --save-dev --save-exact
           npm audit fix --omit=dev
           npm install
       - name: Verify lockfile and production vulnerability gate
