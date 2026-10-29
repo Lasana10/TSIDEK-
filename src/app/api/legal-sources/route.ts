@@ -125,12 +125,22 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const scope = await resolveRequestScope(request);
+    // Reject unauthenticated requests before any upload parsing or outbound fetch.
+    if (!scope.authenticated || scope.source !== "auth-user") {
+      return NextResponse.json({ success: false, error: "Authentication required." }, { status: 401 });
+    }
+    await assertFirmPermission({ scope, permission: "manageEvidence" });
     const contentType = request.headers.get("content-type") || "";
+    const declaredSize = Number(request.headers.get("content-length"));
+    if (declaredSize > MAX_REMOTE_SOURCE_BYTES + 1024 * 1024) {
+      return NextResponse.json({ success: false, error: "Upload exceeds the maximum accepted size." }, { status: 413 });
+    }
 
     if (contentType.includes("multipart/form-data")) {
       const form = await request.formData();
       const file = form.get("file");
       if (!(file instanceof File) || !file.size) return NextResponse.json({ success: false, error: "Choose a legal source file." }, { status: 400 });
+      if (file.size > MAX_REMOTE_SOURCE_BYTES) return NextResponse.json({ success: false, error: "Uploaded legal source exceeds 8 MB." }, { status: 413 });
       const title = String(form.get("title") || file.name).trim();
       if (!title) return NextResponse.json({ success: false, error: "Title is required." }, { status: 400 });
       const publisher = String(form.get("publisher") || "Firm-controlled source").trim();
