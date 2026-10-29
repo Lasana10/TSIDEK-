@@ -36,7 +36,11 @@ export async function POST(request:Request){
   if(body.action==="profile"){
    const name=String(body.displayName??"").trim(), profession=String(body.profession??"unspecified"),lang=String(body.language??"en");
    if(!name||name.length>120||!PROFESSIONS.has(profession)||!["en","fr"].includes(lang))return invalid("Invalid profile.");
-   const result=await c.db.from("tsidek_personal_profiles").upsert({user_id:c.user.id,display_name:name,profession_claim:profession,preferred_language:lang,updated_at:new Date().toISOString()},{onConflict:"user_id"}).select("display_name,profession_claim,preferred_language").single();
+   const existing=await c.db.from("tsidek_personal_profiles").select("user_id").eq("user_id",c.user.id).maybeSingle();
+   if(existing.error)throw new Error(existing.error.message);
+   const result=existing.data
+     ? await c.db.from("tsidek_personal_profiles").update({display_name:name,profession_claim:profession,preferred_language:lang,updated_at:new Date().toISOString()}).eq("user_id",c.user.id).select("display_name,profession_claim,preferred_language").single()
+     : await c.db.from("tsidek_personal_profiles").insert({user_id:c.user.id,display_name:name,profession_claim:profession,preferred_language:lang}).select("display_name,profession_claim,preferred_language").single();
    if(result.error)throw new Error(result.error.message);
    return json({success:true,profile:result.data});
   }
