@@ -139,6 +139,7 @@ export default function AuthPage() {
             <p className="text-[10px] font-black uppercase tracking-[.26em] text-[#0b493b]">Authentication</p>
             <h2 className="mt-3 text-3xl font-semibold tracking-[-.03em] text-slate-950 sm:text-4xl">Enter your TSIDKENU workspace.</h2>
             <p className="mt-4 text-sm leading-7 text-slate-500">Use founder direct access while email delivery is not in use. Normal firm users can continue using secure email links once outbound mail is enabled.</p>
+            <a href="/auth?redirectTo=%2Fme" className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-900 hover:bg-emerald-100">Independent professional? Open your personal Legal Life account <ArrowRight className="h-3.5 w-3.5" /></a>
 
             <div className="mt-8 rounded-[1.5rem] border border-[#cfded8] bg-[#f4f8f6] p-4 sm:p-5">
               <div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-[#07372d] text-white"><KeyRound className="h-4 w-4" /></div><div><p className="text-sm font-bold text-slate-950">Founder direct access</p><p className="mt-0.5 text-xs text-slate-500">No email round-trip. Server-authorized founder account only.</p></div></div>
