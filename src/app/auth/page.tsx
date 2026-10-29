@@ -23,7 +23,7 @@ type FounderAccessPayload = {
 };
 
 function safeRedirectTarget(value: string | null) {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/auth")) return "/workspace";
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/auth") || value.includes("\\")) return "/workspace";
   return value;
 }
 
@@ -53,9 +53,9 @@ export default function AuthPage() {
       if (!response.ok) throw new Error("Unable to resolve your TSIDKENU session.");
       const payload = await response.json() as SessionPayload;
       if (!payload.authenticated) return;
-      if (payload.needsOnboarding) { router.replace("/onboarding"); return; }
+      if (payload.needsOnboarding) { router.replace(safeRedirectTarget(redirectTarget) === "/me" ? "/me" : "/onboarding"); return; }
       const ready = Boolean(payload.activeFirmId && payload.firmId && payload.actorRole && (payload.memberships?.length ?? 0) > 0);
-      if (!ready) { setError("Your identity is verified, but the active firm context is incomplete."); return; }
+      if (!ready && safeRedirectTarget(redirectTarget) !== "/me") { setError("Your identity is verified, but the active firm context is incomplete."); return; }
       router.replace(safeRedirectTarget(redirectTarget));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to resolve your TSIDKENU session.");
