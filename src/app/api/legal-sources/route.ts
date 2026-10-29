@@ -6,6 +6,51 @@ import { ingestLegalTextSource, listLegalSources } from "@/lib/legal-ingestion.s
 import { resolveRequestScope } from "@/lib/request-scope";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
+const TRUSTED_SOURCE_HOSTS = new Set([
+  "ohada.org", "www.ohada.org",
+  "oapi.int", "www.oapi.int",
+  "wipo.int", "www.wipo.int",
+  "prc.cm", "www.prc.cm",
+]);
+const MAX_REMOTE_SOURCE_BYTES = 8 * 1024 * 1024;
+
+function trustedLegalSourceUrl(raw: string): URL {
+  let url: URL;
+  try { url = new URL(raw); } catch { throw new Error("A valid official legal-source URL is required."); }
+  if (url.protocol !== "https:" || url.username || url.password || url.port || !TRUSTED_SOURCE_HOSTS.has(url.hostname.toLowerCase())) {
+    throw new Error("Remote collection is restricted to reviewed official HTTPS hosts. Upload other lawful source files instead.");
+  }
+  return url;
+}
+
+async function fetchTrustedLegalSource(raw: string): Promise<{bytes: Buffer; mime: string; finalUrl: string}> {
+  const url = trustedLegalSourceUrl(raw);
+  const response = await fetch(url, {
+    redirect: "error", cache: "no-store", signal: AbortSignal.timeout(15000),
+    headers: { "User-Agent": "TSIDKENU-LawBank/1.0" },
+  });
+  if (!response.ok) throw new Error(`Official source retrieval failed with HTTP ${response.status}. Redirecting URLs must be reviewed separately.`);
+  const declared = Number(response.headers.get("content-length"));
+  if (declared && declared > MAX_REMOTE_SOURCE_BYTES) throw new Error("Remote legal source exceeds the 8 MB ingestion limit.");
+  if (!response.body) throw new Error("Remote source response is empty.");
+  const reader = response.body.getReader();
+  const parts: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const {done,value} = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_REMOTE_SOURCE_BYTES) {
+        await reader.cancel();
+        throw new Error("Remote legal source exceeds the 8 MB ingestion limit.");
+      }
+      parts.push(value);
+    }
+  } finally { reader.releaseLock(); }
+  return {bytes:Buffer.concat(parts.map(p=>Buffer.from(p))),mime:response.headers.get("content-type") || "application/octet-stream",finalUrl:response.url};
+}
+
 function sha256(value: Buffer | string) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -116,18 +161,14 @@ export async function POST(request: Request) {
 
     if (mode === "url") {
       const sourceUrl = String(body.sourceUrl ?? "").trim();
-      if (!/^https?:\/\//i.test(sourceUrl)) return NextResponse.json({ success: false, error: "A valid http(s) source URL is required." }, { status: 400 });
-      const response = await fetch(sourceUrl, { redirect: "follow", headers: { "User-Agent": "TSIDKENU-LawBank/1.0" } });
-      if (!response.ok) throw new Error(`Source retrieval failed with HTTP ${response.status}.`);
-      const mime = response.headers.get("content-type") || "application/octet-stream";
-      const bytes = Buffer.from(await response.arrayBuffer());
+      const { bytes, mime, finalUrl } = await fetchTrustedLegalSource(sourceUrl);
       if (mime.includes("text/") || mime.includes("json") || mime.includes("xml") || mime.includes("html")) {
         const raw = bytes.toString("utf8");
         const text = mime.includes("html") || mime.includes("xml") ? stripHtml(raw) : raw;
-        const result = await ingestLegalTextSource({ scope, publisher, jurisdiction, documentType, title, text, sourceUrl, canonicalUri: body.canonicalUri ? String(body.canonicalUri) : sourceUrl, language, versionLabel: body.versionLabel ? String(body.versionLabel) : null, validFrom: body.validFrom ? String(body.validFrom) : null, validUntil: body.validUntil ? String(body.validUntil) : null, provenance: { intake: "official_url", fetchedAt: new Date().toISOString(), mimeType: mime, finalUrl: response.url } });
+        const result = await ingestLegalTextSource({ scope, publisher, jurisdiction, documentType, title, text, sourceUrl, canonicalUri: body.canonicalUri ? String(body.canonicalUri) : sourceUrl, language, versionLabel: body.versionLabel ? String(body.versionLabel) : null, validFrom: body.validFrom ? String(body.validFrom) : null, validUntil: body.validUntil ? String(body.validUntil) : null, provenance: { intake: "official_url", fetchedAt: new Date().toISOString(), mimeType: mime, finalUrl } });
         return NextResponse.json({ success: true, ...result, mode: "indexed" }, { status: result.duplicate ? 200 : 201 });
       }
-      const result = await registerBinarySource({ scope, title, publisher, jurisdiction, documentType, language, sourceUrl, canonicalUri: body.canonicalUri ? String(body.canonicalUri) : sourceUrl, versionLabel: body.versionLabel ? String(body.versionLabel) : null, validFrom: body.validFrom ? String(body.validFrom) : null, validUntil: body.validUntil ? String(body.validUntil) : null, checksum: sha256(bytes), provenance: { intake: "official_url", fetchedAt: new Date().toISOString(), mimeType: mime, finalUrl: response.url, sizeBytes: bytes.length } });
+      const result = await registerBinarySource({ scope, title, publisher, jurisdiction, documentType, language, sourceUrl, canonicalUri: body.canonicalUri ? String(body.canonicalUri) : sourceUrl, versionLabel: body.versionLabel ? String(body.versionLabel) : null, validFrom: body.validFrom ? String(body.validFrom) : null, validUntil: body.validUntil ? String(body.validUntil) : null, checksum: sha256(bytes), provenance: { intake: "official_url", fetchedAt: new Date().toISOString(), mimeType: mime, finalUrl, sizeBytes: bytes.length } });
       return NextResponse.json({ success: true, ...result, mode: "pending_extraction" }, { status: result.duplicate ? 200 : 201 });
     }
 
