@@ -26,6 +26,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Session authorization regression tests
+        run: npm run test:auth-contract
+
       - name: Lint
         run: npm run lint
 
