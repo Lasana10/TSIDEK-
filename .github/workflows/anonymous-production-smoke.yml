@@ -1,0 +1,20 @@
+name: TSIDEK deployed anonymous API smoke
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "43 6 * * 1-5"
+permissions:
+  contents: read
+jobs:
+  anonymous-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify deployed negative-path responses
+        env:
+          TSIDEK_E2E_BASE_URL: https://tsidek-os.onrender.com
+        run: node scripts/anonymous-production-smoke.mjs
