@@ -7,6 +7,7 @@ declare
   v_firm uuid;
   v_actor uuid;
   v_prospect uuid;
+  v_blocked uuid;
   v_first jsonb;
   v_retry jsonb;
   v_matter uuid;
@@ -50,6 +51,18 @@ begin
     or (select matter_id from public.prospects where id=v_prospect) is distinct from v_matter
     or (select matter_id from public.matter_opening_checklists where prospect_id=v_prospect) is distinct from v_matter then
     raise exception 'Matter opening did not connect all required records exactly once.';
+  end if;
+  insert into public.prospects(firm_id,prospect_name,matter_summary,proposed_matter_type)
+  values(v_firm,'TSIDEK BLOCKED ROLLBACK FIXTURE','Synthetic blocked assessment.','Advisory')
+  returning id into v_blocked;
+  begin
+    perform public.tsidek_open_matter_from_intake(v_firm,v_blocked,v_actor);
+    raise exception 'Opening bypassed conflict and KYC gates.';
+  exception when others then
+    if sqlerrm <> 'Matter opening controls are missing.' then raise; end if;
+  end;
+  if (select matter_id from public.prospects where id=v_blocked) is not null then
+    raise exception 'Blocked assessment was converted.';
   end if;
   raise notice 'Atomic intake acceptance passed within rollback transaction.';
 end;

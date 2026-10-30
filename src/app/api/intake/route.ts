@@ -24,6 +24,12 @@ function parseMatches(value: unknown) {
   if (!value || typeof value !== "string") return [];
   try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
 }
+function intakeErrorStatus(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  if (/Active firm authority/i.test(message)) return 403;
+  if (/Conflict review|KYC\/compliance review|Engagement approval|opening controls|responsible lawyer|deadline review|opening file structure/i.test(message)) return 409;
+  return statusForApiError(error);
+}
 
 export async function GET(request: Request) {
   try {
@@ -150,6 +156,8 @@ export async function POST(request: Request) {
     }
     if (action === "openMatter") {
       await assertFirmPermission({ scope, permission: "openMatters" });
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(prospectId))
+        return NextResponse.json({ success: false, error: "A valid assessment ID is required." }, { status: 400 });
       const actorId = requireActorLawyer(scope);
       const supabase = createServerSupabaseClient();
       if (!supabase) throw new Error("Supabase server configuration is required for matter opening.");
@@ -164,6 +172,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: false, error: "Unsupported intake action." }, { status: 400 });
   } catch (error) {
-    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Unable to process intake." }, { status: statusForApiError(error) });
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Unable to process intake." }, { status: intakeErrorStatus(error) });
   }
 }
