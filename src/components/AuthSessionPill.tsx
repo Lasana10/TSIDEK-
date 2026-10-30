@@ -85,6 +85,8 @@ export default function AuthSessionPill() {
             Personal account {session.userEmail ? `• ${session.userEmail}` : ""}
           </p>
         </div>
+        <Link href="/me" className="rounded-full border border-amber-300 bg-white px-3 py-2 text-[10px] font-bold text-amber-900">Open Legal Life</Link>
+        <button onClick={() => void signOut()} disabled={busy} className="rounded-full border border-amber-300 px-3 py-2 text-[10px] font-bold text-amber-900 disabled:opacity-50">Sign out</button>
       </div>
     );
   }
