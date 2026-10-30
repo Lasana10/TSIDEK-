@@ -82,7 +82,7 @@ export default function AuthSessionPill() {
         <div className="min-w-0">
           <p className="truncate text-xs font-semibold text-amber-900">{session.actorName}</p>
           <p className="truncate text-[10px] uppercase tracking-[0.18em] text-amber-700">
-            Setup required {session.userEmail ? `• ${session.userEmail}` : ""}
+            Personal account {session.userEmail ? `• ${session.userEmail}` : ""}
           </p>
         </div>
       </div>

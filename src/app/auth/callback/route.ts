@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerAuthClient, getLawyerProfileByUserId } from "@/lib/supabase-auth";
+import { createServerAuthClient, getFirmContextByUserId } from "@/lib/supabase-auth";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -28,10 +28,8 @@ export async function GET(request: Request) {
   } = await supabase.auth.getUser();
 
   if (user) {
-    const lawyer = await getLawyerProfileByUserId(user.id);
-    if (!lawyer && redirectTo !== "/me") {
-      return NextResponse.redirect(new URL("/onboarding", url.origin));
-    }
+    const context = await getFirmContextByUserId(user.id, supabase);
+    if (!context.membership && redirectTo !== "/me") return NextResponse.redirect(new URL("/me", url.origin));
   }
 
   return NextResponse.redirect(new URL(redirectTo, url.origin));

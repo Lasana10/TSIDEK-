@@ -24,7 +24,7 @@ export async function GET(){
   const [profile,items,memberships]=await Promise.all([
    c.db.from("tsidek_personal_profiles").select("display_name,profession_claim,preferred_language").eq("user_id",c.user.id).maybeSingle(),
    c.db.from("tsidek_personal_items").select("id,kind,title,body,status,due_at,created_at,updated_at").eq("owner_id",c.user.id).order("updated_at",{ascending:false}).limit(100),
-   c.db.from("firm_memberships").select("firm_id,role_key,title").eq("user_id",c.user.id).eq("status","active")
+   c.db.from("firm_memberships").select("firm_id,role_key,title,firms(name)").eq("user_id",c.user.id).eq("status","active")
   ]);
   if(profile.error||items.error||memberships.error)throw new Error(profile.error?.message??items.error?.message??memberships.error?.message);
   return json({success:true,email:c.user.email??null,profile:profile.data,items:items.data??[],firmMemberships:memberships.data??[],authorityVerified:false});
