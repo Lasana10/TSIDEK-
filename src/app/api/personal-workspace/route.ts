@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isMissingAuthSession } from "@/lib/auth-session-error";
 import { createServerAuthClient } from "@/lib/supabase-auth";
 
 const HEADERS = { "Cache-Control": "private, no-store, max-age=0", Pragma: "no-cache" };
@@ -12,7 +13,7 @@ async function context(){
  const db=await createServerAuthClient();
  if(!db)return null;
  const {data,error}=await db.auth.getUser();
- if(error)throw new Error("Session validation failed.");
+ if(error && !isMissingAuthSession(error))throw new Error("Session validation failed.");
  return data.user?{db,user:data.user}:null;
 }
 function failure(error:unknown){return json({success:false,error:error instanceof Error?error.message:"Personal workspace operation failed."},500);}
