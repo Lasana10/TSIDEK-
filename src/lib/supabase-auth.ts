@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { isMissingAuthSession } from "@/lib/auth-session-error";
 import { createServerClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseBrowserUrl, getSupabasePublishableKey, isSupabaseBrowserConfigReady } from "@/lib/supabase-config";
@@ -129,7 +130,7 @@ export async function getAuthenticatedUser() {
   if (!supabase) return null;
 
   const { data: { user }, error } = await supabase.auth.getUser();
-  if (error) throw new Error(error.message);
+  if (error && !isMissingAuthSession(error)) throw new Error(error.message);
   if (!user) return null;
 
   const [lawyer, firmContext] = await Promise.all([
