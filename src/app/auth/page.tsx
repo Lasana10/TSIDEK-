@@ -36,11 +36,11 @@ export default function AuthPage() {
   const [submitting, setSubmitting] = useState(false);
   const [founderSubmitting, setFounderSubmitting] = useState(false);
   const [resolvingSession, setResolvingSession] = useState(true);
-  const [redirectTarget, setRedirectTarget] = useState("/workspace");
+  const [redirectTarget, setRedirectTarget] = useState("/me");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setRedirectTarget(safeRedirectTarget(params.get("redirectTo")));
+    setRedirectTarget(params.has("redirectTo") ? safeRedirectTarget(params.get("redirectTo")) : "/me");
     const message = params.get("error");
     if (message) setError(message);
   }, []);
@@ -55,7 +55,7 @@ export default function AuthPage() {
       if (!payload.authenticated) return;
       if (payload.needsOnboarding) { router.replace(safeRedirectTarget(redirectTarget) === "/me" ? "/me" : "/onboarding"); return; }
       const ready = Boolean(payload.activeFirmId && payload.firmId && payload.actorRole && (payload.memberships?.length ?? 0) > 0);
-      if (!ready && safeRedirectTarget(redirectTarget) !== "/me") { setError("Your identity is verified, but the active firm context is incomplete."); return; }
+      if (!ready && safeRedirectTarget(redirectTarget) !== "/me") { router.replace("/me"); return; }
       router.replace(safeRedirectTarget(redirectTarget));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to resolve your TSIDKENU session.");
@@ -106,7 +106,7 @@ export default function AuthPage() {
 
       setFounderCode("");
       setStatus("Founder session established. Opening workspace…");
-      await continueIfSignedIn();
+      window.location.assign("/workspace");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to establish founder access.");
     } finally {
@@ -138,7 +138,7 @@ export default function AuthPage() {
           <div className="mx-auto w-full max-w-lg">
             <p className="text-[10px] font-black uppercase tracking-[.26em] text-[#0b493b]">Authentication</p>
             <h2 className="mt-3 text-3xl font-semibold tracking-[-.03em] text-slate-950 sm:text-4xl">Enter your TSIDKENU workspace.</h2>
-            <p className="mt-4 text-sm leading-7 text-slate-500">Use founder direct access while email delivery is not in use. Normal firm users can continue using secure email links once outbound mail is enabled.</p>
+            <p className="mt-4 text-sm leading-7 text-slate-500">Use your email link for a personal account or an authorized firm membership. Founder direct access is available to the configured founder account.</p>
             <a href="/auth?redirectTo=%2Fme" className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-900 hover:bg-emerald-100">Independent professional? Open your personal Legal Life account <ArrowRight className="h-3.5 w-3.5" /></a>
 
             <div className="mt-8 rounded-[1.5rem] border border-[#cfded8] bg-[#f4f8f6] p-4 sm:p-5">

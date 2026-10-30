@@ -29,11 +29,11 @@ export async function GET() {
       }, { status: 401 });
     }
 
-    if (!identity.lawyer && !identity.membership) {
+    if (!identity.membership) {
       return jsonNoStore({
         authenticated: true,
         authConfigured: isSupabaseAuthConfigured(),
-        contextStatus: "onboarding",
+        contextStatus: "personal",
         needsOnboarding: true,
         actorName: identity.user.user_metadata?.full_name ?? identity.user.email ?? "Authenticated user",
         actorRole: null,
@@ -45,7 +45,7 @@ export async function GET() {
     }
 
     const membership = identity.membership as { firm_id?: string | null; role_key?: string | null; title?: string | null } | null;
-    const firmId = membership?.firm_id ?? identity.lawyer?.firm_id ?? null;
+    const firmId = membership?.firm_id ?? null;
     const actorRole = membership?.role_key ?? membership?.title ?? identity.lawyer?.role ?? null;
     const contextReady = Boolean(firmId && identity.activeFirmId && actorRole && identity.memberships.length > 0);
 
