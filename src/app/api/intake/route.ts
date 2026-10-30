@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { assertFirmModule, assertFirmPermission } from "@/lib/authorization";
 import { statusForApiError } from "@/lib/api-errors";
-import { recordMatterEvent } from "@/lib/matter-events.server";
-import { createMatterWorkspaceServer } from "@/lib/matters.server";
 import { resolveRequestScope } from "@/lib/request-scope";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import {
@@ -25,6 +23,12 @@ function requireActorLawyer(scope: Awaited<ReturnType<typeof resolveRequestScope
 function parseMatches(value: unknown) {
   if (!value || typeof value !== "string") return [];
   try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+}
+function intakeErrorStatus(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  if (/Active firm authority/i.test(message)) return 403;
+  if (/Conflict review|KYC\/compliance review|Engagement approval|opening controls|responsible lawyer|deadline review|opening file structure/i.test(message)) return 409;
+  return statusForApiError(error);
 }
 
 export async function GET(request: Request) {
@@ -152,60 +156,22 @@ export async function POST(request: Request) {
     }
     if (action === "openMatter") {
       await assertFirmPermission({ scope, permission: "openMatters" });
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(prospectId))
+        return NextResponse.json({ success: false, error: "A valid assessment ID is required." }, { status: 400 });
+      const actorId = requireActorLawyer(scope);
       const supabase = createServerSupabaseClient();
       if (!supabase) throw new Error("Supabase server configuration is required for matter opening.");
-      const [prospectResult, checklistResult, conflictResult, engagementResult, kycResult] = await Promise.all([
-        supabase.from("prospects").select("*").eq("id", prospectId).eq("firm_id", firmId).single(),
-        supabase.from("matter_opening_checklists").select("*").eq("prospect_id", prospectId).eq("firm_id", firmId).single(),
-        supabase.from("conflict_checks").select("status,decision_reason").eq("prospect_id", prospectId).eq("firm_id", firmId).single(),
-        supabase.from("engagements").select("approval_status,scope_of_work,fee_model").eq("prospect_id", prospectId).eq("firm_id", firmId).single(),
-        supabase.from("prospect_kyc_reviews").select("id,status,risk_rating,reviewed_at").eq("prospect_id", prospectId).eq("firm_id", firmId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-      ]);
-      if (prospectResult.error || !prospectResult.data) throw new Error("Assessment not found.");
-      if (checklistResult.error || !checklistResult.data) throw new Error("Matter opening controls are missing.");
-      if (conflictResult.data?.status !== "Cleared" && conflictResult.data?.status !== "Waived") throw new Error("Conflict review must be cleared or formally waived before opening the matter.");
-      if (kycResult.error) throw new Error(kycResult.error.message);
-      if (kycResult.data?.status !== "cleared") throw new Error("KYC/compliance review must be cleared before opening the matter. Open the KYC review, complete the checks, and record a clearance decision.");
-      if (engagementResult.data?.approval_status !== "Approved") throw new Error("Engagement approval is required before opening the matter.");
-      if (!checklistResult.data.responsible_lawyer_assigned || !checklistResult.data.responsible_lawyer_id) throw new Error("Assign the responsible lawyer in Opening controls before opening the matter.");
-      if (!checklistResult.data.initial_deadline_reviewed) throw new Error("Record the initial deadline or timing review in Opening controls before opening the matter.");
-      if (!checklistResult.data.opening_documents_ready) throw new Error("Confirm that the opening file/document structure is ready before opening the matter.");
-      if (prospectResult.data.matter_id) return NextResponse.json({ success: true, matterId: prospectResult.data.matter_id }, { status: 200 });
-
-      const matter = await createMatterWorkspaceServer({
-        title: `${prospectResult.data.prospect_name} - ${prospectResult.data.proposed_matter_type || "Legal matter"}`,
-        clientName: prospectResult.data.prospect_name,
-        matterType: prospectResult.data.proposed_matter_type || "General legal matter",
-        jurisdiction: prospectResult.data.jurisdiction || "Cameroon",
-        riskLevel: conflictResult.data?.status === "Waived" || kycResult.data.risk_rating === "high" ? "High" : prospectResult.data.risk_level || "Medium",
-        status: "Active",
-        synopsis: prospectResult.data.matter_summary || "Matter opened from assessment.",
-        primaryTrack: "Matter opening and first working plan",
-        riskToMonitor: checklistResult.data.initial_deadline_notes?.trim() || "Initial deadline review completed; continue procedural monitoring.",
-        aiUsageRule: "AI suggestions require human review and matter confidentiality policy applies.",
-        nextDraft: "Opening memorandum",
-        leadLawyerId: checklistResult.data.responsible_lawyer_id,
-      }, scope);
-      if (!matter) throw new Error("Unable to create matter.");
-      const now = new Date().toISOString();
-
-      const writes = await Promise.all([
-        supabase.from("prospects").update({ status: "Converted", matter_id: matter.id, updated_at: now }).eq("id", prospectId).eq("firm_id", firmId),
-        supabase.from("matter_opening_checklists").update({ kyc_complete: true, status: "Completed", matter_id: matter.id, updated_at: now }).eq("prospect_id", prospectId).eq("firm_id", firmId),
-        supabase.from("tasks").insert({ matter_id: matter.id, title: "Opening review and first action plan", description: checklistResult.data.initial_deadline_notes?.trim() || "Confirm chronology, deadlines, immediate responsibilities and next client update.", deadline: null, assigned_to: checklistResult.data.responsible_lawyer_id, status: "Open", is_completed: false }),
-        supabase.from("documents").insert({ matter_id: matter.id, uploaded_by: scope.actorLawyerId, title: "Matter Opening Memorandum", document_type: "Opening memorandum", status: "Draft", review_status: "Working", access_level: "Lead+Partner", sharing_policy: "Internal only", version_label: "v1", source_kind: "Generated from intake", ai_summary: prospectResult.data.matter_summary || "Opening memorandum record created from approved assessment.", requires_compliance_audit: true }),
-        prospectResult.data.primary_party_id ? supabase.from("parties").update({ client_status: "client", updated_by: scope.actorLawyerId, updated_at: now }).eq("id", prospectResult.data.primary_party_id).eq("firm_id", firmId) : Promise.resolve({ error: null }),
-        prospectResult.data.primary_party_id ? supabase.from("matter_parties").upsert({ firm_id: firmId, matter_id: matter.id, party_id: prospectResult.data.primary_party_id, relationship_type: "client", relationship_detail: "Primary client from intake", is_primary: true }, { onConflict: "matter_id,party_id,relationship_type" }) : Promise.resolve({ error: null }),
-        supabase.from("intake_decision_events").insert({ firm_id: firmId, prospect_id: prospectId, matter_id: matter.id, actor_id: scope.actorLawyerId, event_type: "matter_opened", status: "completed", notes: "Matter opened after conflict, KYC and engagement gates were satisfied.", metadata: { matter_id: matter.id } }),
-      ]);
-      for (const result of writes) if ((result as any)?.error) throw new Error((result as any).error.message);
-
-      await recordMatterEvent({ firmId, matterId: matter.id, eventType: "MATTER_OPENED", title: "Matter opened from governed intake", details: "Conflict, KYC, engagement, responsible lawyer, deadline review and document readiness gates were satisfied.", actorName: scope.actorName || "Firm user", actorRole: scope.actorRole || "firm_member" });
-      return NextResponse.json({ success: true, matterId: matter.id }, { status: 201 });
+      const result = await supabase.rpc("tsidek_open_matter_from_intake", {
+        p_firm_id: firmId, p_prospect_id: prospectId, p_actor_id: actorId,
+      });
+      if (result.error) throw new Error(result.error.message);
+      const opening = result.data as { matterId: string; created: boolean } | null;
+      if (!opening?.matterId) throw new Error("Matter opening did not return a case reference.");
+      return NextResponse.json({ success: true, matterId: opening.matterId }, { status: opening.created ? 201 : 200 });
     }
 
     return NextResponse.json({ success: false, error: "Unsupported intake action." }, { status: 400 });
   } catch (error) {
-    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Unable to process intake." }, { status: statusForApiError(error) });
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Unable to process intake." }, { status: intakeErrorStatus(error) });
   }
 }
