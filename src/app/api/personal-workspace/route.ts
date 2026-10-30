@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isMissingAuthSession } from "@/lib/auth-session-error";
 import { createServerAuthClient } from "@/lib/supabase-auth";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 const HEADERS = { "Cache-Control": "private, no-store, max-age=0", Pragma: "no-cache" };
 const PROFESSIONS = new Set(["unspecified","lawyer","bailiff","magistrate","clerk","paralegal","student","client","other"]);
@@ -24,10 +25,17 @@ export async function GET(){
   const [profile,items,memberships]=await Promise.all([
    c.db.from("tsidek_personal_profiles").select("display_name,profession_claim,preferred_language").eq("user_id",c.user.id).maybeSingle(),
    c.db.from("tsidek_personal_items").select("id,kind,title,body,status,due_at,created_at,updated_at").eq("owner_id",c.user.id).order("updated_at",{ascending:false}).limit(100),
-   c.db.from("firm_memberships").select("firm_id,role_key,title,firms(name)").eq("user_id",c.user.id).eq("status","active")
+   c.db.from("firm_memberships").select("firm_id,role_key,title").eq("user_id",c.user.id).eq("status","active")
   ]);
   if(profile.error||items.error||memberships.error)throw new Error(profile.error?.message??items.error?.message??memberships.error?.message);
-  return json({success:true,email:c.user.email??null,profile:profile.data,items:items.data??[],firmMemberships:memberships.data??[],authorityVerified:false});
+  const firmIds=[...new Set((memberships.data??[]).map(m=>m.firm_id))];
+  const admin=firmIds.length?createServerSupabaseClient():null;
+  if(firmIds.length&&!admin)throw new Error("Firm directory is unavailable.");
+  const firms=admin?await admin.from("firms").select("id,name").in("id",firmIds):{data:[],error:null};
+  if(firms.error)throw new Error(firms.error.message);
+  const names=new Map((firms.data??[]).map(f=>[f.id,f.name]));
+  const firmMemberships=(memberships.data??[]).map(m=>({...m,firmName:names.get(m.firm_id)??"Firm"}));
+  return json({success:true,email:c.user.email??null,profile:profile.data,items:items.data??[],firmMemberships,authorityVerified:false});
  }catch(error){return failure(error);}
 }
 export async function POST(request:Request){
