@@ -9,6 +9,7 @@
     "lint": "eslint",
     "providers:smoke": "node scripts/provider-smoke.mjs",
     "test:e2e:auth": "node scripts/authenticated-e2e.mjs",
+    "test:auth-contract": "node --experimental-strip-types --test scripts/auth-session-error.test.mjs",
     "launch:local": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\launch-tsidkenu-local.ps1",
     "stop:local": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\stop-tsidkenu.ps1"
   },
