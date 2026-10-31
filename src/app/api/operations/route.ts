@@ -63,6 +63,15 @@ export async function POST(request: Request) {
     const scope = await resolveRequestScope(request);
     const body = await request.json();
 
+    // Legacy paths could approve, dispatch or forge client acknowledgments without
+    // authenticated client portal evidence. Canonical matter/client routes own this
+    // lifecycle; fail closed instead of silently returning a fake delivery.
+    if (["dispatchClientUpdate","createClientUpdateDraft","approveClientUpdate","dispatchApprovedClientUpdate","acknowledgeClientUpdate"].includes(String(body.action))) {
+      return NextResponse.json({ success:false,
+        error:"Use the controlled matter client-delivery workflow and client portal acknowledgment.",
+      }, {status:409});
+    }
+
     switch (body.action) {
       case "chatMessage": {
         const matterId = await resolveMatterIdForOperation({
