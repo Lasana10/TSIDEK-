@@ -10,7 +10,8 @@ export async function GET(request:Request,{params}:Context){
   const scope=await resolveRequestScope(request);
   await assertFirmModule({scope,module:"finance"});
   await assertMatterPermission({scope,matterId,permission:"viewBilling"});
-  await assertMatterPermission({scope,matterId,permission:"manageEvidence"});
+  // Scoped billing authority includes access to payment proofs for assigned finance staff.
+ // General evidence and document permissions remain unchanged elsewhere.
   if(!scope.authenticated||scope.source!=="auth-user"||!scope.firmId)return NextResponse.json({success:false,error:"Authentication required."},{status:401});
   const db=createServerSupabaseClient();if(!db)throw new Error("Private vault not configured.");
   const matter=await db.from("matters").select("id").eq("id",matterId).eq("firm_id",scope.firmId).maybeSingle();

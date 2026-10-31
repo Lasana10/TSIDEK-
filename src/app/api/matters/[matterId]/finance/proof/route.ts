@@ -12,7 +12,8 @@ async function permitted(request:Request,matterId:string){
  const scope=await resolveRequestScope(request);
  await assertFirmModule({scope,module:"finance"});
  await assertMatterPermission({scope,matterId,permission:"viewBilling"});
- await assertMatterPermission({scope,matterId,permission:"manageEvidence"});
+ // Scoped billing authority includes access to payment proofs for assigned finance staff.
+ // General evidence and document permissions remain unchanged elsewhere.
  if(!scope.authenticated||scope.source!=="auth-user"||!scope.firmId||!scope.actorLawyerId)throw new Error("Authenticated member required.");
  const db=createServerSupabaseClient();
  if(!db)throw new Error("Private document storage unavailable.");
