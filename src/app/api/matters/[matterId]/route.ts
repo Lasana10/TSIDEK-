@@ -154,6 +154,10 @@ export async function POST(
       permission: requiredPermission ?? undefined,
       allowAnyMember: requiredPermission === null,
     });
+    if (body.action === "updateDocumentControl") {
+      return NextResponse.json({success:false,error:"Use the governed document review desk for approval, filing, archiving and client sharing."},{status:409});
+    }
+
     // Legacy matter-room finance writes bypassed the evidence, receipt and ledger
     // transaction. Block them until all callers use the canonical finance endpoint.
     if (["createPayment","createInvoice","updateInvoiceStatus"].includes(String(body.action))) {
