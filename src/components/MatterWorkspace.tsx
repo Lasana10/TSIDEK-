@@ -1281,7 +1281,7 @@ export default function MatterWorkspace({
     }
   }
 
-  async function updateDocumentControlRecord(input: {
+  async function updateDocumentControlRecord(_input: {
     documentId: string;
     documentStatus: "Draft" | "Final" | "Filed" | "Archived";
     reviewStatus: "Working" | "Internal review" | "Approved" | "Needs revision";
@@ -1290,40 +1290,11 @@ export default function MatterWorkspace({
     versionLabel: string;
     reviewNote: string;
   }) {
-    setDocumentBusyId(input.documentId);
     setRoomError(null);
-    try {
-      const response = await fetch(`/api/matters/${matter.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "updateDocumentControl",
-          documentId: input.documentId,
-          documentStatus: input.documentStatus,
-          reviewStatus: input.reviewStatus,
-          accessLevel: input.accessLevel,
-          sharingPolicy: input.sharingPolicy,
-          versionLabel: input.versionLabel.trim() || null,
-          reviewNote: input.reviewNote.trim() || null,
-        }),
-      });
-
-      if (!response.ok) {
-        const payload = (await response.json()) as { error?: string };
-        throw new Error(payload.error ?? "Unable to update document control");
-      }
-
-      const payload = (await response.json()) as { room?: MatterRoomData };
-      if (payload.room) {
-        setRoom(payload.room);
-      } else {
-        await refreshMatterRoom();
-      }
-    } catch (error) {
-      setRoomError(error instanceof Error ? error.message : "Unable to update document control.");
-    } finally {
-      setDocumentBusyId(null);
-    }
+    setRoomNotice("Document approvals, filing, archiving and client sharing now require the governed review desk.");
+    const target=document.getElementById("governed-document-review");
+    if(target) {target.closest("details")?.setAttribute("open","");target.scrollIntoView({behavior:"smooth",block:"start"});}
+    else window.location.href=`/matters/${matter.id}#governed-document-review`;
   }
 
   async function submitPhysicalFileUpdate() {

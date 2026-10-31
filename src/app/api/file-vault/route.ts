@@ -67,6 +67,12 @@ export async function POST(request: Request) {
       if (!matterId) return NextResponse.json({ success: false, error: "Matter ID is required." }, { status: 400 });
       const scope = await assertMatterScopeAccess(request, matterId);
       await assertMatterPermission({ scope, matterId, permission: "manageEvidence" });
+      if (!scope.authenticated || scope.source !== "auth-user") return NextResponse.json({ success:false,error:"Authenticated professional session required for permanent matter uploads." },{status:401});
+      const proposedStatus=String(formData.get("documentStatus")??"Draft");
+      const proposedReview=String(formData.get("reviewStatus")??"Working");
+      const proposedShare=String(formData.get("sharingPolicy")??"Internal only");
+      if(proposedStatus!=="Draft" || !["Working","Not reviewed"].includes(proposedReview) || proposedShare!=="Internal only")
+        return NextResponse.json({success:false,error:"Upload as a private draft, then use the governed review desk for approval, filing or client sharing."},{status:409});
       const stored = await persistUploadedFile({ file, relativeDirectory: getMatterDocumentRelativeDirectory(matterId) });
       let externalMirror: unknown = null;
       let externalMirrorError: string | null = null;
