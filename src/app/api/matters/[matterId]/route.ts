@@ -154,6 +154,16 @@ export async function POST(
       permission: requiredPermission ?? undefined,
       allowAnyMember: requiredPermission === null,
     });
+    // Legacy matter-room finance writes bypassed the evidence, receipt and ledger
+    // transaction. Block them until all callers use the canonical finance endpoint.
+    if (["createPayment","createInvoice","updateInvoiceStatus"].includes(String(body.action))) {
+      return NextResponse.json({
+        success: false,
+        error: "Use the matter Finance & client transparency panel for governed invoicing and evidence-backed payment records.",
+        canonicalPath: `/api/matters/${matterId}/finance`,
+      }, {status:409});
+    }
+
 
     switch (body.action) {
       case "createComment": {
