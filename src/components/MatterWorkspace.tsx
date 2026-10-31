@@ -24,6 +24,7 @@ import {
   Wallet,
   Workflow,
 } from "lucide-react";
+import FinanceTransparencyPanel from "@/components/FinanceTransparencyPanel";
 import CaseFileStudioPanel from "@/components/CaseFileStudioPanel";
 import { OHADA_RULES } from "@/lib/deadline-engine/rules";
 import type { MatterDeadlinePreview } from "@/lib/deadlines";
@@ -1832,7 +1833,7 @@ export default function MatterWorkspace({
               onSubmitAccessOverride={() => void submitAccessOverride()}
             />
           )}
-          {activeTab === "finance" && (
+          {activeTab === "finance" && (false ? (
             <FinancePanel
               matterRoom={matterRoom}
               invoiceAmountDraft={invoiceAmountDraft}
@@ -1874,7 +1875,7 @@ export default function MatterWorkspace({
               onSubmitMatterDisbursement={() => void submitMatterDisbursement()}
               onUpdateInvoiceStatus={(invoiceId, status) => void updateInvoiceStatus(invoiceId, status)}
             />
-          )}
+          ) : <FinanceTransparencyPanel matterId={matter.id} />)}
         </motion.div>
       </div>
     </section>
