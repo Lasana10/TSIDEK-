@@ -154,6 +154,13 @@ export async function POST(
       permission: requiredPermission ?? undefined,
       allowAnyMember: requiredPermission === null,
     });
+    if(body.action==="createDocument"){
+      const status=String(body.documentStatus??"Draft");
+      const review=String(body.reviewStatus??"Working");
+      const sharing=String(body.sharingPolicy??"Internal only");
+      if(status!=="Draft" || !["Working","Not reviewed"].includes(review) || sharing!=="Internal only")
+        return NextResponse.json({success:false,error:"Register a private draft, then submit it to the governed document review desk."},{status:409});
+    }
     if (body.action === "updateDocumentControl") {
       return NextResponse.json({success:false,error:"Use the governed document review desk for approval, filing, archiving and client sharing."},{status:409});
     }
