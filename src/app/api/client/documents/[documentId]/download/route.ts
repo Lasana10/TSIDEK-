@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/supabase-auth";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import { createVaultSignedReadUrl } from "@/lib/file-vault";
+import { createVaultSignedReadUrl,getMatterDocumentRelativeDirectory,defaultVaultBucket } from "@/lib/file-vault";
 export async function GET(_request:Request,{params}:{params:Promise<{documentId:string}>}){
  try{
   const identity=await getAuthenticatedUser();
@@ -18,10 +18,13 @@ export async function GET(_request:Request,{params}:{params:Promise<{documentId:
    .eq("client_email",email).eq("grant_status","ACTIVE").eq("can_view_documents",true).is("revoked_at",null).limit(1).maybeSingle();
   if(grant.error||!grant.data)return NextResponse.json({success:false,error:"No active client document grant."},{status:403});
   const stored=String(doc.data.storage_path??"");
-  if(!stored || stored.includes("..") || stored.startsWith("/"))
+  const ownedPrefix=getMatterDocumentRelativeDirectory(doc.data.matter_id)+"/";
+  if(!stored.startsWith(ownedPrefix) || stored.includes("..") || stored.includes("\\") || stored.startsWith("/"))
    return NextResponse.json({success:false,error:"Governed document original is unavailable."},{status:404});
   // The object is stored privately: signed links expire rapidly and are issued only
   // after checking both approved document state and the signed-in client's grant.
+  const found=await db.storage.from(defaultVaultBucket).list(getMatterDocumentRelativeDirectory(doc.data.matter_id),{search:stored.slice(ownedPrefix.length),limit:20});
+  if(found.error||!(found.data??[]).some(o=>o.name===stored.slice(ownedPrefix.length)))return NextResponse.json({success:false,error:"Approved document original not present in private vault."},{status:404});
   const signed=await createVaultSignedReadUrl(stored,90);
   return NextResponse.redirect(signed,{status:302,headers:{"Cache-Control":"private, no-store","Referrer-Policy":"no-referrer"}});
  }catch(error){return NextResponse.json({success:false,error:error instanceof Error?error.message:"Unable to open client document"},{status:403});}
