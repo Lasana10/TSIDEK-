@@ -565,132 +565,19 @@ export default function MatterWorkspace({
   }
 
   async function submitClientUpdate() {
-    if (!clientUpdate.trim()) {
-      return;
-    }
-
-    setIsSubmitting("client-update");
-    setRoomError(null);
-    setRoomNotice(null);
-    try {
-      const response = await fetch("/api/operations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "createClientUpdateDraft",
-          matterId: matter.id,
-          channel: matterOperations.guidance?.preferredChannel ?? "Email",
-          title: `${matter.clientName} progress update`,
-          message: clientUpdate.trim(),
-        }),
-      });
-
-      if (!response.ok) {
-        const payload = (await response.json()) as { error?: string };
-        throw new Error(payload.error ?? "Unable to save client update draft");
-      }
-
-      await response.json();
-      setClientUpdate("");
-      setRoomNotice("Client update draft saved. Partner approval is required before dispatch.");
-      await refreshOperations();
-    } catch (error) {
-      setRoomError(error instanceof Error ? error.message : "Unable to save the client update draft.");
-    } finally {
-      setIsSubmitting(null);
-    }
+    const el=document.getElementById("verified-client-delivery");if(el){el.closest("details")?.setAttribute("open","");el.scrollIntoView({behavior:"smooth",block:"start"});}else window.location.href=`/matters/${matter.id}#verified-client-delivery`;
   }
 
   async function approveClientUpdateRecord(updateId: string) {
-    setClientUpdateBusyId(updateId);
-    setRoomError(null);
-    setRoomNotice(null);
-    try {
-      const response = await fetch("/api/operations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "approveClientUpdate",
-          updateId,
-        }),
-      });
-
-      const payload = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to approve client update.");
-      }
-
-      setRoomNotice("Client update approved for dispatch.");
-      await refreshOperations();
-    } catch (error) {
-      setRoomError(error instanceof Error ? error.message : "Unable to approve the client update.");
-    } finally {
-      setClientUpdateBusyId(null);
-    }
+    const el=document.getElementById("verified-client-delivery");if(el){el.closest("details")?.setAttribute("open","");el.scrollIntoView({behavior:"smooth",block:"start"});}else window.location.href=`/matters/${matter.id}#verified-client-delivery`;
   }
 
   async function dispatchClientUpdateRecord(updateId: string) {
-    setClientUpdateBusyId(updateId);
-    setRoomError(null);
-    setRoomNotice(null);
-    try {
-      const response = await fetch("/api/operations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "dispatchApprovedClientUpdate",
-          updateId,
-        }),
-      });
-
-      const payload = (await response.json()) as {
-        error?: string;
-        delivery?: { note?: string; delivered?: boolean; recipient?: string | null };
-      };
-      if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to dispatch client update.");
-      }
-
-      setRoomNotice(
-        payload.delivery?.note ??
-          (payload.delivery?.delivered
-            ? "Client update sent successfully."
-            : "Client update queued or recorded for follow-up.")
-      );
-      await refreshOperations();
-    } catch (error) {
-      setRoomError(error instanceof Error ? error.message : "Unable to dispatch the client update.");
-    } finally {
-      setClientUpdateBusyId(null);
-    }
+    const el=document.getElementById("verified-client-delivery");if(el){el.closest("details")?.setAttribute("open","");el.scrollIntoView({behavior:"smooth",block:"start"});}else window.location.href=`/matters/${matter.id}#verified-client-delivery`;
   }
 
   async function acknowledgeClientUpdateRecord(updateId: string) {
-    setClientUpdateBusyId(updateId);
-    setRoomError(null);
-    setRoomNotice(null);
-    try {
-      const response = await fetch("/api/operations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "acknowledgeClientUpdate",
-          updateId,
-        }),
-      });
-
-      const payload = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to record acknowledgement.");
-      }
-
-      setRoomNotice("Client acknowledgement recorded in the matter communication log.");
-      await refreshOperations();
-    } catch (error) {
-      setRoomError(error instanceof Error ? error.message : "Unable to record the client acknowledgement.");
-    } finally {
-      setClientUpdateBusyId(null);
-    }
+    const el=document.getElementById("verified-client-delivery");if(el){el.closest("details")?.setAttribute("open","");el.scrollIntoView({behavior:"smooth",block:"start"});}else window.location.href=`/matters/${matter.id}#verified-client-delivery`;
   }
 
   async function submitDeadlineCalculation() {
@@ -2215,7 +2102,7 @@ function OverviewPanel({
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Client communication ledger</p>
                 <p className="mt-1 text-sm font-semibold text-slate-900">
-                  Draft, approve, dispatch, and acknowledge client-facing updates as controlled legal communications.
+                  Historical client update records. Approval, publication and acknowledgment now use the verified client delivery desk; only signed-in clients can acknowledge.
                 </p>
               </div>
               <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
@@ -2251,7 +2138,7 @@ function OverviewPanel({
                             disabled={clientUpdateBusyId === update.id}
                             className="rounded-full border border-slate-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 transition disabled:cursor-not-allowed disabled:opacity-50"
                           >
-                            {clientUpdateBusyId === update.id ? "Saving..." : "Approve"}
+                            {clientUpdateBusyId === update.id ? "Opening..." : "Verified approval desk"}
                           </button>
                         )}
                         {(update.status === "Approved" || update.status === "Queued") && (
@@ -2260,7 +2147,7 @@ function OverviewPanel({
                             disabled={clientUpdateBusyId === update.id}
                             className="rounded-full bg-heritage-green px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white transition disabled:cursor-not-allowed disabled:opacity-50"
                           >
-                            {clientUpdateBusyId === update.id ? "Sending..." : "Dispatch"}
+                            {clientUpdateBusyId === update.id ? "Opening..." : "Verified publication desk"}
                           </button>
                         )}
                         {(update.status === "Sent" || update.status === "Delivered" || update.status === "Queued") && (
@@ -2269,7 +2156,7 @@ function OverviewPanel({
                             disabled={clientUpdateBusyId === update.id}
                             className="rounded-full border border-slate-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 transition disabled:cursor-not-allowed disabled:opacity-50"
                           >
-                            {clientUpdateBusyId === update.id ? "Saving..." : "Acknowledge"}
+                            {clientUpdateBusyId === update.id ? "Opening..." : "Client-only acknowledgment"}
                           </button>
                         )}
                       </div>
@@ -2308,14 +2195,14 @@ function OverviewPanel({
             />
             <div className="mt-3 flex items-center justify-between gap-3">
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                Delivery channel defaults to {matterOperations.guidance?.preferredChannel ?? "Email"}
+                Controlled publication is performed in the verified client delivery desk
               </p>
               <button
                 onClick={onSubmitClientUpdate}
                 disabled={isSubmitting === "client-update" || !clientUpdate.trim()}
                 className="rounded-full bg-heritage-green px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white transition disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isSubmitting === "client-update" ? "Saving..." : "Save draft"}
+                {isSubmitting === "client-update" ? "Opening..." : "Use verified client delivery"}
               </button>
             </div>
           </div>
