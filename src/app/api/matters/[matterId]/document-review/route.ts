@@ -14,11 +14,17 @@ async function ctx(request:Request,matterId:string){
 export async function GET(request:Request,{params}:Context){
  try{
   const {matterId}=await params;const {scope,db}=await ctx(request,matterId);
-  const docs=await db.from("documents").select("id,title,document_type,status,review_status,sharing_policy,storage_path,created_at,updated_at,review_note")
+  const docs=await db.from("documents").select("id,title,document_type,status,review_status,sharing_policy,access_level,storage_path,created_at,updated_at,review_note")
    .eq("matter_id",matterId).order("created_at",{ascending:false}).limit(100);
   if(docs.error)throw new Error(docs.error.message);
-  // Restrict views to their matter and keep private paths off the browser response.
-  return NextResponse.json({success:true,documents:(docs.data??[]).map(({storage_path,...d})=>({...d,originalStored:Boolean(storage_path)})),firmId:scope.firmId},
+  // Restrict Lead+Partner documents to the actual lead or a privileged role.
+  const matter=await db.from("matters").select("lead_lawyer_id").eq("id",matterId).eq("firm_id",scope.firmId).maybeSingle();
+  if(matter.error||!matter.data)throw new Error("Matter unavailable.");
+  const role=String(scope.actorRole).toLowerCase();
+  const elevated=scope.actorLawyerId===matter.data.lead_lawyer_id||["partner","managing_partner","owner"].includes(role);
+  const visible=(docs.data??[]).filter(d=>elevated||d.access_level!=="Lead+Partner");
+  // Never disclose private paths to the browser.
+  return NextResponse.json({success:true,documents:visible.map(({storage_path,...d})=>({...d,originalStored:Boolean(storage_path)})),firmId:scope.firmId},
    {headers:{"Cache-Control":"private, no-store"}});
  }catch(e){return NextResponse.json({success:false,error:e instanceof Error?e.message:"Unable to load documents"},{status:statusForApiError(e)});}
 }
