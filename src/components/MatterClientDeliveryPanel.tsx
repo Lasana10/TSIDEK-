@@ -33,7 +33,7 @@ export default function MatterClientDeliveryPanel({matterId}:{matterId:string}){
   finally{setBusy("");}
  }
  const publications=data?.publications??[],acks=data?.acknowledgements??[],grants=data?.grants??[];
- return <section className="rounded-[1.7rem] border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+ return <section id="verified-client-delivery" className="scroll-mt-8 rounded-[1.7rem] border border-slate-200 bg-white p-5 shadow-sm md:p-6">
   <p className="text-[10px] font-black uppercase tracking-[.2em] text-emerald-800">{t("Governed client communication","Communication client contrôlée")}</p>
   <h2 className="mt-2 text-2xl font-semibold">{t("From professional approval to client acknowledgment","De l’approbation professionnelle à l’accusé de lecture du client")}</h2>
   <p className="mt-2 text-sm leading-6 text-slate-600">{t("Publishing makes an update available to one authorized client. It does not prove the client read it. Only the client can acknowledge after sign-in.","La publication rend le message accessible à un client autorisé, sans prouver sa lecture. Seul le client connecté peut confirmer sa lecture.")}</p>
