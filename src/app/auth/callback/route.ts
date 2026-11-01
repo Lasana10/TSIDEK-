@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 
   if (user) {
     const context = await getFirmContextByUserId(user.id, supabase);
-    if (!context.membership && redirectTo !== "/me") return NextResponse.redirect(new URL("/me", url.origin));
+    if (!context.membership && redirectTo !== "/me" && !redirectTo.startsWith("/join?")) return NextResponse.redirect(new URL("/me", url.origin));
   }
 
   return NextResponse.redirect(new URL(redirectTo, url.origin));
