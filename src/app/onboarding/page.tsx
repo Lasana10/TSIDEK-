@@ -7,7 +7,7 @@ import { LanguageSwitcher, useLocale } from "@/components/LocaleProvider";
 
 type SessionPayload = {
   authenticated: boolean;
-  contextStatus?: "unauthenticated" | "onboarding" | "ready" | "unauthorized" | "error";
+  contextStatus?: "unauthenticated" | "personal" | "onboarding" | "ready" | "unauthorized" | "error";
   actorName?: string | null;
   actorRole?: string | null;
   userEmail?: string | null;
@@ -73,7 +73,7 @@ export default function OnboardingPage() {
         }
 
         // Returning members should never see first-run setup again.
-        if (!payload.needsOnboarding) {
+        if (payload.firmId && payload.activeFirmId) {
           window.location.replace("/workspace");
           return;
         }

@@ -34,7 +34,7 @@ export async function GET() {
         authenticated: true,
         authConfigured: isSupabaseAuthConfigured(),
         contextStatus: "personal",
-        needsOnboarding: true,
+        needsOnboarding: false,
         actorName: identity.user.user_metadata?.full_name ?? identity.user.email ?? "Authenticated user",
         actorRole: null,
         firmId: null,
@@ -52,7 +52,7 @@ export async function GET() {
     return jsonNoStore({
       authenticated: true,
       authConfigured: isSupabaseAuthConfigured(),
-      contextStatus: contextReady ? "ready" : "unauthorized",
+      contextStatus: contextReady ? "ready" : "personal",
       needsOnboarding: false,
       actorName: identity.lawyer?.full_name ?? identity.user.user_metadata?.full_name ?? identity.user.email ?? "Authenticated user",
       actorRole,

@@ -91,10 +91,10 @@ async function loadActorMatterState(input: { matterId: string; actorLawyerId: st
 function permissionsFor(state: { lawyer?: { role?: string | null } | null; firmMembership?: FirmMembership | null }) {
   const membershipRole = state.firmMembership?.role_key ?? "";
   const governanceRole = state.firmMembership?.governance_role_key ?? "member";
-  const legacyRole = state.lawyer?.role ?? "";
+  // Organization authority belongs to the active firm membership, never the
+  // legacy single-firm lawyer profile or another organization.
   return new Set<PermissionKey>([
     ...(professionalRolePermissions[membershipRole] ?? []),
-    ...(professionalRolePermissions[legacyRole] ?? []),
     ...(governancePermissions[governanceRole] ?? []),
   ]);
 }
@@ -112,7 +112,7 @@ export async function assertMatterPermission(input: {
 
   const state = await loadActorMatterState({ matterId, actorLawyerId: scope.actorLawyerId });
   if (!state?.matter || !state.lawyer) throw new Error("Unable to resolve the acting lawyer or matter scope.");
-  if (!state.firmMembership && state.lawyer.firm_id !== state.matter.firm_id) throw new Error("Matter access denied for the current firm scope.");
+  if (!state.firmMembership) throw new Error("Active firm membership is required for matter access.");
   if (scope.firmId && state.matter.firm_id !== scope.firmId) throw new Error("Matter access denied for the active firm.");
 
   const explicitDeny = state.accessOverride?.access_type === "deny";
@@ -124,7 +124,7 @@ export async function assertMatterPermission(input: {
   if (!isMember) throw new Error("The acting lawyer is not assigned to this matter.");
 
   const level = String(state.matter.confidentiality_level ?? "").toLowerCase();
-  const governor = ["founder", "firm_head", "managing_partner", "administrator"].includes(state.firmMembership?.governance_role_key ?? "") || ["owner", "managing_partner", "partner", "administrator"].includes(state.firmMembership?.role_key ?? "") || ["Partner", "Managing Partner"].includes(state.lawyer.role ?? "");
+  const governor = ["founder", "firm_head", "managing_partner", "administrator"].includes(state.firmMembership?.governance_role_key ?? "") || ["owner", "managing_partner", "partner", "administrator"].includes(state.firmMembership?.role_key ?? "");
   if ((level === "partner-only" || level === "restricted") && !isLead && !governor && !explicitAllow) {
     throw new Error("Access denied: this restricted matter requires lead, partner/governor, or explicit access.");
   }
@@ -154,7 +154,7 @@ export async function assertFirmPermission(input: { scope: RequestScope; permiss
   if (lawyerResult.error) throw new Error(lawyerResult.error.message);
   if (membershipResult.error) throw new Error(membershipResult.error.message);
   if (!lawyerResult.data) throw new Error("Unable to resolve the acting lawyer.");
-  if (!membershipResult.data && lawyerResult.data.firm_id !== scope.firmId) throw new Error("Firm access denied.");
+  if (!membershipResult.data) throw new Error("Active firm membership required.");
 
   const effectivePermissions = permissionsFor({ lawyer: lawyerResult.data, firmMembership: membershipResult.data });
   if (!effectivePermissions.has(permission)) throw new Error(`Permission denied: ${permission} is required for this action.`);

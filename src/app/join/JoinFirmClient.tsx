@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function JoinFirmClient({ token }: { token: string }) {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function JoinFirmClient({ token }: { token: string }) {
       setStatus("done");
       setMessage("Invitation accepted. Your active firm has been updated.");
       router.refresh();
-      window.setTimeout(() => router.push("/"), 700);
+      window.setTimeout(() => router.push("/workspace"), 700);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Unable to accept invitation.");
@@ -43,7 +44,7 @@ export default function JoinFirmClient({ token }: { token: string }) {
         >
           {status === "working" ? "Accepting…" : status === "done" ? "Accepted" : "Accept invitation"}
         </button>
-        {status === "error" ? <p className="mt-4 text-sm font-medium text-red-700">Sign in with the email address that received the invitation, then try again.</p> : null}
+        {status === "error" ? <p className="mt-4 text-sm font-medium text-red-700">Sign in with the email address that received the invitation, then try again. <Link className="underline" href={`/auth?redirectTo=${encodeURIComponent(`/join?token=${token}`)}`}>Sign in and return to invitation</Link></p> : null}
       </section>
     </main>
   );

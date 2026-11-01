@@ -20,7 +20,7 @@ function trimHeader(value: string | null) {
 export async function resolveRequestScope(request?: Request): Promise<RequestScope> {
   const authIdentity = await getAuthenticatedUser();
 
-  if (authIdentity?.lawyer || authIdentity?.membership) {
+  if (authIdentity?.membership) {
     const membership = authIdentity.membership as { role_key?: string | null } | null;
     const metadataName =
       typeof authIdentity.user.user_metadata?.full_name === "string"
@@ -30,10 +30,10 @@ export async function resolveRequestScope(request?: Request): Promise<RequestSco
           : null;
     return {
       source: "auth-user",
-      firmId: authIdentity.activeFirmId ?? authIdentity.lawyer?.firm_id ?? null,
+      firmId: authIdentity.activeFirmId ?? null,
       actorLawyerId: authIdentity.lawyer?.id ?? authIdentity.user.id,
       actorName: authIdentity.lawyer?.full_name ?? metadataName ?? authIdentity.user.email ?? "TSIDEK User",
-      actorRole: membership?.role_key ?? authIdentity.lawyer?.role ?? "lawyer",
+      actorRole: membership?.role_key ?? "lawyer",
       userEmail: authIdentity.user.email ?? null,
       authenticated: true,
     };
@@ -117,7 +117,13 @@ export async function resolveRequestScope(request?: Request): Promise<RequestSco
 export async function assertMatterScopeAccess(request: Request, matterId: string) {
   const scope = await resolveRequestScope(request);
   const supabase = createServerSupabaseClient();
-  if (!supabase || !scope.firmId || !scope.actorLawyerId) return scope;
+  if (!supabase) throw new Error("Supabase firm authorization is unavailable.");
+  if (!scope.firmId || !scope.actorLawyerId) throw new Error("Authenticated active firm membership required.");
+
+  if (scope.source !== "auth-user" || !scope.authenticated) throw new Error("Authenticated firm membership is required.");
+  const activeMembership = await supabase.from("firm_memberships").select("id").eq("user_id",scope.actorLawyerId).eq("firm_id",scope.firmId).eq("status","active").maybeSingle();
+  if (activeMembership.error) throw new Error(activeMembership.error.message);
+  if (!activeMembership.data) throw new Error("Firm membership is inactive or revoked.");
 
   const [matterResult, memberResult, overrideResult] = await Promise.all([
     supabase.from("matters").select("id,firm_id,lead_lawyer_id").eq("id", matterId).maybeSingle(),
