@@ -119,6 +119,11 @@ export async function assertMatterScopeAccess(request: Request, matterId: string
   const supabase = createServerSupabaseClient();
   if (!supabase || !scope.firmId || !scope.actorLawyerId) return scope;
 
+  if (scope.source !== "auth-user" || !scope.authenticated) throw new Error("Authenticated firm membership is required.");
+  const activeMembership = await supabase.from("firm_memberships").select("id").eq("user_id",scope.actorLawyerId).eq("firm_id",scope.firmId).eq("status","active").maybeSingle();
+  if (activeMembership.error) throw new Error(activeMembership.error.message);
+  if (!activeMembership.data) throw new Error("Firm membership is inactive or revoked.");
+
   const [matterResult, memberResult, overrideResult] = await Promise.all([
     supabase.from("matters").select("id,firm_id,lead_lawyer_id").eq("id", matterId).maybeSingle(),
     supabase.from("matter_members").select("id").eq("matter_id", matterId).eq("lawyer_id", scope.actorLawyerId).maybeSingle(),
