@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import type { RequestScope } from "@/lib/request-scope";
+import { permissionsForActiveFirm } from "@/lib/firm-role-boundary";
 import { isDemoModeEnabled } from "@/lib/runtime-mode";
 
 export type PermissionKey =
@@ -89,14 +90,11 @@ async function loadActorMatterState(input: { matterId: string; actorLawyerId: st
 }
 
 function permissionsFor(state: { lawyer?: { role?: string | null } | null; firmMembership?: FirmMembership | null }) {
-  const membershipRole = state.firmMembership?.role_key ?? "";
-  const governanceRole = state.firmMembership?.governance_role_key ?? "member";
-  // Organization authority belongs to the active firm membership, never the
-  // legacy single-firm lawyer profile or another organization.
-  return new Set<PermissionKey>([
-    ...(professionalRolePermissions[membershipRole] ?? []),
-    ...(governancePermissions[governanceRole] ?? []),
-  ]);
+  return permissionsForActiveFirm(
+    state.firmMembership ? {...state.firmMembership,status:"active"} : null,
+    professionalRolePermissions,
+    governancePermissions,
+  );
 }
 
 export async function assertMatterPermission(input: {
