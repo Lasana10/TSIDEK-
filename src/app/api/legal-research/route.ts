@@ -9,6 +9,8 @@ export async function POST(request: Request) {
     const query = typeof body?.query === "string" ? body.query : "";
     const matterId = typeof body?.matterId === "string" && body.matterId ? body.matterId : null;
     const limit = Number.isFinite(Number(body?.limit)) ? Number(body.limit) : 12;
+    const asOfDate = typeof body?.asOfDate === "string" ? body.asOfDate : null;
+    if (asOfDate && !/^\d{4}-\d{2}-\d{2}$/.test(asOfDate)) return NextResponse.json({success:false,error:"Invalid research effective date."},{status:400});
 
     const asOfDate=typeof body?.asOfDate === "string" ? body.asOfDate : null;
     const result = await searchLegalSources({ scope, query, matterId, limit, asOfDate });
