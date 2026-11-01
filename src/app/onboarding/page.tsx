@@ -73,7 +73,7 @@ export default function OnboardingPage() {
         }
 
         // Returning members should never see first-run setup again.
-        if (!payload.needsOnboarding) {
+        if (payload.firmId && payload.activeFirmId) {
           window.location.replace("/workspace");
           return;
         }
