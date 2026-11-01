@@ -95,7 +95,7 @@ export async function ingestLegalTextSource(input: {
     }));
     const chunkInsert = await supabase.from("legal_source_chunks").insert(rows);
     if (chunkInsert.error) throw new Error(chunkInsert.error.message);
-    const ready = await supabase.from("legal_source_documents").update({ ingestion_status: "ready", updated_at: new Date().toISOString() }).eq("id", inserted.data.id).select("id,title,ingestion_status").single();
+    const ready = await supabase.from("legal_source_documents").update({ ingestion_status: "needs_review", updated_at: new Date().toISOString() }).eq("id", inserted.data.id).select("id,title,ingestion_status").single();
     if (ready.error) throw new Error(ready.error.message);
     return { source: ready.data, duplicate: false, chunks: rows.length };
   } catch (error) {
@@ -105,12 +105,13 @@ export async function ingestLegalTextSource(input: {
 }
 
 export async function listLegalSources(scope: RequestScope) {
-  if (!scope.firmId || !scope.actorLawyerId) throw new Error("Authenticated firm context is required.");
+  await assertFirmPermission({ scope, permission: "manageEvidence" });
+  if (!scope.authenticated || scope.source !== "auth-user" || !scope.firmId || !scope.actorLawyerId) throw new Error("Authenticated firm context is required.");
   const supabase = createServerSupabaseClient();
   if (!supabase) throw new Error("Supabase server configuration is required.");
   const { data, error } = await supabase
     .from("legal_source_documents")
-    .select("id,source_scope,publisher,jurisdiction,document_type,title,source_url,canonical_uri,language,version_label,valid_from,valid_until,checksum,ingestion_status,created_at")
+    .select("id,source_scope,publisher,jurisdiction,document_type,title,source_url,canonical_uri,language,version_label,valid_from,valid_until,checksum,ingestion_status,verification_status,verified_at,source_class,review_note,rights_attestation,created_at")
     .or(`source_scope.eq.public,firm_id.eq.${scope.firmId}`)
     .order("created_at", { ascending: false })
     .limit(200);
