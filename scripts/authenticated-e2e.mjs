@@ -1,14 +1,17 @@
 const baseUrl = (process.env.TSIDEK_E2E_BASE_URL || "").replace(/\/$/, "");
-const accessToken = process.env.TSIDEK_E2E_ACCESS_TOKEN || "";
+// Supabase SSR session is cookie-based: a bare Authorization bearer token does not
+// create a signed-in Next.js request. Use only an authorized test session cookie.
+const sessionCookie = process.env.TSIDEK_E2E_SESSION_COOKIE || "";
 
-if (!baseUrl || !accessToken) {
-  console.error("Authenticated E2E requires TSIDEK_E2E_BASE_URL and TSIDEK_E2E_ACCESS_TOKEN.");
+if (!baseUrl || !sessionCookie) {
+  console.error("Authenticated E2E requires TSIDEK_E2E_BASE_URL and a valid TSIDEK_E2E_SESSION_COOKIE.");
   process.exit(2);
 }
 
 async function request(path, authenticated = true) {
   const response = await fetch(`${baseUrl}${path}`, {
-    headers: authenticated ? { Authorization: `Bearer ${accessToken}` } : {},
+    headers: authenticated ? { Cookie: sessionCookie, Accept: "application/json" } : { Accept: "application/json" },
+    cache: "no-store",
     redirect: "manual",
   });
   const body = await response.json().catch(() => null);
@@ -36,6 +39,7 @@ assert(session.body?.contextStatus === "ready", "Test identity has no ready firm
 });
 
 const expectedFirmId = session.body.firmId;
+assert(session.body.activeFirmId === expectedFirmId, "Active firm and authenticated scope differ.");
 for (const path of ["/api/workspace", "/api/workroom", "/api/workroom/governed"]) {
   const result = await request(path);
   assert(result.response.ok && result.body?.success === true, `${path} did not complete successfully.`, {
