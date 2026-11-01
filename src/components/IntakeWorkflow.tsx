@@ -167,6 +167,7 @@ export default function IntakeWorkflow() {
   const [busy, setBusy] = useState(false);
   const [loadingProspects, setLoadingProspects] = useState(true);
   const [message, setMessage] = useState("");
+  const [conflictDecisionNote,setConflictDecisionNote]=useState("");
 
   const conflictCleared = state?.conflictStatus === "Cleared" || state?.conflictStatus === "Waived";
   const canOpen =
@@ -306,7 +307,7 @@ export default function IntakeWorkflow() {
     const result = await call("decideConflict", {
       prospectId: state.prospectId,
       status,
-      decisionNote: status === "Cleared" ? "Reviewed by responsible lawyer." : "Waiver recorded by authorised lawyer.",
+      decisionNote: conflictDecisionNote.trim(),
     });
     if (result) {
       setState((current) =>
@@ -622,10 +623,16 @@ export default function IntakeWorkflow() {
                 </div>
               )}
 
+              <label className="mt-4 block text-xs font-semibold text-white/80">Professional conflict-check reasoning and waiver justification
+                <textarea rows={3} maxLength={3000} value={conflictDecisionNote}
+                 onChange={event=>setConflictDecisionNote(event.target.value)}
+                 className="mt-2 w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-white/50"
+                 placeholder="Explain the parties and sources reviewed, potential matches and why this clearance or waiver is justified."/>
+              </label>
               <div className="mt-5 flex flex-wrap gap-2">
                 <button
                   onClick={() => void decideConflict("Cleared")}
-                  disabled={busy || !state.matches.length}
+                  disabled={busy || conflictDecisionNote.trim().length<20}
                   className="rounded-full bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-heritage-green disabled:opacity-40"
                 >
                   Clear after review
@@ -642,7 +649,7 @@ export default function IntakeWorkflow() {
               {state.conflictStatus === "Pending" && (
                 <button
                   onClick={() => void decideConflict("Cleared")}
-                  disabled={busy}
+                  disabled={busy || conflictDecisionNote.trim().length<20}
                   className="mt-3 rounded-full border border-emerald-200/40 px-4 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100"
                 >
                   Confirm no conflict found

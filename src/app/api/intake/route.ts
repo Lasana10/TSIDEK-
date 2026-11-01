@@ -129,7 +129,9 @@ export async function POST(request: Request) {
     if (action === "decideConflict") {
       await assertFirmPermission({ scope, permission: "approveFilings" });
       const status = body.status === "Waived" ? "Waived" : "Cleared";
-      return NextResponse.json({ success: true, conflictCheck: await updateConflictDecision({ firmId, prospectId, actorLawyerId: requireActorLawyer(scope), status, decisionNote: String(body.decisionNote ?? "").trim() }) });
+      const rationale=String(body.decisionNote??"").trim();
+      if(rationale.length<20)return NextResponse.json({success:false,error:"Document the conflict review or waiver rationale in at least 20 characters."},{status:400});
+      return NextResponse.json({ success: true, conflictCheck: await updateConflictDecision({ firmId, prospectId, actorLawyerId: requireActorLawyer(scope), status, decisionNote: rationale }) });
     }
     if (action === "saveEngagement") {
       await assertFirmPermission({ scope, permission: body.approve ? "approveFilings" : "openMatters" });

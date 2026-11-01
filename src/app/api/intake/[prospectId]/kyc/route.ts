@@ -48,24 +48,45 @@ export async function POST(request:Request,context:Context){
 
 export async function PATCH(request:Request,context:Context){
  try{
-  const {prospectId}=await context.params;const {scope,supabase}=await contextFor(request,prospectId);await assertFirmPermission({scope,permission:"openMatters"});const body=await request.json();const reviewId=String(body.reviewId||"");if(!reviewId)return NextResponse.json({success:false,error:"Review id is required."},{status:400});
-  const patch:Record<string,unknown>={updated_at:new Date().toISOString()};
-  if(body.status!==undefined){const status=String(body.status);if(!statuses.has(status))return NextResponse.json({success:false,error:"Invalid KYC status."},{status:400});patch.status=status;if(["cleared","enhanced_due_diligence","rejected"].includes(status)){patch.reviewed_by=scope.actorLawyerId;patch.reviewed_at=new Date().toISOString();}}
-  if(body.riskRating!==undefined){const risk=String(body.riskRating);if(!riskRatings.has(risk))return NextResponse.json({success:false,error:"Invalid risk rating."},{status:400});patch.risk_rating=risk;}
-  for(const [bodyKey,column] of [["riskReason","risk_reason"],["sourceOfFunds","source_of_funds"],["sourceOfWealth","source_of_wealth"]] as const)if(body[bodyKey]!==undefined)patch[column]=body[bodyKey]?String(body[bodyKey]):null;
-  for(const [bodyKey,column] of [["pepStatus","pep_status"],["sanctionsStatus","sanctions_status"],["adverseMediaStatus","adverse_media_status"]] as const)if(body[bodyKey]!==undefined){const value=String(body[bodyKey]);if(!screening.has(value))return NextResponse.json({success:false,error:`Invalid ${bodyKey}.`},{status:400});patch[column]=value;}
-  const {data,error}=await supabase.from("prospect_kyc_reviews").update(patch).eq("id",reviewId).eq("prospect_id",prospectId).eq("firm_id",scope.firmId).select("*").single();if(error)throw new Error(error.message);
-  if(data.status==="cleared"){
-   const [prospectUpdate,checklistUpdate]=await Promise.all([
-    supabase.from("prospects").update({status:"Compliance & terms",risk_level:data.risk_rating==="high"?"High":data.risk_rating==="low"?"Low":"Medium",updated_at:new Date().toISOString()}).eq("id",prospectId).eq("firm_id",scope.firmId),
-    supabase.from("matter_opening_checklists").update({kyc_complete:true,updated_at:new Date().toISOString()}).eq("prospect_id",prospectId).eq("firm_id",scope.firmId),
-   ]);if(prospectUpdate.error)throw new Error(prospectUpdate.error.message);if(checklistUpdate.error)throw new Error(checklistUpdate.error.message);
-  }else if(data.status==="rejected"||data.risk_rating==="prohibited"){
-   const [prospectUpdate,checklistUpdate]=await Promise.all([
-    supabase.from("prospects").update({status:"Compliance blocked",risk_level:"High",updated_at:new Date().toISOString()}).eq("id",prospectId).eq("firm_id",scope.firmId),
-    supabase.from("matter_opening_checklists").update({kyc_complete:false,updated_at:new Date().toISOString()}).eq("prospect_id",prospectId).eq("firm_id",scope.firmId),
-   ]);if(prospectUpdate.error)throw new Error(prospectUpdate.error.message);if(checklistUpdate.error)throw new Error(checklistUpdate.error.message);
+  const {prospectId}=await context.params;
+  const {scope,supabase}=await contextFor(request,prospectId);
+  if(scope.source!=="auth-user")return NextResponse.json({success:false,error:"Authenticated professional session required."},{status:401});
+  const body=await request.json();
+  const reviewId=String(body.reviewId||"");
+  if(!/^[0-9a-f-]{36}$/i.test(reviewId))return NextResponse.json({success:false,error:"Valid KYC review identifier required"},{status:400});
+  const status=body.status===undefined?null:String(body.status);
+  const decision=status&&["cleared","enhanced_due_diligence","rejected"].includes(status);
+  if(decision){
+   await assertFirmPermission({scope,permission:"approveFilings"});
+   const note=String(body.decisionNote??"").trim();
+   if(note.length<20)return NextResponse.json({success:false,error:"Written professional compliance rationale of at least 20 characters is required."},{status:400});
+   const r=await supabase.rpc("tsidek_decide_prospect_kyc",{
+    p_firm_id:scope.firmId,p_prospect_id:prospectId,p_review_id:reviewId,
+    p_actor_id:scope.actorLawyerId,p_status:status,p_note:note
+   });
+   if(r.error)throw new Error(r.error.message);
+   return NextResponse.json({success:true,decision:r.data});
   }
+  await assertFirmPermission({scope,permission:"openMatters"});
+  if(status&&status!=="under_review"&&status!=="draft")
+   return NextResponse.json({success:false,error:"Unsupported editable KYC status."},{status:400});
+  const patch:Record<string,unknown>={updated_at:new Date().toISOString()};
+  if(status)patch.status=status;
+  if(body.riskRating!==undefined){
+   const risk=String(body.riskRating);if(!riskRatings.has(risk))return NextResponse.json({success:false,error:"Invalid risk rating."},{status:400});patch.risk_rating=risk;
+  }
+  for(const [bodyKey,column] of [["riskReason","risk_reason"],["sourceOfFunds","source_of_funds"],["sourceOfWealth","source_of_wealth"]] as const)
+   if(body[bodyKey]!==undefined)patch[column]=body[bodyKey]?String(body[bodyKey]).slice(0,3000):null;
+  for(const [bodyKey,column] of [["pepStatus","pep_status"],["sanctionsStatus","sanctions_status"],["adverseMediaStatus","adverse_media_status"]] as const)
+   if(body[bodyKey]!==undefined){
+    const value=String(body[bodyKey]);if(!screening.has(value))return NextResponse.json({success:false,error:`Invalid ${bodyKey}`},{status:400});
+    patch[column]=value;
+   }
+  const {data,error}=await supabase.from("prospect_kyc_reviews").update(patch)
+    .eq("id",reviewId).eq("prospect_id",prospectId).eq("firm_id",scope.firmId)
+    .in("status",["draft","under_review","enhanced_due_diligence"]).select("*").maybeSingle();
+  if(error)throw new Error(error.message);
+  if(!data)return NextResponse.json({success:false,error:"Only unfinished KYC assessments can be edited."},{status:409});
   return NextResponse.json({success:true,review:data});
  }catch(error){return NextResponse.json({success:false,error:error instanceof Error?error.message:"Unable to review KYC."},{status:403});}
 }
