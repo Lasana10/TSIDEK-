@@ -29,6 +29,9 @@ jobs:
       - name: Session authorization regression tests
         run: npm run test:auth-contract
 
+      - name: Firm role and revoked membership boundary tests
+        run: node --experimental-strip-types --test scripts/firm-role-boundary.test.mjs
+
       - name: Lint
         run: npm run lint
 
