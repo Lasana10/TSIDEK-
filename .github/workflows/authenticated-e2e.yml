@@ -20,5 +20,5 @@ jobs:
       - name: Verify authenticated firm journey
         env:
           TSIDEK_E2E_BASE_URL: ${{ secrets.TSIDEK_E2E_BASE_URL }}
-          TSIDEK_E2E_ACCESS_TOKEN: ${{ secrets.TSIDEK_E2E_ACCESS_TOKEN }}
+          TSIDEK_E2E_SESSION_COOKIE: ${{ secrets.TSIDEK_E2E_SESSION_COOKIE }}
         run: npm run test:e2e:auth
