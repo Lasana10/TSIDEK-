@@ -20,6 +20,13 @@ export type LegalResearchHit = {
   source_checksum: string;
   verified_at: string;
   source_class: string;
+  publisher: string;
+  version_label: string | null;
+  valid_from: string | null;
+  valid_until: string | null;
+  source_checksum: string;
+  verified_at: string;
+  source_class: string;
 };
 
 export async function searchLegalSources(input: {
@@ -27,6 +34,7 @@ export async function searchLegalSources(input: {
   query: string;
   matterId?: string | null;
   limit?: number;
+  asOfDate?: string | null;
   asOfDate?: string | null;
 }) {
   const query = input.query.trim();
@@ -48,6 +56,7 @@ export async function searchLegalSources(input: {
     search_query: query,
     requested_firm_id: input.scope.firmId,
     match_count: Math.max(1, Math.min(input.limit ?? 12, 30)),
+    p_as_of_date: input.asOfDate ?? new Date().toISOString().slice(0, 10),
     p_as_of_date: asOfDate,
   });
   if (error) throw new Error(error.message);
