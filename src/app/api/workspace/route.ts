@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   try {
     const scope = await resolveRequestScope(request);
     if (!scope.authenticated) return jsonNoStore({ success: false, error: "Authentication required." }, { status: 401 });
-    if (!scope.firmId || !scope.actorLawyerId) return jsonNoStore({ success: false, error: "Firm setup is required." }, { status: 409 });
+    if (!scope.firmId || !scope.actorLawyerId) return jsonNoStore({ success: false, contextStatus: "personal", nextPath: "/me", error: "Choose an authorized firm or use your independent workspace." }, { status: 409 });
 
     const supabase = await createServerAuthClient();
     if (!supabase) throw new Error("Supabase authentication is unavailable.");
