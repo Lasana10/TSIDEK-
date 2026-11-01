@@ -53,9 +53,9 @@ export default function AuthPage() {
       if (!response.ok) throw new Error("Unable to resolve your TSIDKENU session.");
       const payload = await response.json() as SessionPayload;
       if (!payload.authenticated) return;
-      if (payload.needsOnboarding) { router.replace(safeRedirectTarget(redirectTarget) === "/me" ? "/me" : "/onboarding"); return; }
+      if (payload.needsOnboarding) { router.replace(safeRedirectTarget(redirectTarget).startsWith("/join?") ? safeRedirectTarget(redirectTarget) : "/me"); return; }
       const ready = Boolean(payload.activeFirmId && payload.firmId && payload.actorRole && (payload.memberships?.length ?? 0) > 0);
-      if (!ready && safeRedirectTarget(redirectTarget) !== "/me") { router.replace("/me"); return; }
+      if (!ready && safeRedirectTarget(redirectTarget) !== "/me" && !safeRedirectTarget(redirectTarget).startsWith("/join?")) { router.replace("/me"); return; }
       router.replace(safeRedirectTarget(redirectTarget));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to resolve your TSIDKENU session.");
