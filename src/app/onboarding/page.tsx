@@ -7,7 +7,7 @@ import { LanguageSwitcher, useLocale } from "@/components/LocaleProvider";
 
 type SessionPayload = {
   authenticated: boolean;
-  contextStatus?: "unauthenticated" | "onboarding" | "ready" | "unauthorized" | "error";
+  contextStatus?: "unauthenticated" | "personal" | "onboarding" | "ready" | "unauthorized" | "error";
   actorName?: string | null;
   actorRole?: string | null;
   userEmail?: string | null;
