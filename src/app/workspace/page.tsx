@@ -22,9 +22,9 @@ const navGroups:NavGroup[]=[
   {href:"/activity-reports",label:"Work Reports",description:"Work record, time and billing evidence",icon:FileCheck2},
  ]},
  {key:"clients",label:"Clients",icon:Users,items:[
-  {href:"/clients",label:"Client Records",description:"Relationships, KYC and client history",icon:Users},
+  {href:"/clients",label:"Client Records",description:"Relationships, KYC and client history",icon:Users,capability:"clientAccess"},
   {href:"/intake",label:"New Client & Due Diligence",description:"Intake, conflict, KYC and engagement",icon:Users,capability:"intake"},
-  {href:"/communications",label:"Communications",description:"Email, WhatsApp, calls and client history",icon:MessageSquareText,capability:"interactions"},
+  {href:"/communications",label:"Communications",description:"Email, WhatsApp, calls and client history",icon:MessageSquareText,capability:"clientAccess"},
   {href:"/interactions",label:"Meetings & Notes",description:"Notes, recordings and meetings",icon:MessageSquareText,capability:"interactions"},
   {href:"/whatsapp",label:"WhatsApp",description:"Messages, secure forms and triggers",icon:MessageSquareText,capability:"interactions"},
  ]},
@@ -49,13 +49,20 @@ const roleExperience:Record<string,{eyebrow:string;heading:string;summary:string
  owner:{eyebrow:"Firm command",heading:"Run the firm from one accountable legal operating surface.",summary:"Matters, client obligations, legal sources, collections and professional controls are visible without turning the system into a wall of cards."},
  partner:{eyebrow:"Partner command",heading:"See risk and professional judgment before administration.",summary:"Approvals, sensitive matters, client commitments and financial exposure stay connected to the underlying file."},
  finance:{eyebrow:"Finance desk",heading:"Collections stay connected to the matters that created them.",summary:"Invoices, payments, expenses and outstanding balances remain traceable to legal work."},
- lawyer:{eyebrow:"Lawyer desk",heading:"Work from the next legal action, not from disconnected tools.",summary:"Matters, deadlines, drafts, client instructions and source-backed research meet in one workspace."},
+ administrator:{eyebrow:"Practice administration",heading:"Coordinate the office without crossing professional approval boundaries.",summary:"Memberships, operating queues, evidence custody and firm process controls remain organized by authority."},
+ paralegal:{eyebrow:"Paralegal desk",heading:"Keep evidence and deadlines ready for professional review.",summary:"Assigned files, document preparation and procedural tasks stay linked to the supervising professional."},
+ clerk:{eyebrow:"Registry and file desk",heading:"Keep filing records and procedural evidence connected to assigned matters.",summary:"Track registry tasks, court filing readiness and supporting documents without assuming legal sign-off authority."},
+ intern:{eyebrow:"Supervised learning desk",heading:"Work on assigned evidence and research under professional supervision.",summary:"Only assigned documents and authorized work should be accessible; professional approvals remain controlled."},
+ knowledge_manager:{eyebrow:"Legal knowledge desk",heading:"Maintain source provenance and verified matter intelligence.",summary:"Organize reviewed sources, institutional memory and governed legal research without unsupervised legal authority."},
+ senior_associate:{eyebrow:"Senior associate desk",heading:"Move active matters and delegated review forward.",summary:"Prioritize assigned hearings, documents, deadlines and client instructions with supervised approvals."},
+ junior_associate:{eyebrow:"Associate desk",heading:"Work through assigned legal actions and evidence with traceable review.",summary:"Research, filing preparation and deadline tracking stay within the assigned matter's permissions."},
+  lawyer:{eyebrow:"Lawyer desk",heading:"Work from the next legal action, not from disconnected tools.",summary:"Matters, deadlines, drafts, client instructions and source-backed research meet in one workspace."},
 };
 const s=(v:unknown)=>typeof v==="string"?v:"";
 const navKeys:Record<string,[string,string]>={
  "/workspace":["nav.command","nav.command.desc"],"/search":["nav.search","nav.search.desc"],"/clients":["nav.clients","nav.clients.desc"],"/matters":["nav.cases","nav.cases.desc"],"/workroom":["nav.workroom","nav.workroom.desc"],"/activity-reports":["nav.reports","nav.reports.desc"],"/intake":["nav.intake","nav.intake.desc"],"/communications":["nav.comms","nav.comms.desc"],"/interactions":["nav.interactions","nav.interactions.desc"],"/whatsapp":["nav.whatsapp","nav.whatsapp.desc"],"/forms":["nav.forms","nav.forms.desc"],"/document-bank":["nav.documents","nav.documents.desc"],"/law-bank":["nav.law","nav.law.desc"],"/business":["nav.business","nav.business.desc"],"/finance":["nav.finance","nav.finance.desc"],"/digitisation":["nav.digitisation","nav.digitisation.desc"],"/people":["nav.people","nav.people.desc"],"/storage":["nav.storage","nav.storage.desc"],"/firm-control":["nav.control","nav.control.desc"],"/studio":["nav.studio","nav.studio.desc"]
 };
-function roleKey(role:string){const x=role.toLowerCase();if(x.includes("owner")||x.includes("founder"))return"owner";if(x.includes("partner"))return"partner";if(x.includes("finance")||x.includes("account"))return"finance";return"lawyer"}
+function roleKey(role:string){const x=role.toLowerCase().replace(/\s+/g,"_");if(x.includes("owner")||x.includes("founder"))return"owner";if(x.includes("partner"))return"partner";if(x.includes("finance")||x.includes("account"))return"finance";if(x.includes("knowledge"))return"knowledge_manager";if(x.includes("administrator")||x.includes("project_manager"))return"administrator";if(x.includes("paralegal"))return"paralegal";if(x.includes("clerk")||x.includes("records"))return"clerk";if(x.includes("intern"))return"intern";if(x.includes("senior_associate"))return"senior_associate";if(x.includes("junior_associate"))return"junior_associate";return"lawyer"}
 
 export default function WorkspacePage(){
  const{locale,t,setLocale}=useLocale();
