@@ -20,7 +20,7 @@ function trimHeader(value: string | null) {
 export async function resolveRequestScope(request?: Request): Promise<RequestScope> {
   const authIdentity = await getAuthenticatedUser();
 
-  if (authIdentity?.lawyer || authIdentity?.membership) {
+  if (authIdentity?.membership) {
     const membership = authIdentity.membership as { role_key?: string | null } | null;
     const metadataName =
       typeof authIdentity.user.user_metadata?.full_name === "string"
@@ -30,10 +30,10 @@ export async function resolveRequestScope(request?: Request): Promise<RequestSco
           : null;
     return {
       source: "auth-user",
-      firmId: authIdentity.activeFirmId ?? authIdentity.lawyer?.firm_id ?? null,
+      firmId: authIdentity.activeFirmId ?? null,
       actorLawyerId: authIdentity.lawyer?.id ?? authIdentity.user.id,
       actorName: authIdentity.lawyer?.full_name ?? metadataName ?? authIdentity.user.email ?? "TSIDEK User",
-      actorRole: membership?.role_key ?? authIdentity.lawyer?.role ?? "lawyer",
+      actorRole: membership?.role_key ?? "lawyer",
       userEmail: authIdentity.user.email ?? null,
       authenticated: true,
     };
