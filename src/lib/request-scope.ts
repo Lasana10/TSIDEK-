@@ -117,7 +117,8 @@ export async function resolveRequestScope(request?: Request): Promise<RequestSco
 export async function assertMatterScopeAccess(request: Request, matterId: string) {
   const scope = await resolveRequestScope(request);
   const supabase = createServerSupabaseClient();
-  if (!supabase || !scope.firmId || !scope.actorLawyerId) return scope;
+  if (!supabase) throw new Error("Supabase firm authorization is unavailable.");
+  if (!scope.firmId || !scope.actorLawyerId) throw new Error("Authenticated active firm membership required.");
 
   if (scope.source !== "auth-user" || !scope.authenticated) throw new Error("Authenticated firm membership is required.");
   const activeMembership = await supabase.from("firm_memberships").select("id").eq("user_id",scope.actorLawyerId).eq("firm_id",scope.firmId).eq("status","active").maybeSingle();
