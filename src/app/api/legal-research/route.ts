@@ -10,7 +10,8 @@ export async function POST(request: Request) {
     const matterId = typeof body?.matterId === "string" && body.matterId ? body.matterId : null;
     const limit = Number.isFinite(Number(body?.limit)) ? Number(body.limit) : 12;
 
-    const result = await searchLegalSources({ scope, query, matterId, limit });
+    const asOfDate=typeof body?.asOfDate === "string" ? body.asOfDate : null;
+    const result = await searchLegalSources({ scope, query, matterId, limit, asOfDate });
     return NextResponse.json({ success: true, ...result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Legal research failed.";
