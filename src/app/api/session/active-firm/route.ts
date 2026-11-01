@@ -12,8 +12,8 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const firmId = String(body.firmId ?? "").trim();
-    if (!firmId) {
-      return NextResponse.json({ success: false, error: "firmId is required." }, { status: 400, headers: HEADERS });
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(firmId)) {
+      return NextResponse.json({ success: false, error: "A valid firm identifier is required." }, { status: 400, headers: HEADERS });
     }
 
     await setActiveFirmForUser(identity.user.id, firmId);
