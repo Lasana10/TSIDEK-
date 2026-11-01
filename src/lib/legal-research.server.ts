@@ -13,6 +13,13 @@ export type LegalResearchHit = {
   source_url: string | null;
   canonical_uri: string | null;
   rank: number;
+  publisher: string;
+  version_label: string | null;
+  valid_from: string | null;
+  valid_until: string | null;
+  source_checksum: string;
+  verified_at: string;
+  source_class: string;
 };
 
 export async function searchLegalSources(input: {
@@ -20,6 +27,7 @@ export async function searchLegalSources(input: {
   query: string;
   matterId?: string | null;
   limit?: number;
+  asOfDate?: string | null;
 }) {
   const query = input.query.trim();
   if (query.length < 3) throw new Error("Research query must contain at least 3 characters.");
@@ -34,10 +42,13 @@ export async function searchLegalSources(input: {
   const supabase = await createServerAuthClient();
   if (!supabase) throw new Error("Supabase Auth client is unavailable.");
 
-  const { data, error } = await supabase.rpc("search_legal_source_chunks", {
+  const asOfDate=input.asOfDate || new Date().toISOString().slice(0,10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(asOfDate) || Number.isNaN(new Date(asOfDate).getTime())) throw new Error("Valid research as-of date required.");
+  const { data, error } = await supabase.rpc("tsidek_search_verified_legal_chunks", {
     search_query: query,
     requested_firm_id: input.scope.firmId,
     match_count: Math.max(1, Math.min(input.limit ?? 12, 30)),
+    p_as_of_date: asOfDate,
   });
   if (error) throw new Error(error.message);
 
@@ -45,11 +56,12 @@ export async function searchLegalSources(input: {
   return {
     query,
     matterId: input.matterId ?? null,
+    asOfDate,
     hits,
     sourceCount: new Set(hits.map((hit) => hit.source_document_id)).size,
     warning:
       hits.length === 0
-        ? "No verified source chunk matched this query. TSIDKENU must not invent a legal authority."
+        ? "No professionally verified, rights-cleared legal passage matched for this date. Intake records and official links are not, by themselves, verified legal text."
         : null,
   };
 }
