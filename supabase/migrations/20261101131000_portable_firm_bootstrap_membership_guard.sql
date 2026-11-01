@@ -60,7 +60,7 @@ begin
 
   insert into public.firm_memberships(firm_id, user_id, role_key, title, status, is_primary)
   values(v_firm_id, v_user_id, v_role_key, v_legacy_role, 'active', true)
-  on conflict (firm_id, user_id) do nothing;
+  on conflict on constraint firm_memberships_firm_id_user_id_key do nothing;
 
   insert into public.user_firm_context(user_id, active_firm_id, updated_at)
   values(v_user_id, v_firm_id, now())
