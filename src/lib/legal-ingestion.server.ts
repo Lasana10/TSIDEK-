@@ -55,7 +55,7 @@ export async function ingestLegalTextSource(input: {
   const checksum = sha256(text);
   const existing = await supabase
     .from("legal_source_documents")
-    .select("id,title,ingestion_status")
+    .select("id,title,ingestion_status,verification_status")
     .eq("firm_id", input.scope.firmId)
     .eq("checksum", checksum)
     .maybeSingle();
@@ -77,9 +77,10 @@ export async function ingestLegalTextSource(input: {
     valid_until: input.validUntil ?? null,
     checksum,
     ingestion_status: "processing",
+    verification_status: "pending",
     provenance: input.provenance ?? {},
     created_by: input.scope.actorLawyerId,
-  }).select("id,title,ingestion_status").single();
+  }).select("id,title,ingestion_status,verification_status").single();
   if (inserted.error || !inserted.data) throw new Error(inserted.error?.message ?? "Unable to register legal source.");
 
   try {
@@ -95,7 +96,7 @@ export async function ingestLegalTextSource(input: {
     }));
     const chunkInsert = await supabase.from("legal_source_chunks").insert(rows);
     if (chunkInsert.error) throw new Error(chunkInsert.error.message);
-    const ready = await supabase.from("legal_source_documents").update({ ingestion_status: "needs_review", updated_at: new Date().toISOString() }).eq("id", inserted.data.id).select("id,title,ingestion_status").single();
+    const ready = await supabase.from("legal_source_documents").update({ ingestion_status: "needs_review", updated_at: new Date().toISOString() }).eq("id", inserted.data.id).select("id,title,ingestion_status,verification_status").single();
     if (ready.error) throw new Error(ready.error.message);
     return { source: ready.data, duplicate: false, chunks: rows.length };
   } catch (error) {
