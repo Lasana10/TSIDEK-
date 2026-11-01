@@ -134,7 +134,10 @@ export async function getAuthenticatedUser() {
   if (!user) return null;
 
   const [lawyer, firmContext] = await Promise.all([
-    getLawyerProfileByUserId(user.id, supabase),
+    // The legacy profile can be hidden by RLS after switching firms.
+    // Only the verified session user's own profile is queried; never use its
+    // legacy role for an organization's current permissions.
+    getLawyerProfileByUserId(user.id),
     getFirmContextByUserId(user.id, supabase),
   ]);
 
