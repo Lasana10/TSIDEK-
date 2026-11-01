@@ -50,10 +50,29 @@ export async function GET(request:Request){
    if(!uuid.test(matterId))return NextResponse.json({success:false,error:"Invalid matter"},{status:400});
    await assertMatterPermission({scope,matterId,allowAnyMember:true});
    const {data,error}=await db.from("tsidek_matter_source_citations")
-    .select("id,source_title,source_checksum,source_version,quoted_excerpt,verified_at_snapshot,cited_at,citation_note")
+    .select("id,source_document_id,source_title,source_checksum,source_version,quoted_excerpt,verified_at_snapshot,cited_at,citation_note")
     .eq("firm_id",scope.firmId).eq("matter_id",matterId).order("cited_at",{ascending:false}).limit(100);
    if(error)throw new Error(error.message);
-   return NextResponse.json({success:true,citations:data},{headers:{"Cache-Control":"private, no-store"}});
+   const sourceIds=[...new Set((data??[]).map(c=>c.source_document_id))];
+   const sources=sourceIds.length?await db.from("legal_source_documents")
+     .select("id,checksum,verification_status,ingestion_status,verified_at,valid_from,valid_until,rights_attestation")
+     .in("id",sourceIds):{data:[],error:null};
+   if(sources.error)throw new Error(sources.error.message);
+   const current=new Map((sources.data??[]).map(x=>[x.id,x]));
+   const today=new Date().toISOString().slice(0,10);
+   const citations=(data??[]).map(c=>{
+    const source=current.get(c.source_document_id);
+    const issue=!source?"source_unavailable":
+      source.verification_status!=="verified"?"review_revoked_or_pending":
+      source.ingestion_status!=="ready"?"content_not_ready":
+      !source.rights_attestation?"reuse_rights_not_confirmed":
+      source.checksum!==c.source_checksum?"source_content_changed":
+      source.valid_from&&source.valid_from>today?"not_yet_effective":
+      source.valid_until&&source.valid_until<today?"expired":
+      !source.valid_from&&!source.valid_until?"validity_dates_unconfirmed":null;
+    return {...c,currentness:issue?"recheck_required":"current_as_recorded",currentnessReason:issue};
+   });
+   return NextResponse.json({success:true,citations},{headers:{"Cache-Control":"private, no-store"}});
   }
   await assertFirmPermission({scope,permission:"manageEvidence"});
   const {data,error}=await db.from("legal_source_documents")
