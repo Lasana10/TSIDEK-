@@ -12,7 +12,6 @@ export async function POST(request: Request) {
     const asOfDate = typeof body?.asOfDate === "string" ? body.asOfDate : null;
     if (asOfDate && !/^\d{4}-\d{2}-\d{2}$/.test(asOfDate)) return NextResponse.json({success:false,error:"Invalid research effective date."},{status:400});
 
-    const asOfDate=typeof body?.asOfDate === "string" ? body.asOfDate : null;
     const result = await searchLegalSources({ scope, query, matterId, limit, asOfDate });
     return NextResponse.json({ success: true, ...result });
   } catch (error) {
